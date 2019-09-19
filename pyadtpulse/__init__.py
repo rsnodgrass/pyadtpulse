@@ -160,7 +160,7 @@ class PyADTPulse(object):
         response = self.query(ADT_ZONES_URI)
         LOG.debug("Response zones = %s", response.json)
 
-        self._all_zones = response.json.get('items')
+   #     self._all_zones = response.json.get('items')
         # for zone in all_zones:
 
         # FIXME: modify json returned in each item?  E.g.
