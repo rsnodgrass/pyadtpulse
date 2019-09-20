@@ -20,16 +20,13 @@ class PyADTPulse(object):
            :returns PyADTPulse base object
         """
         self.__session = requests.Session()
+        self.__cookies = None
         self.__user_agent = user_agent
         self.__api_version = None
 
-        self.__headers = None
-        self.__params = None
-        self.__cookies = None
-
         # authenticate the user
         self.__username = username
-        self.__password = password # TODO: ideally do NOT store this in memory...
+        self.__password = password # TODO: ideally DON'T store this in memory...
         self.login()
 
         self._site_id = None
@@ -54,21 +51,32 @@ class PyADTPulse(object):
         return self.__api_version
 
     def _update_summary(self, summary_html):
-        # LOG.debug("Summary %s", summary_html)
-        html = BeautifulSoup(summary_html, 'html.parser') # text or content?
+        soup = BeautifulSoup(summary_html, 'html.parser') # text or content?
 
         sites = []
 
-        # typically, ADT Pulse accounts have only a single premise (site)
-        singlePremise = html.find('span', {'id': 'p_singlePremise'})
-        if singlePremise:
-            signout_url = html.find('a', {'id': '_signout1'})
-            m = re.search('?networkid=(\d+)&', signout_url)
-            if m:
-                side_id = m.group(1)
-                sites.append({ 'id': site_id, 'name': singlePremise.text })
+        status_orb = soup.find('canvas', {'id': 'ic_orb'})
+        if status_orb:
+            self.__alarm_status = status_orb.orb
+            LOG.debug("Alarm status = %s", status_orb)
         else:
-            LOG.warn("ADT Pulse accounts with multiple sites not yet supported!!!")
+            LOG.warn("Failed to find alarm status orb")
+
+
+        # typically, ADT Pulse accounts have only a single site (premise/location)
+        singlePremise = soup.find('span', {'id': 'p_singlePremise'})
+        if singlePremise:
+            signout_info = soup.find('a', {'class': 'p_signoutlink'})
+            LOG.warn("SURL=%s", signout_info.text)
+            m = re.search("networkid=(.+)&", signout_info.text)
+            if m:
+                site_id = m.group(1)
+                sites.append({ 'id': site_id, 'name': singlePremise.text })
+                LOG.info(f"Found site id {site_id}")
+            else:
+                LOG.warn("Couldn't find site id in %s!", signout_info)
+        else:
+            LOG.error("ADT Pulse accounts with multiple sites not yet supported!!!")
 
         self.__sites = sites
         LOG.debug(f"Discovered ADT Pulse sites: {self.__sites}")
@@ -78,11 +86,6 @@ class PyADTPulse(object):
 #
 # ... or perhaps better, just extract all from /system/settings.jsp
 
-        status_orb = html.find('canvas', {'id': 'ic_orb'})
-        if status_orb:
-            self.__alarm_status = status_orb.orb
-        else:
-            LOG.warn("Failed to find alarm status orb")
 
 
     def login(self):
@@ -98,8 +101,8 @@ class PyADTPulse(object):
             },
             force_login=False)
 
-        html = BeautifulSoup(response.text, 'html.parser') # text or content?
-        error = html.find('div', {'id': 'warnMsgContents'})
+        soup = BeautifulSoup(response.text)
+        error = soup.find('div', {'id': 'warnMsgContents'})
         if error:
             error_string = error.text
             LOG.error("ADT Pulse response: %s", error_string)
@@ -115,16 +118,17 @@ class PyADTPulse(object):
     @property
     def is_connected(self):
         """Connection status of client with ADT Pulse cloud service."""
-        return self.__authenticated
+        #self.__authenticated_timestamp
+        return self.__authenticated # FIXME: timeout automatically based on ADT default expiry?
 
     def query(self, uri, method='GET', extra_params=None, extra_headers=None,
               retry=3, force_login=True, version_prefix=True):
         """
         Returns a JSON object for an HTTP request.
         :param url: API URL
-        :param method: Specify the method GET, POST or PUT (default=POST)
-        :param extra_params: Dictionary to be appended on request.body
-        :param extra_headers: Dictionary to be apppended on request.headers
+        :param method: GET, POST or PUT (default=POST)
+        :param extra_params: Dictionary to be appended to request.body
+        :param extra_headers: Dictionary to be apppended to request.headers
         :param retry: Retry attempts for the query (default=3)
         """
         response = None
@@ -185,18 +189,7 @@ class PyADTPulse(object):
         return self._all_zones
 
     def alarm_status(self):
-        response = self.query(ADT_SUMMARY_URI)
-
-        # FIXME parse out state
-        html = BeautifulSoup(response.content, 'html.parser')
-        alarm_status = html.find('span', 'p_boldNormalTextLarge')
-#        if not alarm_status:
-#            raise LoginException("Cannot find alarm state information")
-
-        for string in alarm_status.strings:
-            status, _ = string.split('.', 1)
- 
-        return status
+        return None
 
     @property
     def armed(self, mode=None):

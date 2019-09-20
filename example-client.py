@@ -39,7 +39,8 @@ def main():
     print("\n--Zones--")
 #    pp.pprint(adt.zones)
 
-#    adt.arm(status='away') # default is away, but can pass state=...'
+#    adt.arm_away()
+#    adt.arm_home()
 #    adt.disarm()
 
     adt.logout
