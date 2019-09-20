@@ -29,6 +29,7 @@ class PyADTPulse(object):
         self.__password = password # TODO: ideally DON'T store this in memory...
         self.login()
 
+        self.__sites = []
         self._site_id = None
         self._all_zones = None
 
@@ -46,22 +47,14 @@ class PyADTPulse(object):
                 LOG.debug("Discovered ADT Pulse version %s", self.__api_version)
             else:
                 self.__api_version = '16.0.0-131'
-                LOG.warn("Could not auto-detect ADT Pulse version, defaulting to %s", self.__api_version)
+                LOG.warn("Couldn't auto-detect ADT Pulse version, defaulting to %s", self.__api_version)
 
         return self.__api_version
 
-    def _update_summary(self, summary_html):
-        soup = BeautifulSoup(summary_html, 'html.parser') # text or content?
+    def _update_sites(self, summary_html):
+        soup = BeautifulSoup(summary_html, 'html.parser')
 
         sites = []
-
-        status_orb = soup.find('canvas', {'id': 'ic_orb'})
-        if status_orb:
-            self.__alarm_status = status_orb.orb
-            LOG.debug("Alarm status = %s", status_orb)
-        else:
-            LOG.warn("Failed to find alarm status orb")
-
 
         # typically, ADT Pulse accounts have only a single site (premise/location)
         singlePremise = soup.find('span', {'id': 'p_singlePremise'})
@@ -71,8 +64,8 @@ class PyADTPulse(object):
             m = re.search("networkid=(.+)&", signout_info.text)
             if m:
                 site_id = m.group(1)
-                sites.append({ 'id': site_id, 'name': singlePremise.text })
                 LOG.info(f"Found site id {site_id}")
+                sites.append( ADTPulseSite(self, site_id, singlePremise.text) )
             else:
                 LOG.warn("Couldn't find site id in %s!", signout_info)
         else:
@@ -101,7 +94,7 @@ class PyADTPulse(object):
             },
             force_login=False)
 
-        soup = BeautifulSoup(response.text)
+        soup = BeautifulSoup(response.text, 'html.parser')
         error = soup.find('div', {'id': 'warnMsgContents'})
         if error:
             error_string = error.text
@@ -113,7 +106,7 @@ class PyADTPulse(object):
         self.__authenticated_timestamp = time.time()
         LOG.info(f"Authenticated ADT Pulse account {self.__username}")
 
-        self._update_summary(response.text)
+        self._update_sites(response.text)
 
     @property
     def is_connected(self):
@@ -188,8 +181,10 @@ class PyADTPulse(object):
 
         return self._all_zones
 
-    def alarm_status(self):
-        return None
+    @property
+    def status(self):
+        # FIXME: update if stale!
+        return self.__alarm_status
 
     @property
     def armed(self, mode=None):
@@ -232,3 +227,51 @@ class PyADTPulse(object):
         LOG.info(f"Logging {self.__username} out of ADT Pulse") 
         self.query(ADT_LOGOUT_URI)
         self.__authenticated = False
+
+
+class ADTPulseSite(object):
+    def __init__(self, adt_service, site_id, name, summary_html):
+        """Represents an individual ADT Pulse site"""
+
+        self._adt_service = adt_service
+        self._id = site_id
+        self._name = name
+
+        self._update(summary_html)
+
+        self._zones = []
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def status(self):
+        return self._status
+
+    def arm_away(self):
+        return None
+
+    def arm_home(self):
+        return None
+
+    def disarm(self):
+        return None
+
+    @property
+    def zones(self):
+        return self._zones
+
+    def _update(self, summary_html):
+        soup = BeautifulSoup(summary_html, 'html.parser')
+
+        status_orb = soup.find('canvas', {'id': 'ic_orb'})
+        if status_orb:
+            self._status = status_orb['orb']
+            LOG.debug("Alarm status = %s", self._status)
+        else:
+            LOG.error("Failed to find alarm status!")
