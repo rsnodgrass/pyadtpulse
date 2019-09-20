@@ -28,11 +28,16 @@ def main():
 
     setup_logger()
     pp = pprint.PrettyPrinter(indent = 2)
- 
+
+    ####
+
     adt = PyADTPulse(username, password)
 
+    print("\n--Sites--")
+    pp.pprint(adt.sites)
+
     print("\n--Zones--")
-    pp.pprint(adt.zones)
+#    pp.pprint(adt.zones)
 
 #    adt.arm(status='away') # default is away, but can pass state=...'
 #    adt.disarm()

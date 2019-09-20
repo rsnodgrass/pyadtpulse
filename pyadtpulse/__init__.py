@@ -1,11 +1,12 @@
 """Base Python Class for pyadtpulse"""
 
+import re
 import time
 import logging
 import requests
 from bs4 import BeautifulSoup
 
-from pyadtpulse.const import ( API_HOST, API_PREFIX, ADT_LOGIN_URI, ADT_ZONES_URI )
+from pyadtpulse.const import ( API_HOST, API_PREFIX, ADT_LOGIN_URI, ADT_ZONES_URI, ADT_ALARM_AWAY )
 
 LOG = logging.getLogger(__name__)
 
@@ -49,6 +50,38 @@ class PyADTPulse(object):
 
         return self.__version
 
+    def _update_summary(self, summary_html):
+        # LOG.debug("Summary %s", summary_html)
+        html = BeautifulSoup(summary_html, 'html.parser') # text or content?
+
+        sites = []
+
+        # typically, ADT Pulse accounts have only a single premise (site)
+        singlePremise = html.find('span', {'id': 'p_singlePremise'})
+        if singlePremise:
+            signout_url = html.find('a', {'id': '_signout1'})
+            m = re.search('?networkid=(\d+)&', signout_url)
+            if m:
+                side_id = m.group(1)
+                sites.append({ 'id': site_id, 'name': singlePremise.text })
+        else:
+            LOG.warn("ADT Pulse accounts with multiple sites not yet supported!!!")
+
+        self.__sites = sites
+        LOG.debug(f"Discovered ADT Pulse sites: {self.__sites}")
+# 
+# ...and current network id from:
+# <a id="p_signout1" class="p_signoutlink" href="/myhome/16.0.0-131/access/signout.jsp?networkid=150616za043597&partner=adt" onclick="return flagSignOutInProcess();">
+#
+# ... or perhaps better, just extract all from /system/settings.jsp
+
+        status_orb = html.find('canvas', {'id': 'ic_orb'})
+        if status_orb:
+            self.__alarm_status = status_orb.orb
+        else:
+            LOG.warn("Failed to find alarm status orb")
+
+
     def login(self):
         self.__authenticated = False
 
@@ -68,13 +101,15 @@ class PyADTPulse(object):
         error = html.find('div', {'id': 'warnMsgContents'})
         if error:
             error_string = error.text
-            LOG.debug("Error logging into ADT Pulse %s", error_string)
+            LOG.error("ADT Pulse response: %s", error_string)
             self.__authenticated = False
             return
 
         self.__authenticated = True
         self.__authenticated_timestamp = time.time()
         LOG.info(f"Authenticated ADT Pulse account {self.__username}")
+
+        self._update_summary(response.text)
 
     @property
     def is_connected(self):
@@ -136,10 +171,8 @@ class PyADTPulse(object):
             response = None
             if method == 'GET':
                 response = self.__session.get(url, headers=headers, cookies=self.__cookies)
-            elif method == 'PUT':
-                response = self.__session.put(url, headers=headers, cookies=self.__cookies, json=params)
             elif method == 'POST':
-                response = self.__session.post(url, headers=headers, cookies=self.__cookies, json=params)
+                response = self.__session.post(url, headers=headers, cookies=self.__cookies, data=params)
             else:
                 LOG.error("Invalid request method '%s'", method)
                 return None
@@ -190,7 +223,7 @@ class PyADTPulse(object):
         """
         return False  # FIXME
 
-    def arm(self, mode='away'):
+    def arm(self, mode=ADT_ALARM_AWAY):
         """Set the alarm arm mode to one of: off, home, away
         :param mode: alarm mode to set (default=away)
         """
@@ -214,6 +247,11 @@ class PyADTPulse(object):
             # clear cache and force update
             self._all_zones = None
             force_update = self.sensors
+
+    @property
+    def sites(self):
+        """Return all sites for this ADT Pulse account"""
+        return self.__sites
 
     def logout(self):
         LOG.info(f"Logging {self.__username} out of ADT Pulse") 
