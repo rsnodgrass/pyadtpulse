@@ -81,16 +81,13 @@ class ADTPulseSite(object):
         """Return all zones registered with the ADT Pulse account."""
         # FIXME: check if the timestamp is stale --> fetch the latest copy
 
+        if not self._adt_service.updates_exist:
+            return
+
         response = self._adt_service.query(ADT_ZONES_URI)
         self._zones_json = response.json()
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
-
-        # FIXME: modify json returned in each item?  E.g.
-        # - delete deprecatedAction
-        # - remove state and move the key variable as first class (e.g. statusTxt, activityTs, status = state.icon)
-
-        # to simplify usage, insert a new status field (e.g. Closed, Open)
 
         # to simplify usage, flatten structure AND
         zones = response.json().get('items')

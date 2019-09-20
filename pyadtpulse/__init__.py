@@ -6,7 +6,7 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 
-from pyadtpulse.const import ( API_HOST, API_PREFIX, ADT_LOGIN_URI )
+from pyadtpulse.const import ( API_HOST, API_PREFIX, ADT_LOGIN_URI, ADT_LOGOUT_URI, ADT_SYNC_CHECK_URI )
 from pyadtpulse.site import ADTPulseSite
 
 LOG = logging.getLogger(__name__)
@@ -23,6 +23,9 @@ class PyADTPulse(object):
         self._cookies = None
         self._user_agent = user_agent
         self._api_version = None
+
+        self._sync_timestamp = 0
+        self._sync_token = '0-0-0'
 
         self._sites = []
 
@@ -67,7 +70,7 @@ class PyADTPulse(object):
             m = re.search("networkid=(.+)&", signout_info)
             if m:
                 site_id = m.group(1)
-                LOG.info(f"Discovered site id {site_id}: {singlePremise.text}")
+                LOG.debug(f"Discovered site id {site_id}: {singlePremise.text}")
                 sites.append( ADTPulseSite(self, site_id, singlePremise.text, summary_html) )
             else:
                 LOG.warn("Couldn't find site id in %s!", signout_info)
@@ -112,6 +115,18 @@ class PyADTPulse(object):
         LOG.info(f"Logging {self._username} out of ADT Pulse") 
         self.query(ADT_LOGOUT_URI)
         self._authenticated = False
+
+    @property
+    def updates_exist(self):
+        response = self.query(ADT_SYNC_CHECK_URI, extra_params={'ts': self._sync_timestamp})
+        self._sync_timestamp = time.time()
+
+        if response.content != self._sync_token:
+            LOG.debug(f"Sync token {response.content} != existing {self._sync_token}")
+            self._sync_token = response.content
+            return True
+
+        return False
 
     @property
     def is_connected(self):
