@@ -9,10 +9,10 @@ from pyadtpulse import PyADTPulse
 
 def setup_logger():
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.INFO)
 
     formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
@@ -40,13 +40,11 @@ def main():
 
         print("\nZones:")
         for zone in site.zones:
-            pp.pprint(zone)
-            print("\n")
+            print(zone)
 
-        #    site.arm_away()
-        #    site.arm_home()
-        #    site.disarm()
-        print("\n")
+        site.arm_away()
+        #site.arm_home()
+        #site.disarm()
 
     adt.logout
 

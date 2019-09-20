@@ -3,7 +3,7 @@ import json
 import time
 import logging
 from bs4 import BeautifulSoup
-from pyadtpulse.const import ( ADT_ZONES_URI )
+from pyadtpulse.const import ( ADT_ZONES_URI, ADT_ARM_DISARM_URI )
 
 LOG = logging.getLogger(__name__)
 
@@ -48,12 +48,13 @@ class ADTPulseSite(object):
         :param mode: alarm mode to set
         """
         LOG.debug(f"Setting alarm mode to '{type}'")
-        response = self.query(ADT_ARM_DISARM_URI,
-                              extra_params = {
-                                 'href'     : 'rest/adt/ui/client/security/setArmState',
-                                 'armstate' : self.__alarm_state,
-                                 'arm'      : mode
-                              })
+        response = self._adt_service.query(ADT_ARM_DISARM_URI,
+                                           extra_params = {
+                                              'href'     : 'rest/adt/ui/client/security/setArmState',
+                                              'armstate' : self._status, # existing state
+                                              'arm'      : mode          # new state
+                                           })
+        LOG.warn(f"Arming {mode} response = {response.content}")
 
     def arm_away(self):
         self._arm(ADT_ALARM_AWAY)

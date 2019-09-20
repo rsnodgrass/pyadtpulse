@@ -108,6 +108,11 @@ class PyADTPulse(object):
 
         self._update_sites(response.text)
 
+    def logout(self):
+        LOG.info(f"Logging {self._username} out of ADT Pulse") 
+        self.query(ADT_LOGOUT_URI)
+        self._authenticated = False
+
     @property
     def is_connected(self):
         """Connection status of client with ADT Pulse cloud service."""
@@ -176,8 +181,3 @@ class PyADTPulse(object):
     def sites(self):
         """Return all sites for this ADT Pulse account"""
         return self._sites
-
-    def logout(self):
-        LOG.info(f"Logging {self._username} out of ADT Pulse") 
-        self.query(ADT_LOGOUT_URI)
-        self._authenticated = False

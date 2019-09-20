@@ -46,7 +46,7 @@ See [example-client.py](example-client.py) for a working example.
 
 ## Future Enhancements
 
+* arm/disarm
 * support multiple sites (premises/locations) under a single ADT account
-* arm/disarm and current status
-* current state for all sensors
-* alarm history (from /ajax/alarmHistory.jsp)
+* implement lightweight status pings to check if cache needs to be invalidated (every 5 seconds) (https://portal.adtpulse.com/myhome/16.0.0-131/Ajax/SyncCheckServ?t=1568950496392)
+* alarm history (/ajax/alarmHistory.jsp)
