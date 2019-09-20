@@ -8,11 +8,13 @@ import logging
 from pyadtpulse import PyADTPulse
 
 def setup_logger():
+    log_level = logging.DEBUG
+
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(log_level)
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.INFO)
+    handler.setLevel(log_level)
 
     formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
@@ -44,7 +46,7 @@ def main():
 
         site.arm_away()
         #site.arm_home()
-        #site.disarm()
+        site.disarm()
 
     adt.logout
 

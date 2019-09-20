@@ -48,12 +48,13 @@ class ADTPulseSite(object):
         :param mode: alarm mode to set
         """
         LOG.debug(f"Setting alarm mode to '{type}'")
-        response = self._adt_service.query(ADT_ARM_DISARM_URI,
+        response = self._adt_service.query(ADT_ARM_DISARM_URI, method='POST',
                                            extra_params = {
                                               'href'     : 'rest/adt/ui/client/security/setArmState',
                                               'armstate' : self._status, # existing state
                                               'arm'      : mode          # new state
                                            })
+        self._status = mode
         LOG.warn(f"Arming {mode} response = {response.content}")
 
     def arm_away(self):
