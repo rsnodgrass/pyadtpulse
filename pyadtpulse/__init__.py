@@ -89,8 +89,6 @@ class PyADTPulse(object):
         self.__authenticated = False
 
         """Login to the ADT Pulse account and generate access token"""
-        self.reset_headers()
-
         response = self.query(
             ADT_LOGIN_URI, method='POST',
             extra_params={
@@ -119,15 +117,6 @@ class PyADTPulse(object):
         """Connection status of client with ADT Pulse cloud service."""
         return self.__authenticated
 
-    def reset_headers(self):
-        """Reset the default headers and params."""
-        self.__headers = {
-            'Host':          'portal.adtpulse.com',
-            'Accept':        'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'User-Agent':    self.__user_agent
-        }
-        self.__params = {}
-
     def query(self, uri, method='GET', extra_params=None, extra_headers=None,
               retry=3, force_login=True, version_prefix=True):
         """
@@ -139,7 +128,6 @@ class PyADTPulse(object):
         :param retry: Retry attempts for the query (default=3)
         """
         response = None
-        self.reset_headers() # ensure the headers and params are reset to the bare minimum
 
         # automatically attempt to login, if not connected
         if force_login and not self.is_connected:
@@ -155,23 +143,16 @@ class PyADTPulse(object):
             # FIXME: reauthenticate if received:
             # "You have not yet signed in or you have been signed out due to inactivity."
 
-            # override request.body or request.headers dictionary
-            params = self.__params
+            # update default headers and body/json values
+            params = {}
             if extra_params:
                 params.update(extra_params)
-            if 'password' not in params:
-                LOG.debug("Params: %s", params)
 
-            headers = self.__headers
+            headers = { 'User-Agent': self.__user_agent }
             if extra_headers:
                 headers.update(extra_headers)
-            LOG.debug("Headers: %s", headers)
-
-#            if self.__cookies:
-            LOG.debug("Cookies: %s", self.__cookies)
 
             # define connection method
-            response = None
             if method == 'GET':
                 response = self.__session.get(url, headers=headers, cookies=self.__cookies)
             elif method == 'POST':
@@ -179,8 +160,6 @@ class PyADTPulse(object):
             else:
                 LOG.error("Invalid request method '%s'", method)
                 return None
-
-#            LOG.debug("Response = %s", response.content)
 
             if response and (response.status_code == 200):
                 break # success!
