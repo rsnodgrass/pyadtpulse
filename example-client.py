@@ -8,7 +8,7 @@ import logging
 from pyadtpulse import PyADTPulse
 
 def setup_logger():
-    log_level = logging.DEBUG
+    log_level = logging.INFO
 
     logger = logging.getLogger()
     logger.setLevel(log_level)

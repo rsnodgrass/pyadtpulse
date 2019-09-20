@@ -47,7 +47,7 @@ class ADTPulseSite(object):
         """Set the alarm arm mode to one of: off, home, away
         :param mode: alarm mode to set
         """
-        LOG.debug(f"Setting alarm mode to '{type}'")
+        LOG.debug(f"Setting alarm to '{mode}'")
         response = self._adt_service.query(ADT_ARM_DISARM_URI, method='POST',
                                            extra_params = {
                                               'href'     : 'rest/adt/ui/client/security/setArmState',
@@ -55,7 +55,6 @@ class ADTPulseSite(object):
                                               'arm'      : mode          # new state
                                            })
         self._status = mode
-        LOG.warn(f"Arming {mode} response = {response.content}")
 
     def arm_away(self):
         self._arm(ADT_ALARM_AWAY)
@@ -104,7 +103,9 @@ class ADTPulseSite(object):
             if m:
                 zone['status'] = m.group(1)
 
-            zone['activityTs'] = zone['state']['activityTs']
+            zone['tags'] = zone['tags'].split(',')
+
+            zone['activityTs'] = int(zone['state']['activityTs'])
             del zone['state']
 
         return zones
