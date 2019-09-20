@@ -1,4 +1,5 @@
 import re
+import json
 import time
 import logging
 from bs4 import BeautifulSoup
@@ -77,22 +78,35 @@ class ADTPulseSite(object):
     @property
     def zones(self):
         """Return all zones registered with the ADT Pulse account."""
-        if self._zones:
-            return self._zones
-
-        # FIXME: ensure the zones for the correct site are being loaded!!!
+        # FIXME: check if the timestamp is stale --> fetch the latest copy
 
         response = self._adt_service.query(ADT_ZONES_URI)
-        LOG.debug("Response zones = %s", response.json)
+        self._zones_json = response.json()
 
-   #     self._all_zones = response.json.get('items')
-        # for zone in all_zones:
+        # FIXME: ensure the zones for the correct site are being loaded!!!
 
         # FIXME: modify json returned in each item?  E.g.
         # - delete deprecatedAction
         # - remove state and move the key variable as first class (e.g. statusTxt, activityTs, status = state.icon)
 
-        return self._zones
+        # to simplify usage, insert a new status field (e.g. Closed, Open)
+
+        # to simplify usage, flatten structure AND
+        zones = response.json().get('items')
+        for zone in zones:
+            del zone['deprecatedAction']
+            del zone['devIndex']
+
+            # insert a simpler to access status field (e.g. Closed, Open)
+            m = re.search(" - (.*)\n", zone['state']['statusTxt'])
+            if m:
+                zone['status'] = m.group(1)
+
+            zone['activityTs'] = zone['state']['activityTs']
+            del zone['state']
+
+        return zones
+
 
     @property
     def history(self):

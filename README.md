@@ -42,6 +42,7 @@ See [example-client.py](example-client.py) for a working example.
 ## See Also
 
 * [ADT Pulse Portal](https://portal.adtpulse.com/)
+* Home Assistant ADT Pulse integration
 
 ## Future Enhancements
 

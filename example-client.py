@@ -39,7 +39,9 @@ def main():
         print(f"Alarm Status = {site.status}")
 
         print("\nZones:")
-        pp.pprint(site.zones)
+        for zone in site.zones:
+            pp.pprint(zone)
+            print("\n")
 
         #    site.arm_away()
         #    site.arm_home()
