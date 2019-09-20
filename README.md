@@ -5,8 +5,13 @@ Python client interface to the ADT Pulse security system.
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=WREP29UDAMB6G)
 
-NOTE: Since this interacts with the ADT Pulse AJAX web service, it is dependent on the
-behavior of the production ADT websute and thus behavior is subject to change without notice.
+While two or three Python clients to ADT Pulse existed, they generally only provided
+arm/disarm support and none provided support for ADT Pulse when multiple sites existed
+under a single account. This attempts to provide APIs to both all the zones (motion 
+sensors, door sensors, etc) as well as arming and disarming individual sites.
+
+NOTE: Since this interacts with the unofficial ADT Pulse AJAX web service, the
+behavior is subject to change by ADT without notice.
 
 ## Installation
 
@@ -42,11 +47,15 @@ See [example-client.py](example-client.py) for a working example.
 ## See Also
 
 * [ADT Pulse Portal](https://portal.adtpulse.com/)
-* Home Assistant ADT Pulse integration
+* [Home Assistant ADT Pulse integration](https://github.com/rsnodgrass/hass-adtpulse/)
+* [adt-pulse-mqtt](https://github.com/haruny/adt-pulse-mqtt) – MQTT integration with ADT Pulse alarm panels
 
 ## Future Enhancements
 
-* arm/disarm
+Feature ideas, but no plans to implement:
+
 * support multiple sites (premises/locations) under a single ADT account
 * implement lightweight status pings to check if cache needs to be invalidated (every 5 seconds) (https://portal.adtpulse.com/myhome/16.0.0-131/Ajax/SyncCheckServ?t=1568950496392)
 * alarm history (/ajax/alarmHistory.jsp)
+
+
