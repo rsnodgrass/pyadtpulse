@@ -32,21 +32,20 @@ def main():
     ####
 
     adt = PyADTPulse(username, password)
+    pp.pprint(adt.sites)
 
     sites = []
     for site in adt.sites:
         print("\n--Site--")
 
-    print(f"Alarm status = {adt.status}")
+        print(f"Alarm status = {site.status}")
 
-    pp.pprint(adt.sites)
+        print("\n--Zones--")
+        #    pp.pprint(adt.zones)
 
-    print("\n--Zones--")
-#    pp.pprint(adt.zones)
-
-#    adt.arm_away()
-#    adt.arm_home()
-#    adt.disarm()
+        #    site.arm_away()
+        #    site.arm_home()
+        #    site.disarm()
 
     adt.logout
 

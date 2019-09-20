@@ -6,9 +6,13 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 
-from pyadtpulse.const import ( API_HOST, API_PREFIX, ADT_LOGIN_URI, ADT_ZONES_URI, ADT_ALARM_AWAY )
+from pyadtpulse.const import ( API_HOST, API_PREFIX, ADT_LOGIN_URI, ADT_ZONES_URI )
 
 LOG = logging.getLogger(__name__)
+
+ADT_ALARM_AWAY = 'away'
+ADT_ALARM_HOME = 'home'
+ADT_ALARM_OFF  = 'off'
 
 class PyADTPulse(object):
     """Base object for ADT Pulse."""
@@ -163,52 +167,6 @@ class PyADTPulse(object):
 
         return response
 
-    @property
-    def zones(self):
-        """Return all zones registered with the ADT Pulse account."""
-        if self._all_zones:
-            return self._all_zones
-
-        response = self.query(ADT_ZONES_URI)
-        LOG.debug("Response zones = %s", response.json)
-
-   #     self._all_zones = response.json.get('items')
-        # for zone in all_zones:
-
-        # FIXME: modify json returned in each item?  E.g.
-        # - delete deprecatedAction
-        # - remove state and move the key variable as first class (e.g. statusTxt, activityTs, status = state.icon)
-
-        return self._all_zones
-
-    @property
-    def status(self):
-        # FIXME: update if stale!
-        return self.__alarm_status
-
-    @property
-    def armed(self, mode=None):
-        """Returns true if the alarm is armed
-        :param mode: optional arm mode to determine if the alarm is set to
-        """
-        return False  # FIXME
-
-    def arm(self, mode=ADT_ALARM_AWAY):
-        """Set the alarm arm mode to one of: off, home, away
-        :param mode: alarm mode to set (default=away)
-        """
-        LOG.debug(f"Setting alarm mode to '{type}'")
-        response = self.query(ADT_ARM_DISARM_URI,
-                              extra_params = {
-                                 'href'     : 'rest/adt/ui/client/security/setArmState',
-                                 'armstate' : self.__alarm_state,
-                                 'arm'      : mode
-                              })
-
-    def disarm(self):
-        """Disarm the alarm"""
-        self.arm(mode='off')
-
     def update(self, update_zones=False):
         """Refresh any cached state."""
         self.login()
@@ -249,22 +207,39 @@ class ADTPulseSite(object):
     def name(self):
         return self._name
 
+    # FIXME: should this actually return if the alarm is going off!?  How do we
+    # return state that shows the site is compromised??
     @property
     def status(self):
+        """Returns the alarm status"""
         return self._status
 
+    @property
+    def armed(self):
+        """Returns true if the alarm is armed"""
+        return self._status != 'disarmed'
+
+    def _arm(self, mode):
+        """Set the alarm arm mode to one of: off, home, away
+        :param mode: alarm mode to set
+        """
+        LOG.debug(f"Setting alarm mode to '{type}'")
+        response = self.query(ADT_ARM_DISARM_URI,
+                              extra_params = {
+                                 'href'     : 'rest/adt/ui/client/security/setArmState',
+                                 'armstate' : self.__alarm_state,
+                                 'arm'      : mode
+                              })
+
     def arm_away(self):
-        return None
+        self._arm(ADT_ALARM_AWAY)
 
     def arm_home(self):
-        return None
+        self._arm(ADT_ALARM_HOME)
 
     def disarm(self):
-        return None
-
-    @property
-    def zones(self):
-        return self._zones
+        """Disarm the alarm"""
+        self._arm(ADT_ALARM_OFF)
 
     def _update(self, summary_html):
         soup = BeautifulSoup(summary_html, 'html.parser')
@@ -275,3 +250,21 @@ class ADTPulseSite(object):
             LOG.debug("Alarm status = %s", self._status)
         else:
             LOG.error("Failed to find alarm status!")
+
+    @property
+    def zones(self):
+        """Return all zones registered with the ADT Pulse account."""
+        if self._zones:
+            return self._zones
+
+        response = self.query(ADT_ZONES_URI)
+        LOG.debug("Response zones = %s", response.json)
+
+   #     self._all_zones = response.json.get('items')
+        # for zone in all_zones:
+
+        # FIXME: modify json returned in each item?  E.g.
+        # - delete deprecatedAction
+        # - remove state and move the key variable as first class (e.g. statusTxt, activityTs, status = state.icon)
+
+        return self._zones

@@ -19,10 +19,6 @@ ADT_SET_PREMISE_URI = '/site/site?action=changepremise&siteId=[NETWORKID]'
 
 ADT_SYSTEM_SETTINGS = '/system/settings.jsp'
 
-ADT_ALARM_AWAY = 'away'
-ADT_ALARM_HOME = 'home'
-ADT_ALARM_OFF  = 'off'
-
 ADT_CLOSED    = 'Closed'
 ADT_OPEN      = 'Open'
 ADT_NO_MOTION = 'No Motion'
