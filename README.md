@@ -14,6 +14,16 @@ behavior of the production ADT websute and thus behavior is subject to change wi
 pip3 install pyadtpulse
 ```
 
+## Usage
+
+Since ADT Pulse automatically logs out other sessions accessing the same account, a best practice is
+to **create a new username/password combination for each client** accessing ADT Pulse.
+
+Additionally, since pyadtpulse currently does not support multiple sites (premises/locations), a
+simple approach is to create a separate username/password for each site and configured such that
+the username only has access to ONE site. This ensures that clients are always interacting with
+that one site (and not accidentally with another site location).
+
 ## Examples
 
 ```python
@@ -23,7 +33,7 @@ adt.panel
 adt.zones
 ```
 
-See also [example-client.py](example-client.py) for a working example.
+See [example-client.py](example-client.py) for a working example.
 
 ## See Also
 
@@ -31,7 +41,7 @@ See also [example-client.py](example-client.py) for a working example.
 
 ## Future Enhancements
 
-* support multiple premises (locations) under a single ADT account
+* support multiple sites (premises/locations) under a single ADT account
 * arm/disarm and current status
 * current state for all sensors
 * alarm history (from /ajax/alarmHistory.jsp)

@@ -23,8 +23,6 @@ class PyADTPulse(object):
         self.__user_agent = user_agent
         self.__user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.75 Safari/537.36'
 
-        self.__version = None
-
         self.__headers = None
         self.__params = None
         self.__cookies = None
@@ -34,6 +32,7 @@ class PyADTPulse(object):
         self.__password = password # TODO: ideally do NOT store this in memory...
         self.login()
 
+        self._site_id = None
         self._all_zones = None
 
     def __repr__(self):
@@ -43,10 +42,14 @@ class PyADTPulse(object):
     @property
     def version(self):
         if not self.__version:
-            # FIXME...
-            # split out version from ['Location'] = /myhome/16.0.0-131/access/signin.jsp
-            # self.__version = resp.headers['Location'].rsplit('/', 2)[0]
-            self.__version = '16.0.0-131'
+            response = self.__session.get(API_HOST)
+            m = re.search("/myhome/(.+)/access", response.url)
+            if m:
+                self.__version = m.group(1)
+                LOG.debug("Discovered ADT Pulse version %s", self.__version)
+            else:
+                self.__version = '16.0.0-131'
+                LOG.warn("Could not auto-detect ADT Pulse version, defaulting to %s", self.__version)
 
         return self.__version
 
