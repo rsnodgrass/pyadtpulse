@@ -39,9 +39,16 @@ class ADTPulseSite(object):
         return self._status
 
     @property
-    def armed(self):
-        """Returns true if the alarm is armed"""
-        return self._status != 'disarmed'
+    def is_away(self):
+        return self._status == 'away'
+
+    @property
+    def is_home(self):
+        return self._status == 'home'
+
+    @property
+    def is_disarmed(self):
+        return self._status == 'disarmed'
 
     def _arm(self, mode):
         """Set the alarm arm mode to one of: off, home, away
