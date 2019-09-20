@@ -1,3 +1,3 @@
 ## 0.0.1 (2019-09-19)
 
-* NOT YET WORKING!!
+* Initial implementation with minimal error/failure handling
