@@ -93,3 +93,8 @@ class ADTPulseSite(object):
         # - remove state and move the key variable as first class (e.g. statusTxt, activityTs, status = state.icon)
 
         return self._zones
+
+    @property
+    def history(self):
+        """Returns log of history for this zone (NOT IMPLEMENTED)"""
+        return []

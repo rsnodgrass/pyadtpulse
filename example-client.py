@@ -34,7 +34,8 @@ def main():
     adt = PyADTPulse(username, password)
 
     for site in adt.sites:
-        print(f"--Site: {site.name} (id={site.id})--")
+        print("----")
+        print(f"Site: {site.name} (id={site.id})")
         print(f"Alarm Status = {site.status}")
 
         print("\nZones:")

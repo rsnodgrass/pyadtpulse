@@ -29,8 +29,12 @@ that one site (and not accidentally with another site location).
 ```python
 adt = PyADTPulse(username, password)
 
-adt.panel
-adt.zones
+for site in adt.sites:
+    site.status
+    site.zones
+
+    site.disarm()
+    site.arm_away()
 ```
 
 See [example-client.py](example-client.py) for a working example.
