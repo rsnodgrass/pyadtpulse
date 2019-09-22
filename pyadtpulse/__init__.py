@@ -78,17 +78,14 @@ class PyADTPulse(object):
         # typically, ADT Pulse accounts have only a single site (premise/location)
         singlePremise = soup.find('span', {'id': 'p_singlePremise'})
         if singlePremise:
-            signout_info = soup.find('a', {'class': 'p_signoutlink'})
-            LOG.warn("SURL=%s", signout_info.text)    # FIXME
-            LOG.warn("HREF=%s", signout_info['href']) # FIXME
-            signout_info = '<a class="p_signoutlink" href="/myhome/16.0.0-131/access/signout.jsp?networkid=150616za043597&amp;partner=adt" id="p_signout1" onclick="return flagSignOutInProcess();">'
-            m = re.search("networkid=(.+)&", signout_info)
+            signout_link = soup.find('a', {'class': 'p_signoutlink'}).get('href')
+            m = re.search("networkid=(.+)&", signout_link)
             if m:
                 site_id = m.group(1)
                 LOG.debug(f"Discovered site id {site_id}: {singlePremise.text}")
                 sites.append( ADTPulseSite(self, site_id, singlePremise.text, soup) )
             else:
-                LOG.warning("Couldn't find site id in %s!", signout_info)
+                LOG.warning("Couldn't find site id in %s!", signout_link)
         else:
             LOG.error("ADT Pulse accounts with MULTIPLE sites not yet supported!!!")
 
