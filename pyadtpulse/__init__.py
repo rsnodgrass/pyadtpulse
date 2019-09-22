@@ -57,8 +57,10 @@ class PyADTPulse(object):
         return self._api_version
 
     def _update_sites(self, summary_html):
+        soup = BeautifulSoup(summary_html, 'html.parser')
+
         if not self._sites:
-            self._initialize_sites(summary_html)
+            self._initialize_sites(soup)
         else:
             # FIXME: this will have to be fixed once multiple ADT sites
             # are supported, since the summary_html only represents the
@@ -66,26 +68,24 @@ class PyADTPulse(object):
             if len(self._sites) > 1:
                 LOG.error("pyadtpulse DOES NOT support an ADT account with multiple sites yet!!!")
 
-            soup = BeautifulSoup(summary_html, 'html.parser')
             for site in self._sites:
-                site._update_alarm_status(soup)
+                site._update_alarm_status(soup, update_zones=True)
 
-    def _initialize_sites(self, summary_html):
-        soup = BeautifulSoup(summary_html, 'html.parser')
-
+    def _initialize_sites(self, soup):
         sites = []
 
         # typically, ADT Pulse accounts have only a single site (premise/location)
         singlePremise = soup.find('span', {'id': 'p_singlePremise'})
         if singlePremise:
+            site_name = singlePremise.text
             signout_link = soup.find('a', {'class': 'p_signoutlink'}).get('href')
             m = re.search("networkid=(.+)&", signout_link)
             if m:
                 site_id = m.group(1)
-                LOG.debug(f"Discovered site id {site_id}: {singlePremise.text}")
-                sites.append( ADTPulseSite(self, site_id, singlePremise.text, soup) )
+                LOG.debug(f"Discovered site id {site_id}: {site_name}")
+                sites.append( ADTPulseSite(self, site_id, site_name, soup) )
             else:
-                LOG.warning("Couldn't find site id in %s!", signout_link)
+                LOG.warning(f"Couldn't find site id for '{name}' in '{signout_link}'")
         else:
             LOG.error("ADT Pulse accounts with MULTIPLE sites not yet supported!!!")
 
@@ -136,8 +136,6 @@ class PyADTPulse(object):
         response = self.query(ADT_SYNC_CHECK_URI, extra_params={'ts': self._sync_timestamp})
         text = response.text
         self._sync_timestamp = time.time()
-
-        # FIXME: does this extend the authentication timestamp? should we 
 
         if not re.match('\d+-\d+-\d+', text):
             LOG.warn("Sync check didn't match expected format, forcing re-authentication and notifying of updates")
@@ -208,19 +206,12 @@ class PyADTPulse(object):
 
         return response
 
-    def update(self, update_zones=True):
+    def update(self):
         """Refresh any cached state."""
-
-        self._authenticated = False  # FIXME: hack to force reauth and repopulate
-        self.login()
-
-#        if update_zones:
-#            for site in self._sites:
-#                sote._update_alarm_status(soup)
-
+        response = self.query(ADT_SUMMARY_URI, method='GET')
+        self._update_sites(response.text)
 
     @property
     def sites(self):
         """Return all sites for this ADT Pulse account"""
         return self._sites
-

@@ -29,6 +29,10 @@ simple approach is to create a separate username/password for each site and conf
 the username only has access to ONE site. This ensures that clients are always interacting with
 that one site (and not accidentally with another site location).
 
+#### Notes
+
+* any changes to the name/count of sites are not automatically updated for existing site objects 
+
 ## Examples
 
 ```python

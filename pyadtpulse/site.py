@@ -22,10 +22,7 @@ class ADTPulseSite(object):
         self._zones = []
         self._status = ADT_ALARM_UNKNOWN
 
-        if summary_html_soup:
-            self._update_alarm_status(summary_html_soup)
-
-        self._update_zones()
+        self._update_alarm_status(summary_html_soup)
 
     @property
     def id(self):
@@ -91,13 +88,16 @@ class ADTPulseSite(object):
         """Returns log of history for this zone (NOT IMPLEMENTED)"""
         return []
 
-    def _update_alarm_status(self, summary_html_soup):
+    def _update_alarm_status(self, summary_html_soup, update_zones=True):
         status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
         if status_orb:
             self._status = status_orb['orb']
             LOG.debug("Alarm status = %s", self._status)
         else:
             LOG.error("Failed to find alarm status in ADT summary!")
+        
+        if update_zones:
+            self._update_zones()
 
     def _update_zones(self):
         response = self._adt_service.query(ADT_ZONES_URI)
