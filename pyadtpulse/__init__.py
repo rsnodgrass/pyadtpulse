@@ -6,7 +6,11 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 
-from pyadtpulse.const import ( API_HOST, API_PREFIX, ADT_LOGIN_URI, ADT_LOGOUT_URI, ADT_SYNC_CHECK_URI )
+from pyadtpulse.const import ( API_HOST, API_PREFIX,
+                               ADT_LOGIN_URI,
+                               ADT_LOGOUT_URI,
+                               ADT_SUMMARY_URI,
+                               ADT_SYNC_CHECK_URI )
 from pyadtpulse.site import ADTPulseSite
 
 LOG = logging.getLogger(__name__)
