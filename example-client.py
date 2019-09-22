@@ -44,9 +44,9 @@ def main():
         for zone in site.zones:
             print(zone)
 
-        site.arm_away()
+        #site.arm_away()
         #site.arm_home()
-        site.disarm()
+        #site.disarm()
 
     adt.logout
 
