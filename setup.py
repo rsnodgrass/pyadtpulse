@@ -8,14 +8,17 @@ if sys.argv[-1] == 'publish':
     os.system('python setup.py sdist upload')
     sys.exit()
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+# read the contents of your README file
+from os import path
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+    long_description = f.read()
 
 setuptools.setup(name='pyadtpulse',
       version='0.0.4',
       packages=[ 'pyadtpulse' ],
       description='Python interface for ADT Pulse security systems',
-#      long_description=long_description,
+      long_description=long_description,
       url='https://github.com/rsnodgrass/pyadtpulse',
       author='Ryan Snodgrass',
       author_email='rsnodgrass@gmail.com',
