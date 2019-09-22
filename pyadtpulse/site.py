@@ -7,21 +7,25 @@ from pyadtpulse.const import ( ADT_ZONES_URI, ADT_ARM_DISARM_URI )
 
 LOG = logging.getLogger(__name__)
 
-ADT_ALARM_AWAY = 'away'
-ADT_ALARM_HOME = 'home'
-ADT_ALARM_OFF  = 'off'
+ADT_ALARM_AWAY    = 'away'
+ADT_ALARM_HOME    = 'home'
+ADT_ALARM_OFF     = 'off'
+ADT_ALARM_UNKNOWN = 'unknown'
 
 class ADTPulseSite(object):
-    def __init__(self, adt_service, site_id, name, summary_html):
+    def __init__(self, adt_service, site_id, name, summary_html_soup=None):
         """Represents an individual ADT Pulse site"""
 
         self._adt_service = adt_service
         self._id = site_id
         self._name = name
-
-        self._update(summary_html)
-
         self._zones = []
+        self._status = ADT_ALARM_UNKNOWN
+
+        if summary_html_soup:
+            self._update_alarm_status(summary_html_soup)
+
+        self._update_zones()
 
     @property
     def id(self):
@@ -64,33 +68,38 @@ class ADTPulseSite(object):
         self._status = mode
 
     def arm_away(self):
+        """Arm the alarm in Away mode"""
         self._arm(ADT_ALARM_AWAY)
 
     def arm_home(self):
+        """Arm the alarm in Home mode"""
         self._arm(ADT_ALARM_HOME)
 
     def disarm(self):
         """Disarm the alarm"""
         self._arm(ADT_ALARM_OFF)
 
-    def _update(self, summary_html):
-        soup = BeautifulSoup(summary_html, 'html.parser')
+    @property
+    def zones(self, auto_update=True):
+        """Return all zones registered with the ADT Pulse account"""
+        if not auto_update or not self._adt_service.updates_exist:
+            return self._zones
+        return self._update_zones()
 
-        status_orb = soup.find('canvas', {'id': 'ic_orb'})
+    @property
+    def history(self):
+        """Returns log of history for this zone (NOT IMPLEMENTED)"""
+        return []
+
+    def _update_alarm_status(self, summary_html_soup):
+        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
         if status_orb:
             self._status = status_orb['orb']
             LOG.debug("Alarm status = %s", self._status)
         else:
-            LOG.error("Failed to find alarm status!")
+            LOG.error("Failed to find alarm status in ADT summary!")
 
-    @property
-    def zones(self):
-        """Return all zones registered with the ADT Pulse account."""
-        # FIXME: check if the timestamp is stale --> fetch the latest copy
-
-        if not self._adt_service.updates_exist:
-            return
-
+    def _update_zones(self):
         response = self._adt_service.query(ADT_ZONES_URI)
         self._zones_json = response.json()
 
@@ -112,10 +121,9 @@ class ADTPulseSite(object):
             zone['activityTs'] = int(zone['state']['activityTs'])
             del zone['state']
 
-        return zones
+        self._zones = zones
+        return self._zones
 
-
-    @property
-    def history(self):
-        """Returns log of history for this zone (NOT IMPLEMENTED)"""
-        return []
+    def update(self):
+        """Force an update of the site and zones with current data from the service"""
+        self._adt_service.update()

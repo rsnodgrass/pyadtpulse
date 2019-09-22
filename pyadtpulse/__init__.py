@@ -20,7 +20,6 @@ class PyADTPulse(object):
            :param password: ADT Pulse password
         """
         self._session = requests.Session()
-        self._cookies = None
         self._user_agent = user_agent
         self._api_version = None
 
@@ -31,12 +30,13 @@ class PyADTPulse(object):
 
         # authenticate the user
         self._username = username
-        self._password = password # TODO: ideally DON'T store this in memory...
+        self._password = password # TODO: ideally DON'T store in memory...
+
         self.login()
 
     def __repr__(self):
         """Object representation."""
-        return "<{0}: {1}>".format(self._class__.__name__, self._username)
+        return "<{0}: {1}>".format(self.__class__.__name__, self._username)
 
     @property
     def username(self):
@@ -52,11 +52,25 @@ class PyADTPulse(object):
                 LOG.debug("Discovered ADT Pulse version %s", self._api_version)
             else:
                 self._api_version = '16.0.0-131'
-                LOG.warn("Couldn't auto-detect ADT Pulse version, defaulting to %s", self._api_version)
+                LOG.warning("Couldn't auto-detect ADT Pulse version, defaulting to %s", self._api_version)
 
         return self._api_version
 
     def _update_sites(self, summary_html):
+        if not self._sites:
+            self._initialize_sites(summary_html)
+        else:
+            # FIXME: this will have to be fixed once multiple ADT sites
+            # are supported, since the summary_html only represents the
+            # alarm status of the current site!!
+            if len(self._sites) > 1:
+                LOG.error("pyadtpulse DOES NOT support an ADT account with multiple sites yet!!!")
+
+            soup = BeautifulSoup(summary_html, 'html.parser')
+            for site in self._sites:
+                site._update_alarm_status(soup)
+
+    def _initialize_sites(self, summary_html):
         soup = BeautifulSoup(summary_html, 'html.parser')
 
         sites = []
@@ -65,16 +79,16 @@ class PyADTPulse(object):
         singlePremise = soup.find('span', {'id': 'p_singlePremise'})
         if singlePremise:
             signout_info = soup.find('a', {'class': 'p_signoutlink'})
-            LOG.warn("SURL=%s", signout_info.text)
-            LOG.warn("HREF=%s", signout_info['href'])
+            LOG.warn("SURL=%s", signout_info.text)    # FIXME
+            LOG.warn("HREF=%s", signout_info['href']) # FIXME
             signout_info = '<a class="p_signoutlink" href="/myhome/16.0.0-131/access/signout.jsp?networkid=150616za043597&amp;partner=adt" id="p_signout1" onclick="return flagSignOutInProcess();">'
             m = re.search("networkid=(.+)&", signout_info)
             if m:
                 site_id = m.group(1)
                 LOG.debug(f"Discovered site id {site_id}: {singlePremise.text}")
-                sites.append( ADTPulseSite(self, site_id, singlePremise.text, summary_html) )
+                sites.append( ADTPulseSite(self, site_id, singlePremise.text, soup) )
             else:
-                LOG.warn("Couldn't find site id in %s!", signout_info)
+                LOG.warning("Couldn't find site id in %s!", signout_info)
         else:
             LOG.error("ADT Pulse accounts with MULTIPLE sites not yet supported!!!")
 
@@ -108,9 +122,12 @@ class PyADTPulse(object):
 
         self._authenticated = True
         self._authenticated_timestamp = time.time()
-        LOG.info(f"Authenticated ADT Pulse account {self._username}")
+        LOG.info("Authenticated ADT Pulse account %s", self._username)
 
+        # since we received fresh data on the status of the alarm, go ahead
+        # and update the sites with the alarm status.
         self._update_sites(response.text)
+        return response.text
 
     def logout(self):
         LOG.info(f"Logging {self._username} out of ADT Pulse") 
@@ -123,14 +140,16 @@ class PyADTPulse(object):
         text = response.text
         self._sync_timestamp = time.time()
 
-        # FIXME: ensure response matches \d+-\d+-\d+
-        if not re.match('\d+-\d+-\d+', text):
-            LOG.warn("Sync check did not match expected format, clearing authentication")
-            self._authenticated = False
-            return False
+        # FIXME: does this extend the authentication timestamp? should we 
 
+        if not re.match('\d+-\d+-\d+', text):
+            LOG.warn("Sync check didn't match expected format, forcing re-authentication and notifying of updates")
+            self._authenticated = False
+            return True
+
+        # TODO: do we need special handling for 1-0-0 and 2-0-0 tokens?
         if text != self._sync_token:
-            LOG.debug(f"Sync token {text} != existing {self._sync_token}")
+            LOG.debug(f"Sync token {text} != existing {self._sync_token}; updates may exist")
             self._sync_token = text
             return True
 
@@ -139,8 +158,9 @@ class PyADTPulse(object):
     @property
     def is_connected(self):
         """Connection status of client with ADT Pulse cloud service."""
+        # FIXME: timeout automatically based on ADT default expiry?
         #self._authenticated_timestamp
-        return self._authenticated # FIXME: timeout automatically based on ADT default expiry?
+        return self._authenticated
 
     def query(self, uri, method='GET', extra_params=None, extra_headers=None,
               retry=3, force_login=True, version_prefix=True):
@@ -179,9 +199,9 @@ class PyADTPulse(object):
 
             # define connection method
             if method == 'GET':
-                response = self._session.get(url, headers=headers, cookies=self._cookies)
+                response = self._session.get(url, headers=headers)
             elif method == 'POST':
-                response = self._session.post(url, headers=headers, cookies=self._cookies, data=params)
+                response = self._session.post(url, headers=headers, data=params)
             else:
                 LOG.error("Invalid request method '%s'", method)
                 return None
@@ -191,16 +211,19 @@ class PyADTPulse(object):
 
         return response
 
-    def update(self, update_zones=False):
+    def update(self, update_zones=True):
         """Refresh any cached state."""
+
+        self._authenticated = False  # FIXME: hack to force reauth and repopulate
         self.login()
 
-        if update_zones:
-            # clear cache and force update
-            self._all_zones = None
-            force_update = self.sensors
+#        if update_zones:
+#            for site in self._sites:
+#                sote._update_alarm_status(soup)
+
 
     @property
     def sites(self):
         """Return all sites for this ADT Pulse account"""
         return self._sites
+
