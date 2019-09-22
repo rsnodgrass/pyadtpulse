@@ -1,10 +1,6 @@
-## 0.0.3 (2019-09-21)
+## 0.0.4 (2019-09-22)
 
-* bug fixes + improved error checks and logging
-
-## 0.0.2 (2019-09-19)
-
-* added checks for armed status
+* bug fixes and improvements
 
 ## 0.0.1 (2019-09-19)
 
