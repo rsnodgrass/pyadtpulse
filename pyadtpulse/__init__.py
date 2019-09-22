@@ -66,6 +66,7 @@ class PyADTPulse(object):
         if singlePremise:
             signout_info = soup.find('a', {'class': 'p_signoutlink'})
             LOG.warn("SURL=%s", signout_info.text)
+            LOG.warn("HREF=%s", signout_info['href'])
             signout_info = '<a class="p_signoutlink" href="/myhome/16.0.0-131/access/signout.jsp?networkid=150616za043597&amp;partner=adt" id="p_signout1" onclick="return flagSignOutInProcess();">'
             m = re.search("networkid=(.+)&", signout_info)
             if m:
@@ -119,11 +120,18 @@ class PyADTPulse(object):
     @property
     def updates_exist(self):
         response = self.query(ADT_SYNC_CHECK_URI, extra_params={'ts': self._sync_timestamp})
+        text = response.text
         self._sync_timestamp = time.time()
 
-        if response.content != self._sync_token:
-            LOG.debug(f"Sync token {response.content} != existing {self._sync_token}")
-            self._sync_token = response.content
+        # FIXME: ensure response matches \d+-\d+-\d+
+        if not re.match('\d+-\d+-\d+', text):
+            LOG.warn("Sync check did not match expected format, clearing authentication")
+            self._authenticated = False
+            return False
+
+        if text != self._sync_token:
+            LOG.debug(f"Sync token {text} != existing {self._sync_token}")
+            self._sync_token = text
             return True
 
         return False
@@ -153,7 +161,7 @@ class PyADTPulse(object):
         url = f"{API_HOST}{API_PREFIX}{self.version}{uri}"
 
         loop = 0
-        while loop <= retry:
+        while loop < retry:
             loop += 1
             LOG.debug(f"Attempting {method} {url} (try {loop}/{retry})")
 

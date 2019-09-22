@@ -54,7 +54,7 @@ class ADTPulseSite(object):
         """Set the alarm arm mode to one of: off, home, away
         :param mode: alarm mode to set
         """
-        LOG.debug(f"Setting alarm to '{mode}'")
+        LOG.debug(f"Setting ADT alarm '{self._name}' to '{mode}'")
         response = self._adt_service.query(ADT_ARM_DISARM_URI, method='POST',
                                            extra_params = {
                                               'href'     : 'rest/adt/ui/client/security/setArmState',
