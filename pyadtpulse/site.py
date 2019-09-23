@@ -77,17 +77,12 @@ class ADTPulseSite(object):
         self._arm(ADT_ALARM_OFF)
 
     @property
-    def zones(self, auto_update=True):
-        """Return all zones registered with the ADT Pulse account"""
-
+    def zones(self):
+        """Return all zones registered with the ADT Pulse account (cached copy of last fetch, see also fetch_zones)"""
         if self._zones:
-            if not auto_update:
-                return self._zones
+            return self._zones
 
-            if not self._adt_service.updates_exist:
-                return self._zones
-
-        return self._update_zones()
+        return self.fetch_zones()
 
     @property
     def history(self):
@@ -105,7 +100,8 @@ class ADTPulseSite(object):
         if update_zones:
             self._update_zones()
 
-    def _update_zones(self):
+    def fetch_zones(self):
+        """Fetch a fresh copy of the zone data from ADT Pulse service"""
         response = self._adt_service.query(ADT_ZONES_URI)
         self._zones_json = response.json()
 
@@ -129,6 +125,11 @@ class ADTPulseSite(object):
 
         self._zones = zones
         return self._zones
+
+    def updates_may_exist(self):
+        # FIXME: this should actually capture the latest version and compare if different!!!
+        # ...this doesn't actually work if other components are also checking if updates exist
+        return self._adt_service.updates_exist
 
     def update(self):
         """Force an update of the site and zones with current data from the service"""
