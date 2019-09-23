@@ -97,8 +97,9 @@ class ADTPulseSite(object):
         else:
             LOG.error("Failed to find alarm status in ADT summary!")
         
+        # if we should also update the zone details, force a fresh fetch of data from ADT Pulse
         if update_zones:
-            self._update_zones()
+            self.fetch_zones()
 
     def fetch_zones(self):
         """Fetch a fresh copy of the zone data from ADT Pulse service"""
