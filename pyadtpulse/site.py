@@ -56,13 +56,18 @@ class ADTPulseSite(object):
         :param mode: alarm mode to set
         """
         LOG.debug(f"Setting ADT alarm '{self._name}' to '{mode}'")
+        params = {
+            'href'     : 'rest/adt/ui/client/security/setArmState',
+            'armstate' : self._status, # existing state
+            'arm'      : mode          # new state
+        }
         response = self._adt_service.query(ADT_ARM_DISARM_URI, method='POST',
-                                           extra_params = {
-                                              'href'     : 'rest/adt/ui/client/security/setArmState',
-                                              'armstate' : self._status, # existing state
-                                              'arm'      : mode          # new state
-                                           })
-        self._status = mode
+                                           extra_params=params)
+        if not response.ok:
+            LOG.warning(f"Failed updating ADT Pulse alarm {self._name} to {mode} (http={response.status_code}")
+        else:
+            self._status = mode
+            self.update()
 
     def arm_away(self):
         """Arm the alarm in Away mode"""
@@ -78,7 +83,8 @@ class ADTPulseSite(object):
 
     @property
     def zones(self):
-        """Return all zones registered with the ADT Pulse account (cached copy of last fetch, see also fetch_zones)"""
+        """Return all zones registered with the ADT Pulse account (cached copy of last fetch)
+           See Also fetch_zones()"""
         if self._zones:
             return self._zones
 
