@@ -79,8 +79,14 @@ class ADTPulseSite(object):
     @property
     def zones(self, auto_update=True):
         """Return all zones registered with the ADT Pulse account"""
-        if not auto_update or not self._adt_service.updates_exist:
-            return self._zones
+
+        if self._zones:
+            if not auto_update:
+                return self._zones
+
+            if not self._adt_service.updates_exist:
+                return self._zones
+
         return self._update_zones()
 
     @property

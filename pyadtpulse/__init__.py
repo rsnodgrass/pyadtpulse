@@ -102,6 +102,7 @@ class PyADTPulse(object):
 
     def login(self):
         self._authenticated = False
+        LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
 
         """Login to the ADT Pulse account and generate access token"""
         response = self.query(
@@ -115,15 +116,14 @@ class PyADTPulse(object):
 
         soup = BeautifulSoup(response.text, 'html.parser')
         error = soup.find('div', {'id': 'warnMsgContents'})
-        if error:
+        if error or not response.ok:
             error_string = error.text
-            LOG.error("ADT Pulse response: %s", error_string)
+            LOG.error(f"ADT Pulse response ({response.status_code}): {error_string}")
             self._authenticated = False
             return
 
         self._authenticated = True
         self._authenticated_timestamp = time.time()
-        LOG.info("Authenticated ADT Pulse account %s", self._username)
 
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
@@ -212,8 +212,12 @@ class PyADTPulse(object):
 
     def update(self):
         """Refresh any cached state."""
+        LOG.debug("Checking ADT Pulse cloud service for updates")
         response = self.query(ADT_SUMMARY_URI, method='GET')
-        self._update_sites(response.text)
+        if response.ok:
+            self._update_sites(response.text)
+        else:
+            LOG.info(f"Error returned from ADT Pulse service check: {response.status_code}")
 
     @property
     def sites(self):
