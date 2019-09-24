@@ -96,12 +96,28 @@ class ADTPulseSite(object):
         return []
 
     def _update_alarm_status(self, summary_html_soup, update_zones=True):
-        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
-        if status_orb:
-            self._status = status_orb['orb']
+        value = summary_html_soup.find('span', {'class': 'p_boldNormalTextLarge'})
+        if value:
+            text = value.text
+            if re.match('Disarmed', text):
+                self._status = ADT_ALARM_OFF
+            elif re.match('Armed Away', text):
+                self._status = ADT_ALARM_AWAY
+            elif re.match('Armed Home', text):
+                self._status = ADT_ALARM_HOME
+            else:
+                LOG.warning("Failed to get alarm status from '{text}'")
+                self._status = ADT_ALARM_UNKNOWN
+                
             LOG.debug("Alarm status = %s", self._status)
-        else:
-            LOG.error("Failed to find alarm status in ADT summary!")
+
+#        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
+#        if status_orb:
+#            self._status = status_orb['orb']
+#            LOG.warning(status_orb)
+#            LOG.debug("Alarm status = %s", self._status)
+#        else:
+#            LOG.error("Failed to find alarm status in ADT summary!")
         
         # if we should also update the zone details, force a fresh fetch of data from ADT Pulse
         if update_zones:
