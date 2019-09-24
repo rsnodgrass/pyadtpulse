@@ -41,15 +41,15 @@ class ADTPulseSite(object):
 
     @property
     def is_away(self):
-        return self._status == 'away'
+        return self._status == ADT_ALARM_AWAY
 
     @property
     def is_home(self):
-        return self._status == 'home'
+        return self._status == ADT_ALARM_HOME
 
     @property
     def is_disarmed(self):
-        return self._status == 'disarmed'
+        return self._status == ADT_ALARM_OFF
 
     def _arm(self, mode):
         """Set the alarm arm mode to one of: off, home, away
@@ -108,7 +108,7 @@ class ADTPulseSite(object):
             else:
                 LOG.warning("Failed to get alarm status from '{text}'")
                 self._status = ADT_ALARM_UNKNOWN
-                
+
             LOG.debug("Alarm status = %s", self._status)
 
 #        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})

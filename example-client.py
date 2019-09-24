@@ -40,6 +40,11 @@ def main():
         print(f"Site: {site.name} (id={site.id})")
         print(f"Alarm Status = {site.status}")
 
+        print(f"Disarmed? = {site.is_disarmed}")
+        print(f"Armed Away? = {site.is_away}")
+        print(f"Armed Home? = {site.is_home}")
+
+
         print("\nZones:")
         for zone in site.zones:
             print(zone)
