@@ -106,7 +106,7 @@ class ADTPulseSite(object):
             elif re.match('Armed Home', text):
                 self._status = ADT_ALARM_HOME
             else:
-                LOG.warning("Failed to get alarm status from '{text}'")
+                LOG.warning(f"Failed to get alarm status from '{text}'")
                 self._status = ADT_ALARM_UNKNOWN
 
             LOG.debug("Alarm status = %s", self._status)
