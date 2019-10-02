@@ -56,6 +56,24 @@ See [example-client.py](example-client.py) for a working example.
 
 ## Future Enhancements
 
+* implement ALARM status for individual sensors, which is not currently working:
+
+```{'id': 'sensor-24', 'name': 'South Front Overhead', 'tags': ['sensor', 'doorWindow'], 'status': 'ALARM, Closed', 'activityTs': 1569978094633}```
+
+* implement alarm status when triggered, including num trouble zones and num doors open/motion
+
+```
+                 <canvas id="ic_orb"
+                    orb="alarm"
+                    numOfTroubles="3"
+                    numOpen="1"
+                    numMotion="1"
+                    class="p_ic_orb"
+                    href="../history/history.jsp?filter=All&deviceFilter=&timefilter=24"
+                    width="100"
+                    height="100">
+```
+
 Feature ideas, but no plans to implement:
 
 * support multiple sites (premises/locations) under a single ADT account
