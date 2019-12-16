@@ -1,4 +1,6 @@
-API_HOST   = 'https://portal.adtpulse.com'
+DEFAULT_API_HOST = 'https://portal.adtpulse.com'
+API_HOST_CA      = 'https://portal-ca.adtpulse.com' # Canada
+
 API_PREFIX = '/myhome/'
 
 ADT_LOGIN_URI      = '/access/signin.jsp?partner=adt'

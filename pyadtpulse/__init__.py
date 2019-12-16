@@ -6,7 +6,8 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 
-from pyadtpulse.const import ( API_HOST, API_PREFIX,
+from pyadtpulse.const import ( DEFAULT_API_HOST,
+                               API_PREFIX,
                                ADT_LOGIN_URI,
                                ADT_LOGOUT_URI,
                                ADT_SUMMARY_URI,
@@ -32,6 +33,8 @@ class PyADTPulse(object):
 
         self._sites = []
 
+        self._api_host = DEFAULT_API_HOST
+        
         # authenticate the user
         self._username = username
         self._password = password # TODO: ideally DON'T store in memory...
@@ -42,6 +45,13 @@ class PyADTPulse(object):
         """Object representation."""
         return "<{0}: {1}>".format(self.__class__.__name__, self._username)
 
+
+    # ADTPulse API endpoint is configurable (besides default US ADT Pulse endpoint) to
+    # support testing as well as alternative ADT Pulse endpoints such as portal-ca.adtpulse.com
+    def set_service_host(self, host):
+        """Override the default ADT Pulse host (e.g. to point to 'portal-ca.adtpulse.com')"""
+        self._api_host = f"https://{host}"
+    
     @property
     def username(self):
         return self._username
@@ -49,11 +59,11 @@ class PyADTPulse(object):
     @property
     def version(self):
         if not self._api_version:
-            response = self._session.get(API_HOST)
+            response = self._session.get(self._api_host)
             m = re.search("/myhome/(.+)/access", response.url)
             if m:
                 self._api_version = m.group(1)
-                LOG.debug("Discovered ADT Pulse version %s", self._api_version)
+                LOG.debug("Discovered ADT Pulse version %s at %s", self._api_version, self._api_host)
             else:
                 self._api_version = '16.0.0-131'
                 LOG.warning("Couldn't auto-detect ADT Pulse version, defaulting to %s", self._api_version)
@@ -177,7 +187,7 @@ class PyADTPulse(object):
         if force_login and not self.is_connected:
             self.login()
 
-        url = f"{API_HOST}{API_PREFIX}{self.version}{uri}"
+        url = f"{self._api_host}{API_PREFIX}{self.version}{uri}"
 
         loop = 0
         while loop < retry:
