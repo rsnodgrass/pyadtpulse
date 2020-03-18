@@ -8,7 +8,7 @@ from pyadtpulse.const import ( ADT_ZONES_URI, ADT_ARM_DISARM_URI )
 LOG = logging.getLogger(__name__)
 
 ADT_ALARM_AWAY    = 'away'
-ADT_ALARM_HOME    = 'home'
+ADT_ALARM_HOME    = 'stay'
 ADT_ALARM_OFF     = 'off'
 ADT_ALARM_UNKNOWN = 'unknown'
 
