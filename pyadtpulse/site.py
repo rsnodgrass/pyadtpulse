@@ -127,11 +127,16 @@ class ADTPulseSite(object):
         """Fetch a fresh copy of the zone data from ADT Pulse service"""
         response = self._adt_service.query(ADT_ZONES_URI)
         self._zones_json = response.json()
+        
+        if not self._zones_json:
+            LOG.warning("Failed to load any zones from ADT Pulse service")
+            LOG.debug(f"ADT Pulse service zone data response: {response}")
+            return
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
         # to simplify usage, flatten structure AND
-        zones = response.json().get('items')
+        zones = self._zones_json.get('items')
         for zone in zones:
             del zone['deprecatedAction']
             del zone['devIndex']
