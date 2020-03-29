@@ -158,6 +158,9 @@ class ADTPulseSite(object):
                 tags = [ 'sensor', 'co' ] 
             elif "Smoke" in name or "Heat" in name:
                 tags = [ 'sensor', 'smoke' ] 
+            else:
+                LOG.warning(f"Unknown sensor type for {name}, defaulting to doorWindow")
+                tags = [ 'sensor', 'doorWindow' ]
 
             # parse out last activity (required dealing with "Yesterday 1:52 PM")
             #last_activity = remove_prefix(row.find("span", {"class": "devStatIcon"}).get('title'), "Last Event: ")
