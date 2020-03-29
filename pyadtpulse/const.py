@@ -8,6 +8,7 @@ ADT_LOGOUT_URI     = '/access/signout.jsp'
 
 ADT_SUMMARY_URI    = '/summary/summary.jsp'
 ADT_ZONES_URI      = '/ajax/homeViewDevAjax.jsp'
+ADT_ORB_URI        = '/ajax/orb.jsp'
 ADT_STATES_URI     = '/ajax/currentStates.jsp'
 ADT_SYNC_CHECK_URI = '/Ajax/SyncCheckServ'
 
@@ -19,3 +20,10 @@ ADT_STATUS_CHANGE_URI = '/quickcontrol/serv/ChangeVariableServ'
 ADT_SET_PREMISE_URI = '/site/site?action=changepremise&siteId=[NETWORKID]'
 
 ADT_SYSTEM_SETTINGS = '/system/settings.jsp'
+
+STATE_OK = 'OK'
+STATE_OPEN = 'Open'
+STATE_MOTION = 'Motion'
+STATE_TAMPER = 'Tamper'
+STATE_ALARM = 'Alarm'
+STATE_UNKNOWN = 'Unknown'

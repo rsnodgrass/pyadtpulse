@@ -1,16 +1,20 @@
+import logging
+LOG = logging.getLogger(__name__)
+
 import re
 import json
 import time
-import logging
+#import dateparser
 from bs4 import BeautifulSoup
-from pyadtpulse.const import ( ADT_ZONES_URI, ADT_ARM_DISARM_URI )
-
-LOG = logging.getLogger(__name__)
+from pyadtpulse.const import ( ADT_ZONES_URI, ADT_ARM_DISARM_URI, ADT_ORB_URI )
 
 ADT_ALARM_AWAY    = 'away'
 ADT_ALARM_HOME    = 'stay'
 ADT_ALARM_OFF     = 'off'
 ADT_ALARM_UNKNOWN = 'unknown'
+
+def remove_prefix(text, prefix):
+    return text[text.startswith(prefix) and len(prefix):]
 
 class ADTPulseSite(object):
     def __init__(self, adt_service, site_id, name, summary_html_soup=None):
@@ -125,8 +129,67 @@ class ADTPulseSite(object):
 
     def fetch_zones(self):
         """Fetch a fresh copy of the zone data from ADT Pulse service"""
+        response = self._adt_service.query(ADT_ORB_URI)
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        if not soup:
+            LOG.warning("Failed to load zone status from ADT Pulse service")
+            LOG.debug(f"ADT Pulse service zone data response: %s", response.text)
+            return
+        self._zones_soup = soup
+        
+        # FIXME: ensure the zones for the correct site are being loaded!!!
+
+        # parse the convulated html to get sensor status
+        zones = []
+        for row in soup.find_all("tr", {'class': 'p_listRow'}):
+            name = row.find("a", {'class': 'p_deviceNameText'}).get_text()
+            zone = int(remove_prefix(row.find("span", {'class': 'p_grayNormalText'}).get_text(), "Zone\xa0"))
+            state = remove_prefix(row.find("canvas", {'class': 'p_ic_icon_device'}).get('icon'), 'devStat')
+
+            tags = []
+            if "Door" in name or "Window" in name:
+                tags = [ 'sensor', 'doorWindow' ] 
+            elif "Motion" in name:
+                tags = [ 'sensor', 'motion' ] 
+            elif "Glass" in name:
+                tags = [ 'sensor', 'glass' ] 
+            elif "Gas" in name:
+                tags = [ 'sensor', 'co' ] 
+            elif "Smoke" in name or "Heat" in name:
+                tags = [ 'sensor', 'smoke' ] 
+
+            # parse out last activity (required dealing with "Yesterday 1:52 PM")
+            #last_activity = remove_prefix(row.find("span", {"class": "devStatIcon"}).get('title'), "Last Event: ")
+            #LOG.debug(dateparser.parse(last_activity))
+            last_activity = time.time()
+
+			# id:    [integer]
+			# name:  device name
+			# tags:  sensor,[doorWindow,motion,glass,co,fire]
+		    # timestamp: timestamp of last activity
+			# state: OK (device okay)
+			#        Open (door/window opened)
+			#        Motion (detected motion)
+			#        Tamper (glass broken or device tamper)
+			#        Alarm (detected CO/Smoke)
+			#        Unknown (device offline)
+            zones.append({
+                "id": f"sensor-{zone}",
+                "name": name,
+                "state": state,
+                "tags": tags,
+                "timestamp": time.time() 
+            })
+
+        self._zones = zones
+        return zones
+
+    def fetch_zones_OLD(self):
+        """Fetch a fresh copy of the zone data from ADT Pulse service"""
         response = self._adt_service.query(ADT_ZONES_URI)
         self._zones_json = response.json()
+        LOG.debug("Result: %s", self._zones_json)
         
         if not self._zones_json:
             LOG.warning("Failed to load any zones from ADT Pulse service")

@@ -99,7 +99,7 @@ class PyADTPulse(object):
                 LOG.debug(f"Discovered site id {site_id}: {site_name}")
                 sites.append( ADTPulseSite(self, site_id, site_name, soup) )
             else:
-                LOG.warning(f"Couldn't find site id for '{name}' in '{signout_link}'")
+                LOG.warning(f"Couldn't find site id for '{site_name}' in '{signout_link}'")
         else:
             LOG.error("ADT Pulse accounts with MULTIPLE sites not yet supported!!!")
 

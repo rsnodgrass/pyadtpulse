@@ -1,1 +1,2 @@
 requests>=2,<3
+dateparser>=0.7.4

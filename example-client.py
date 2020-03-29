@@ -8,7 +8,7 @@ import logging
 from pyadtpulse import PyADTPulse
 
 def setup_logger():
-    log_level = logging.INFO
+    log_level = logging.DEBUG
 
     logger = logging.getLogger()
     logger.setLevel(log_level)
@@ -44,6 +44,7 @@ def main():
         print(f"Armed Away? = {site.is_away}")
         print(f"Armed Home? = {site.is_home}")
 
+        print(f"Changed exist? {site.updates_may_exist}")
 
         print("\nZones:")
         for zone in site.zones:
