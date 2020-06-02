@@ -161,7 +161,7 @@ class ADTPulseSite(object):
             state = remove_prefix(row.find("canvas", {'class': 'p_ic_icon_device'}).get('icon'), 'devStat')
 
             tags = None
-            for search_term, default_tags in enumerate(ADT_NAME_TO_DEFAULT_TAGS):
+            for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
                 if search_term in name:
                     tags = default_tags
                     break
