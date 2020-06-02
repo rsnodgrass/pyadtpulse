@@ -13,6 +13,19 @@ ADT_ALARM_HOME    = 'stay'
 ADT_ALARM_OFF     = 'off'
 ADT_ALARM_UNKNOWN = 'unknown'
 
+ADT_NAME_TO_DEFAULT_TAGS = {
+    'Door':     [ 'sensor', 'doorWindow' ],
+    'Window':   [ 'sensor', 'doorWindow' ],
+    'Motion':   [ 'sensor', 'motion' ],
+    'Glass':    [ 'sensor', 'glass' ] ,
+    'Gas':      [ 'sensor', 'co' ],
+    'Smoke':    [ 'sensor', 'smoke' ],
+    'Flood':    [ 'sensor', 'flood' ],
+    'Floor':    [ 'sensor', 'flood' ],
+    'Moisture': [ 'sensor', 'flood' ]
+}
+
+
 def remove_prefix(text, prefix):
     return text[text.startswith(prefix) and len(prefix):]
 
@@ -147,19 +160,13 @@ class ADTPulseSite(object):
             zone = int(remove_prefix(row.find("span", {'class': 'p_grayNormalText'}).get_text(), "Zone\xa0"))
             state = remove_prefix(row.find("canvas", {'class': 'p_ic_icon_device'}).get('icon'), 'devStat')
 
-            tags = []
-            if "Door" in name or "Window" in name:
-                tags = [ 'sensor', 'doorWindow' ] 
-            elif "Motion" in name:
-                tags = [ 'sensor', 'motion' ] 
-            elif "Glass" in name:
-                tags = [ 'sensor', 'glass' ] 
-            elif "Gas" in name:
-                tags = [ 'sensor', 'co' ] 
-            elif "Smoke" in name or "Heat" in name:
-                tags = [ 'sensor', 'smoke' ] 
-            else:
-                LOG.warning(f"Unknown sensor type for {name}, defaulting to doorWindow")
+            tags = None
+            for search_term, default_tags in enumerate(ADT_NAME_TO_DEFAULT_TAGS):
+                if search_term in name:
+                    tags = default_tags
+                    break
+            if not tags:
+                LOG.warning(f"Unknown sensor type for '{name}', defaulting to doorWindow")
                 tags = [ 'sensor', 'doorWindow' ]
 
             # parse out last activity (required dealing with "Yesterday 1:52 PM")
