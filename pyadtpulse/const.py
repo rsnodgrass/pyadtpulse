@@ -9,6 +9,8 @@ ADT_LOGOUT_URI     = '/access/signout.jsp'
 ADT_SUMMARY_URI    = '/summary/summary.jsp'
 ADT_ZONES_URI      = '/ajax/homeViewDevAjax.jsp'
 ADT_ORB_URI        = '/ajax/orb.jsp'
+ADT_SYSTEM_URI     = '/system/system.jsp'
+ADT_DEVICE_URI     = '/system/device.jsp?id='
 ADT_STATES_URI     = '/ajax/currentStates.jsp'
 ADT_SYNC_CHECK_URI = '/Ajax/SyncCheckServ'
 
