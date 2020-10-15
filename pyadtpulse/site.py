@@ -143,102 +143,108 @@ class ADTPulseSite(object):
 
     def fetch_zones(self):
         """Fetch a fresh copy of the zone data from ADT Pulse service"""
-        #call orb uri
+
+        # call ADT orb uri
         response = self._adt_service.query(ADT_ORB_URI)
-        #get summary.jsp to find device IDs for more detail!
+
+        # summary.jsp contains more device id details
         response2 = self._adt_service.query(ADT_SYSTEM_URI)
         
         soup = BeautifulSoup(response.text, 'html.parser')
         soup2 = BeautifulSoup(response2.text, 'html.parser')
 
         if not soup or not soup2:
-            LOG.warning("Failed to load zone status from ADT Pulse service")
-            LOG.debug(f"ADT Pulse service zone data response: %s", response.text)
+            LOG.warning("Failed loading zone status from ADT Pulse service")
+            LOG.debug(f"Failed ADT Pulse zone data response: %s", response.text)
             return
-        self._zones_soup = soup
-        
+
         zones = []
         regexDevice = "goToUrl\('device.jsp\?id=(\d*)'\);"
         for row in soup2.find_all("tr", {'class': 'p_listRow', 'onclick': True}):
             onClickValueText = row.get('onclick')
-            device_id = re.findall(regexDevice, onClickValueText)[0]
-            deviceResponse = self._adt_service.query(ADT_DEVICE_URI+device_id)
-            #check if I get a response
-            if not deviceResponse:
-                LOG.warning("Failed to load zone status from ADT Pulse service")
-                LOG.debug(f"ADT Pulse service zone data response: %s", deviceResponse.text)
-                return
-            deviceResponseSoup = BeautifulSoup(deviceResponse.text, 'html.parser')
-            dName = ""
-            dType = ""
-            dZone = ""
-            dStatus = ""
-            dMan = ""
-            for devInfoRow in deviceResponseSoup.find_all("td", {'class', 'InputFieldDescriptionL'}):
-                #Convert to upper for easy comparison
-                identityText = devInfoRow.get_text().upper()
-                if identityText == "NAME:":
-                    dName = devInfoRow.find_next_sibling().get_text().strip()
-                elif identityText == "TYPE/MODEL:":
-                    dType = devInfoRow.find_next_sibling().get_text().strip()
-                elif identityText == "ZONE:":
-                    dZone = devInfoRow.find_next_sibling().get_text().strip()
-                elif identityText == "STATUS:":
-                    dStatus = devInfoRow.find_next_sibling().get_text().strip()
-                elif identityText == "MANUFACTURER/PROVIDER:":
-                    dMan = devInfoRow.find_next_sibling().get_text().strip()
+            result = re.findall(regexDevice, onClickValueText)
 
-            #if empty string, this is the control panel
-            if dZone != "":   
+            # only proceed if regex succeeded, as some users have onClick links that include gateway.jsp
+            if not result:
+                LOG.debug(f"Failed regex match #{regexDevice} on #{onClickValueText} from ADT Pulse service, ignoringsy")
+                next
+
+            device_id = result[0]
+            deviceResponse = self._adt_service.query(ADT_DEVICE_URI+device_id)
+
+            if not deviceResponse:
+                LOG.debug(f"Failed loading zone data from ADT Pulse service: %s", deviceResponse.text)
+                return
+
+            dName = dType = dZone = dStatus = dMan = ''
+            deviceResponseSoup = BeautifulSoup(deviceResponse.text, 'html.parser')
+            for devInfoRow in deviceResponseSoup.find_all("td", {'class', 'InputFieldDescriptionL'}):
+
+                identityText = devInfoRow.get_text().upper()
+                value = devInfoRow.find_next_sibling().get_text().strip()
+
+                if identityText == "NAME:":
+                    dName = value
+                elif identityText == "TYPE/MODEL:":
+                    dType = value
+                elif identityText == "ZONE:":
+                    dZone = value
+                elif identityText == "STATUS:":
+                    dStatus = value
+                elif identityText == "MANUFACTURER/PROVIDER:":
+                    dMan = value
+
+            # NOTE: if empty string, this is the control panel
+            if dZone != '':
                 tags = None
+
                 for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
                     #convert to update first
                     if search_term.upper() in dType.upper():
                         tags = default_tags
                         break
+
                 if not tags:
                     LOG.warning(f"Unknown sensor type for '{dType}', defaulting to doorWindow")
                     tags = [ 'sensor', 'doorWindow' ]
+
                 zones.append({
-                    "id": f"sensor-{dZone}",
-                    "zone": dZone,
-                    "name": dName,
-                    "status": dStatus,
-                    "state": "",
-                    "tags": tags,
+                    "id":        f"sensor-{dZone}",
+                    "zone":      dZone,
+                    "name":      dName,
+                    "status":    dStatus,
+                    "state":     "",
+                    "tags":      tags,
                     "timestamp": time.time() 
                 })
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
-        # parse the convulated html to get sensor status
+        # parse ADT's convulated html to get sensor status
         for row in soup.find_all("tr", {'class': 'p_listRow'}):
             name = row.find("a", {'class': 'p_deviceNameText'}).get_text()
             zone = int(remove_prefix(row.find("span", {'class': 'p_grayNormalText'}).get_text(), "Zone\xa0"))
             state = remove_prefix(row.find("canvas", {'class': 'p_ic_icon_device'}).get('icon'), 'devStat')
 
             # parse out last activity (required dealing with "Yesterday 1:52 PM")
-            #last_activity = remove_prefix(row.find("span", {"class": "devStatIcon"}).get('title'), "Last Event: ")
-            #LOG.debug(dateparser.parse(last_activity))
             last_activity = time.time()
 
-			# id:    [integer]
-			# name:  device name
-			# tags:  sensor,[doorWindow,motion,glass,co,fire]
-		    # timestamp: timestamp of last activity
-			# state: OK (device okay)
-			#        Open (door/window opened)
-			#        Motion (detected motion)
-			#        Tamper (glass broken or device tamper)
-			#        Alarm (detected CO/Smoke)
-			#        Unknown (device offline)
-            i = 0
-            #update device state from ORB info
+	    # id:    [integer]
+	    # name:  device name
+	    # tags:  sensor,[doorWindow,motion,glass,co,fire]
+	    # timestamp: timestamp of last activity
+	    # state: OK (device okay)
+	    #        Open (door/window opened)
+	    #        Motion (detected motion)
+	    #        Tamper (glass broken or device tamper)
+	    #        Alarm (detected CO/Smoke)
+	    #        Unknown (device offline)
+
+            # update device state from ORB info
             for device in zones:
                 if int(device['zone']) == zone:
                     device['state'] = state
                     break
-                i = i + 1
 
         self._zones = zones
         return zones
@@ -256,21 +262,20 @@ class ADTPulseSite(object):
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
-        # to simplify usage, flatten structure AND
+        # to simplify usage, flatten structure
         zones = self._zones_json.get('items')
         for zone in zones:
             del zone['deprecatedAction']
             del zone['devIndex']
+            del zone['state']
 
-            # insert a simpler to access status field (e.g. Closed, Open)
+            # insert simpler to access status field (e.g. Closed, Open)
             m = re.search(" - (.*)\n", zone['state']['statusTxt'])
             if m:
                 zone['status'] = m.group(1)
 
             zone['tags'] = zone['tags'].split(',')
-
             zone['activityTs'] = int(zone['state']['activityTs'])
-            del zone['state']
 
         self._zones = zones
         return self._zones
