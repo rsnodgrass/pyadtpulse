@@ -167,7 +167,7 @@ class ADTPulseSite(object):
             # only proceed if regex succeeded, as some users have onClick links that include gateway.jsp
             if not result:
                 LOG.debug(f"Failed regex match #{regexDevice} on #{onClickValueText} from ADT Pulse service, ignoringsy")
-                next
+                continue
 
             device_id = result[0]
             deviceResponse = self._adt_service.query(ADT_DEVICE_URI+device_id)
