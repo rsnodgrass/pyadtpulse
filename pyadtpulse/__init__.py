@@ -36,8 +36,9 @@ class PyADTPulse(object):
         self._api_host = DEFAULT_API_HOST
         
         # authenticate the user
+        self._authenticated = False
         self._username = username
-        self._password = password # TODO: ideally DON'T store in memory...
+        self._password = password
 
         self.login()
 
@@ -127,8 +128,7 @@ class PyADTPulse(object):
         soup = BeautifulSoup(response.text, 'html.parser')
         error = soup.find('div', {'id': 'warnMsgContents'})
         if error or not response.ok:
-            error_string = error.text
-            LOG.error(f"ADT Pulse response ({response.status_code}): {error_string}")
+            LOG.error(f"ADT Pulse response ({response.status_code}): {error} {response.status_code}")
             self._authenticated = False
             return
 
@@ -151,8 +151,9 @@ class PyADTPulse(object):
         text = response.text
         self._sync_timestamp = time.time()
 
-        if not re.match('\d+-\d+-\d+', text):
-            LOG.warn("Sync check didn't match expected format, forcing re-authentication and notifying of updates")
+        pattern = r'\d+-\d+-\d+'
+        if not re.match(pattern, text):
+            LOG.warn(f"Unexpected sync check format ({pattern}), forcing re-auth: {text}")
             self._authenticated = False
             return True
 

@@ -35,6 +35,9 @@ def main():
 
     adt = PyADTPulse(username, password)
 
+    print(f"Updated exists? True == {adt.updates_exist}")
+    print(f"Updated exists? False == {adt.updates_exist}")
+
     for site in adt.sites:
         print("----")
         print(f"Site: {site.name} (id={site.id})")
