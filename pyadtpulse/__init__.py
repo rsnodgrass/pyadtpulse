@@ -151,9 +151,9 @@ class PyADTPulse(object):
         text = response.text
         self._sync_timestamp = time.time()
 
-        pattern = r'\d+-\d+-\d+'
+        pattern = r'\d+[-]\d+[-]\d+'
         if not re.match(pattern, text):
-            LOG.warn(f"Unexpected sync check format ({pattern}), forcing re-auth: {text}")
+            LOG.warn(f"Unexpected sync check format ({pattern}), forcing re-auth")
             self._authenticated = False
             return True
 
