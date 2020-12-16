@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import pprint
 import logging
 
@@ -35,8 +36,9 @@ def main():
 
     adt = PyADTPulse(username, password)
 
-    print(f"Updated exists? True == {adt.updates_exist}")
-    print(f"Updated exists? False == {adt.updates_exist}")
+#    for i in range(20):
+#        print(f"{i} Updated exists? {adt.updates_exist}")
+#        time.sleep(60)
 
     for site in adt.sites:
         print("----")

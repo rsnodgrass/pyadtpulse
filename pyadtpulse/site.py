@@ -181,7 +181,12 @@ class ADTPulseSite(object):
             for devInfoRow in deviceResponseSoup.find_all("td", {'class', 'InputFieldDescriptionL'}):
 
                 identityText = devInfoRow.get_text().upper()
-                value = devInfoRow.find_next_sibling().get_text().strip()
+
+                sibling = devInfoRow.find_next_sibling()
+                if not sibling:
+                    continue
+
+                value = sibling.get_text().strip()
 
                 if identityText == "NAME:":
                     dName = value

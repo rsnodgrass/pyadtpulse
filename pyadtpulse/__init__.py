@@ -162,8 +162,9 @@ class PyADTPulse(object):
             LOG.debug(f"Sync token {text} != existing {self._sync_token}; updates may exist")
             self._sync_token = text
             return True
-
-        return False
+        else:
+            LOG.debug(f"Sync token {self._sync_token} matches, no remote updates to process")
+            return False
 
     @property
     def is_connected(self):
