@@ -19,7 +19,7 @@ LOG = logging.getLogger(__name__)
 class PyADTPulse(object):
     """Base object for ADT Pulse service."""
 
-    def __init__(self, username=None, password=None, user_agent='pyadtpulse'):
+    def __init__(self, username=None, password=None, fingerprint=None, user_agent='pyadtpulse'):
         """Create a python interface to the ADT Pulse service.
            :param username: ADT Pulse username
            :param password: ADT Pulse password
@@ -39,6 +39,7 @@ class PyADTPulse(object):
         self._authenticated = False
         self._username = username
         self._password = password
+        self._fingerprint = fingerprint
 
         self.login()
 
@@ -121,6 +122,7 @@ class PyADTPulse(object):
             extra_params={
                 'usernameForm' : self._username,
                 'passwordForm' : self._password,
+                'fingerprint'  : self._fingerprint,
                 'sun'          : 'yes'
             },
             force_login=False)
