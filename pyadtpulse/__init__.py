@@ -103,7 +103,7 @@ class PyADTPulse(object):
             else:
                 LOG.warning(f"Couldn't find site id for '{site_name}' in '{signout_link}'")
         else:
-            LOG.error("ADT Pulse accounts with MULTIPLE sites not yet supported!!!")
+            LOG.error("ADT Pulse accounts with 2FA enabled or with  MULTIPLE sites not yet supported!!!")
 
         self._sites = sites
 
