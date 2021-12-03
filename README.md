@@ -6,6 +6,9 @@ Python client interface to the ADT Pulse security system.
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=WREP29UDAMB6G)
 
+**This is an unsupported interface provided only as a basis for others to explore integrating
+their ADT system wtih their own tools.**
+
 While two or three Python clients to ADT Pulse existed, they generally only provided
 arm/disarm support and none provided support for ADT Pulse when multiple sites existed
 under a single account. This attempts to provide APIs to both all the zones (motion 
@@ -13,6 +16,10 @@ sensors, door sensors, etc) as well as arming and disarming individual sites.
 
 NOTE: Since this interacts with the unofficial ADT Pulse AJAX web service, the
 behavior is subject to change by ADT without notice.
+
+## WARNING
+
+Do not refresh status of sensors often as the ADT service is not designed for high volume requests. E.g. updating every 5 minutes, not seconds. Keep your authenticated session to avoid logging in repeatedly.
 
 ## Installation
 
