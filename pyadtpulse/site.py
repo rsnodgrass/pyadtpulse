@@ -39,6 +39,7 @@ class ADTPulseSite(object):
         self._name = name
         self._zones = []
         self._status = ADT_ALARM_UNKNOWN
+        self._sat = ''
 
         self._update_alarm_status(summary_html_soup)
 
@@ -77,7 +78,8 @@ class ADTPulseSite(object):
         params = {
             'href'     : 'rest/adt/ui/client/security/setArmState',
             'armstate' : self._status, # existing state
-            'arm'      : mode          # new state
+            'arm'      : mode,          # new state
+            'sat'      : self._sat
         }
         response = self._adt_service.query(ADT_ARM_DISARM_URI, method='POST',
                                            extra_params=params)
@@ -115,6 +117,7 @@ class ADTPulseSite(object):
 
     def _update_alarm_status(self, summary_html_soup, update_zones=True):
         value = summary_html_soup.find('span', {'class': 'p_boldNormalTextLarge'})
+        sat_location = 'security_button_0'
         if value:
             text = value.text
             if re.match('Disarmed', text):
@@ -129,7 +132,18 @@ class ADTPulseSite(object):
 
             LOG.debug("Alarm status = %s", self._status)
 
-#        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
+        sat_button = summary_html_soup.find('input', {
+            'type': 'button',
+            'id': sat_location
+        })
+        if sat_button:
+            on_click = sat_button['onclick']
+            match = re.search(r'sat=([a-z0-9\-]+)', on_click)
+            if match:
+                self._sat = match.group(1)
+        print("SAT: ", self._sat)
+
+    #        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
 #        if status_orb:
 #            self._status = status_orb['orb']
 #            LOG.warning(status_orb)
