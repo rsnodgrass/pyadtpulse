@@ -136,11 +136,14 @@ class ADTPulseSite(object):
             'type': 'button',
             'id': sat_location
         })
-        if sat_button:
+        if sat_button and sat_button.has_attr('onclick'):
             on_click = sat_button['onclick']
             match = re.search(r'sat=([a-z0-9\-]+)', on_click)
             if match:
                 self._sat = match.group(1)
+        elif len(self._sat) == 0:
+            LOG.warning("No sat recorded and was unable extract sat.")
+
 
         if len(self._sat) > 0:
             LOG.debug("Extracted sat = %s", self._sat)
