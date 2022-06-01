@@ -141,7 +141,12 @@ class ADTPulseSite(object):
             match = re.search(r'sat=([a-z0-9\-]+)', on_click)
             if match:
                 self._sat = match.group(1)
-        print("SAT: ", self._sat)
+
+        if len(self._sat) > 0:
+            LOG.debug("Extracted sat = %s", self._sat)
+        else:
+            LOG.warning("Unable to extract sat")
+
 
     #        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
 #        if status_orb:
