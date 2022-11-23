@@ -6,7 +6,8 @@ import json
 import time
 #import dateparser
 from bs4 import BeautifulSoup
-from pyadtpulse.const import ( ADT_ZONES_URI, ADT_ARM_DISARM_URI, ADT_ORB_URI, ADT_SYSTEM_URI, ADT_DEVICE_URI )
+from pyadtpulse.const import ( ADT_ZONES_URI, ADT_ARM_DISARM_URI, ADT_ORB_URI, ADT_SYSTEM_URI, ADT_SUMMARY_URI, ADT_DEVICE_URI )
+
 
 ADT_ALARM_AWAY    = 'away'
 ADT_ALARM_HOME    = 'stay'
@@ -82,6 +83,8 @@ class ADTPulseSite(object):
             'sat'      : self._sat
         }
         response = self._adt_service.query(ADT_ARM_DISARM_URI, method='POST',
+                                           extra_headers= { 'Accept' : '*/*',
+                                                            'Referer' : ADT_ARM_DISARM_URI.split('?')[0]},
                                            extra_params=params)
         if not response.ok:
             LOG.warning(f"Failed updating ADT Pulse alarm {self._name} to {mode} (http={response.status_code}")
@@ -167,10 +170,15 @@ class ADTPulseSite(object):
         """Fetch a fresh copy of the zone data from ADT Pulse service"""
 
         # call ADT orb uri
-        response = self._adt_service.query(ADT_ORB_URI)
+        response = self._adt_service.query(ADT_ORB_URI,
+                                           extra_headers= { 'Accept': '*/*',
+                                                            'Referer': self._adt_service.make_url(ADT_SUMMARY_URI)}
+                                                            )
 
         # summary.jsp contains more device id details
-        response2 = self._adt_service.query(ADT_SYSTEM_URI)
+        response2 = self._adt_service.query(ADT_SYSTEM_URI,
+                                            extra_headers= { 'Accept': '*/*',
+                                                             'Referer': self._adt_service.make_url(ADT_ORB_URI)})
         
         soup = BeautifulSoup(response.text, 'html.parser')
         soup2 = BeautifulSoup(response2.text, 'html.parser')
@@ -192,7 +200,8 @@ class ADTPulseSite(object):
                 continue
 
             device_id = result[0]
-            deviceResponse = self._adt_service.query(ADT_DEVICE_URI+device_id)
+            deviceResponse = self._adt_service.query(ADT_DEVICE_URI+device_id,
+                                                     extra_headers={ 'Referer': self._adt_service.make_url(ADT_DEVICE_URI)})
 
             if not deviceResponse:
                 LOG.debug(f"Failed loading zone data from ADT Pulse service: %s", deviceResponse.text)

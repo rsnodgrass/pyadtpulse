@@ -11,7 +11,9 @@ from pyadtpulse.const import ( DEFAULT_API_HOST,
                                ADT_LOGIN_URI,
                                ADT_LOGOUT_URI,
                                ADT_SUMMARY_URI,
-                               ADT_SYNC_CHECK_URI )
+                               ADT_SYNC_CHECK_URI,
+                               ADT_DEFAULT_HTTP_HEADERS )
+
 from pyadtpulse.site import ADTPulseSite
 
 LOG = logging.getLogger(__name__)
@@ -19,12 +21,14 @@ LOG = logging.getLogger(__name__)
 class PyADTPulse(object):
     """Base object for ADT Pulse service."""
 
-    def __init__(self, username=None, password=None, fingerprint=None, user_agent='pyadtpulse'):
+    def __init__(self, username=None, password=None, fingerprint=None, 
+                 user_agent=ADT_DEFAULT_HTTP_HEADERS['User-Agent']):
         """Create a python interface to the ADT Pulse service.
            :param username: ADT Pulse username
            :param password: ADT Pulse password
         """
         self._session = requests.Session()
+        self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
         self._user_agent = user_agent
         self._api_version = None
 
@@ -53,7 +57,11 @@ class PyADTPulse(object):
     def set_service_host(self, host):
         """Override the default ADT Pulse host (e.g. to point to 'portal-ca.adtpulse.com')"""
         self._api_host = f"https://{host}"
+        self._session.headers.update({'Host' : host} )
     
+    def make_url(self,uri: str):
+        return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
+
     @property
     def username(self):
         return self._username
@@ -149,7 +157,10 @@ class PyADTPulse(object):
 
     @property
     def updates_exist(self):
-        response = self.query(ADT_SYNC_CHECK_URI, extra_params={'ts': self._sync_timestamp})
+        response = self.query(ADT_SYNC_CHECK_URI, 
+                              extra_headers={ 'Accept': '*/*',
+                                              'Referer': self.make_url(ADT_SUMMARY_URI) },
+                                               extra_params={'ts': self._sync_timestamp})
         text = response.text
         self._sync_timestamp = time.time()
 
@@ -191,7 +202,7 @@ class PyADTPulse(object):
         if force_login and not self.is_connected:
             self.login()
 
-        url = f"{self._api_host}{API_PREFIX}{self.version}{uri}"
+        url = self.make_url(uri)
 
         loop = 0
         while loop < retry:
@@ -206,15 +217,12 @@ class PyADTPulse(object):
             if extra_params:
                 params.update(extra_params)
 
-            headers = { 'User-Agent': self._user_agent }
-            if extra_headers:
-                headers.update(extra_headers)
 
             # define connection method
             if method == 'GET':
-                response = self._session.get(url, headers=headers)
+                response = self._session.get(url, headers=extra_headers)
             elif method == 'POST':
-                response = self._session.post(url, headers=headers, data=params)
+                response = self._session.post(url, headers=extra_headers, data=params)
             else:
                 LOG.error("Invalid request method '%s'", method)
                 return None
