@@ -5,8 +5,14 @@ import time
 # import dateparser
 from bs4 import BeautifulSoup
 
-from pyadtpulse.const import (ADT_ARM_DISARM_URI, ADT_DEVICE_URI, ADT_ORB_URI,
-                              ADT_SUMMARY_URI, ADT_SYSTEM_URI, ADT_ZONES_URI)
+from pyadtpulse.const import (
+    ADT_ARM_DISARM_URI,
+    ADT_DEVICE_URI,
+    ADT_ORB_URI,
+    ADT_SUMMARY_URI,
+    ADT_SYSTEM_URI,
+    ADT_ZONES_URI,
+)
 
 ADT_ALARM_AWAY = "away"
 ADT_ALARM_HOME = "stay"
@@ -30,7 +36,7 @@ LOG = logging.getLogger(__name__)
 
 
 def remove_prefix(text, prefix):
-    return text[text.startswith(prefix) and len(prefix):]
+    return text[text.startswith(prefix) and len(prefix) :]
 
 
 class ADTPulseSite(object):
@@ -117,8 +123,8 @@ class ADTPulseSite(object):
     @property
     def zones(self):
         """Return all zones registered with the ADT Pulse account
-           (cached copy of last fetch)
-           See Also fetch_zones()"""
+        (cached copy of last fetch)
+        See Also fetch_zones()"""
         if self._zones:
             return self._zones
 
@@ -214,8 +220,8 @@ class ADTPulseSite(object):
             # links that include gateway.jsp
             if not result:
                 LOG.debug(
-                    f'''Failed regex match #{regexDevice} on #{onClickValueText}
-                    from ADT Pulse service, ignoring'''
+                    f"""Failed regex match #{regexDevice} on #{onClickValueText}
+                    from ADT Pulse service, ignoring"""
                 )
                 continue
 
@@ -227,8 +233,9 @@ class ADTPulseSite(object):
 
             if not deviceResponse:
                 LOG.debug(
-                   f'''Failed loading zone data from
-                      ADT Pulse service: {deviceResponse.text}''')
+                    f"""Failed loading zone data from
+                      ADT Pulse service: {deviceResponse.text}"""
+                )
                 return
 
             dName = dType = dZone = dStatus = dMan = ""

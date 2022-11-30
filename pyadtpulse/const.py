@@ -15,10 +15,11 @@ ADT_STATES_URI = "/ajax/currentStates.jsp"
 ADT_SYNC_CHECK_URI = "/Ajax/SyncCheckServ"
 
 ADT_DEFAULT_HTTP_HEADERS = {
-    "User-Agent":
-    ''.join("Mozilla/5.0 (Windows NT 10.0; Win64; x64) ",
-            "AppleWebKit/537.36 (KHTML, like Gecko) ",
-            "Chrome/100.0.4896.127 Safari/537.36 Edg/100.0.1185.44"),
+    "User-Agent": "".join(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ",
+        "AppleWebKit/537.36 (KHTML, like Gecko) ",
+        "Chrome/100.0.4896.127 Safari/537.36 Edg/100.0.1185.44",
+    ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 

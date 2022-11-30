@@ -7,9 +7,15 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-from pyadtpulse.const import (ADT_DEFAULT_HTTP_HEADERS, ADT_LOGIN_URI,
-                              ADT_LOGOUT_URI, ADT_SUMMARY_URI,
-                              ADT_SYNC_CHECK_URI, API_PREFIX, DEFAULT_API_HOST)
+from pyadtpulse.const import (
+    ADT_DEFAULT_HTTP_HEADERS,
+    ADT_LOGIN_URI,
+    ADT_LOGOUT_URI,
+    ADT_SUMMARY_URI,
+    ADT_SYNC_CHECK_URI,
+    API_PREFIX,
+    DEFAULT_API_HOST,
+)
 from pyadtpulse.site import ADTPulseSite
 
 LOG = logging.getLogger(__name__)
@@ -101,8 +107,10 @@ class PyADTPulse(object):
             # alarm status of the current site!!
             if len(self._sites) > 1:
                 LOG.error(
-                    ("pyadtpulse DOES NOT support an ADT account ",
-                     "with multiple sites yet!!!")
+                    (
+                        "pyadtpulse DOES NOT support an ADT account ",
+                        "with multiple sites yet!!!",
+                    )
                 )
 
             for site in self._sites:
@@ -127,9 +135,11 @@ class PyADTPulse(object):
                 )
         else:
             LOG.error(
-                ("ADT Pulse accounts with 2FA enabled"
-                 " (create new users without 2FA) or with MULTIPLE sites ",
-                 " not supported!!!")
+                (
+                    "ADT Pulse accounts with 2FA enabled"
+                    " (create new users without 2FA) or with MULTIPLE sites ",
+                    " not supported!!!",
+                )
             )
 
         self._sites = sites
