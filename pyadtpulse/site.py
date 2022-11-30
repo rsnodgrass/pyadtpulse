@@ -36,7 +36,7 @@ LOG = logging.getLogger(__name__)
 
 
 def remove_prefix(text, prefix):
-    return text[text.startswith(prefix) and len(prefix) :]
+    return text[text.startswith(prefix) and len(prefix):]
 
 
 class ADTPulseSite(object):
