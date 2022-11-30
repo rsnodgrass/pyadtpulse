@@ -36,7 +36,7 @@ LOG = logging.getLogger(__name__)
 
 
 def remove_prefix(text, prefix):
-    return text[text.startswith(prefix) and len(prefix):]
+    return text[text.startswith(prefix) and len(prefix) :]
 
 
 class ADTPulseSite(object):
@@ -238,7 +238,8 @@ class ADTPulseSite(object):
                 )
                 return
 
-            dName = dType = dZone = dStatus = dMan = ""
+            dName = dType = dZone = dStatus = ""
+            # dMan = ""
             deviceResponseSoup = BeautifulSoup(deviceResponse.text, "html.parser")
             for devInfoRow in deviceResponseSoup.find_all(
                 "td", {"class", "InputFieldDescriptionL"}
@@ -260,8 +261,8 @@ class ADTPulseSite(object):
                     dZone = value
                 elif identityText == "STATUS:":
                     dStatus = value
-                elif identityText == "MANUFACTURER/PROVIDER:":
-                    dMan = value
+            #                elif identityText == "MANUFACTURER/PROVIDER:":
+            #                   dMan = value
 
             # NOTE: if empty string, this is the control panel
             if dZone != "":
@@ -295,7 +296,7 @@ class ADTPulseSite(object):
 
         # parse ADT's convulated html to get sensor status
         for row in soup.find_all("tr", {"class": "p_listRow"}):
-            name = row.find("a", {"class": "p_deviceNameText"}).get_text()
+            # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
             zone = int(
                 remove_prefix(
                     row.find("span", {"class": "p_grayNormalText"}).get_text(),
@@ -307,7 +308,7 @@ class ADTPulseSite(object):
             )
 
             # parse out last activity (required dealing with "Yesterday 1:52 PM")
-            last_activity = time.time()
+            #           last_activity = time.time()
 
             # id:    [integer]
             # name:  device name
