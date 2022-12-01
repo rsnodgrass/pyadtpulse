@@ -1,9 +1,9 @@
 """Python class representing an ADT Pulse zone."""
 
 import logging
-from pyadtpulse.const import ( ADT_ZONES_URI )
 
 LOG = logging.getLogger(__name__)
+
 
 def assert_is_dict(var):
     """Assert variable is from the type dictionary."""
@@ -47,6 +47,7 @@ class ADTZone(object):
         self._attrs = self._session.refresh_attributes(self.name)
         self._attrs = assert_is_dict(self._attrs)
 
+
 # id
 # name
 # tags
@@ -54,15 +55,15 @@ class ADTZone(object):
 # status text
 # last activity timestamp
 
- #   {
- #     "state": {
- #       "icon": "devStatOK",
- #       "statusTxt": "South Office Door - Closed\nLast Activity: 10/31 11:20 AM",
- #       "activityTs": 1509474015194
- #     },
- #     "deprecatedAction": "launchDetailsWindow('U291dGggT2ZmaWNlIERvb3I=','672')",
- #     "id": "sensor-4",
- #     "devIndex": "E5VER1",
- #     "name": "South Office Door",
- #     "tags": "sensor,doorWindow"
- #   },
+#   {
+#     "state": {
+#       "icon": "devStatOK",
+#       "statusTxt": "South Office Door - Closed\nLast Activity: 10/31 11:20 AM",
+#       "activityTs": 1509474015194
+#     },
+#     "deprecatedAction": "launchDetailsWindow('U291dGggT2ZmaWNlIERvb3I=','672')",
+#     "id": "sensor-4",
+#     "devIndex": "E5VER1",
+#     "name": "South Office Door",
+#     "tags": "sensor,doorWindow"
+#   },
