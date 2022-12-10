@@ -39,7 +39,7 @@ def remove_prefix(text, prefix):
     return text[text.startswith(prefix) and len(prefix) :]
 
 
-class ADTPulseSite(object):
+class ADTPulseSite:
     def __init__(self, adt_service, site_id, name, summary_html_soup=None):
         """Represents an individual ADT Pulse site"""
 
