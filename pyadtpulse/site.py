@@ -1,10 +1,12 @@
 import logging
 import re
 import time
+from typing import Dict, List, Optional
 
 # import dateparser
 from bs4 import BeautifulSoup
 
+from pyadtpulse import PyADTPulse
 from pyadtpulse.const import (
     ADT_ARM_DISARM_URI,
     ADT_DEVICE_URI,
@@ -13,6 +15,7 @@ from pyadtpulse.const import (
     ADT_SYSTEM_URI,
     ADT_ZONES_URI,
 )
+from pyadtpulse.util import handle_response, remove_prefix
 
 ADT_ALARM_AWAY = "away"
 ADT_ALARM_HOME = "stay"
@@ -35,51 +38,53 @@ ADT_NAME_TO_DEFAULT_TAGS = {
 LOG = logging.getLogger(__name__)
 
 
-def remove_prefix(text, prefix):
-    return text[text.startswith(prefix) and len(prefix) :]
-
-
 class ADTPulseSite(object):
-    def __init__(self, adt_service, site_id, name, summary_html_soup=None):
+    def __init__(
+        self,
+        adt_service: PyADTPulse,
+        site_id: int,
+        name: str,
+        summary_html_soup: Optional[BeautifulSoup] = None,
+    ):
         """Represents an individual ADT Pulse site"""
 
         self._adt_service = adt_service
         self._id = site_id
         self._name = name
-        self._zones = []
+        self._zones: List[Dict] = []
         self._status = ADT_ALARM_UNKNOWN
         self._sat = ""
-
-        self._update_alarm_status(summary_html_soup)
+        if summary_html_soup is not None:
+            self._update_alarm_status(summary_html_soup)
 
     @property
-    def id(self):
+    def id(self) -> int:
         return self._id
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     # FIXME: should this actually return if the alarm is going off!?  How do we
     # return state that shows the site is compromised??
     @property
-    def status(self):
+    def status(self) -> str:
         """Returns the alarm status"""
         return self._status
 
     @property
-    def is_away(self):
+    def is_away(self) -> bool:
         return self._status == ADT_ALARM_AWAY
 
     @property
-    def is_home(self):
+    def is_home(self) -> bool:
         return self._status == ADT_ALARM_HOME
 
     @property
-    def is_disarmed(self):
+    def is_disarmed(self) -> bool:
         return self._status == ADT_ALARM_OFF
 
-    def _arm(self, mode):
+    def _arm(self, mode) -> None:
         """Set the alarm arm mode to one of: off, home, away
         :param mode: alarm mode to set
         """
@@ -99,24 +104,26 @@ class ADTPulseSite(object):
             },
             extra_params=params,
         )
-        if not response.ok:
-            LOG.warning(
-                f"Failed updating ADT Pulse alarm {self._name} "
-                "to {mode} (http={response.status_code}"
-            )
-        else:
-            self._status = mode
-            self.update()
 
-    def arm_away(self):
+        if not handle_response(
+            response,
+            logging.WARNING,
+            f"Failed updating ADT Pulse alarm {self._name} " "to {mode}",
+        ):
+            return
+
+        self._status = mode
+        self.update()
+
+    def arm_away(self) -> None:
         """Arm the alarm in Away mode"""
         self._arm(ADT_ALARM_AWAY)
 
-    def arm_home(self):
+    def arm_home(self) -> None:
         """Arm the alarm in Home mode"""
         self._arm(ADT_ALARM_HOME)
 
-    def disarm(self):
+    def disarm(self) -> None:
         """Disarm the alarm"""
         self._arm(ADT_ALARM_OFF)
 
@@ -135,7 +142,9 @@ class ADTPulseSite(object):
         """Returns log of history for this zone (NOT IMPLEMENTED)"""
         return []
 
-    def _update_alarm_status(self, summary_html_soup, update_zones=True):
+    def _update_alarm_status(
+        self, summary_html_soup: BeautifulSoup, update_zones: Optional[bool] = True
+    ) -> None:
         value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
         sat_location = "security_button_0"
         if value:
@@ -193,6 +202,11 @@ class ADTPulseSite(object):
             },
         )
 
+        if not handle_response(
+            response, logging.ERROR, "Could not query ADT Pulse Orb for zone refresh"
+        ):  # shut up type checker
+            return
+
         # summary.jsp contains more device id details
         response2 = self._adt_service.query(
             ADT_SYSTEM_URI,
@@ -201,6 +215,15 @@ class ADTPulseSite(object):
                 "Referer": self._adt_service.make_url(ADT_ORB_URI),
             },
         )
+        if not handle_response(
+            response2,
+            logging.ERROR,
+            "Could not query ADT Pulse system page for zone refresh",
+        ):
+            return
+
+        if not response or not response2:  # shut up type checker
+            return
 
         soup = BeautifulSoup(response.text, "html.parser")
         soup2 = BeautifulSoup(response2.text, "html.parser")
@@ -228,14 +251,19 @@ class ADTPulseSite(object):
             device_id = result[0]
             deviceResponse = self._adt_service.query(
                 ADT_DEVICE_URI + device_id,
-                extra_headers={"Referer": self._adt_service.make_url(ADT_DEVICE_URI)},
+                extra_headers={
+                    "Referer": self._adt_service.make_url(ADT_DEVICE_URI),
+                },
             )
 
-            if not deviceResponse:
-                LOG.debug(
-                    f"""Failed loading zone data from
-                      ADT Pulse service: {deviceResponse.text}"""
-                )
+            if not handle_response(
+                deviceResponse,
+                logging.DEBUG,
+                "Failed loading zone data from ADT Pulse service",
+            ):
+                return
+
+            if not deviceResponse:  # shut up type checker
                 return
 
             dName = dType = dZone = dStatus = ""
@@ -361,13 +389,13 @@ class ADTPulseSite(object):
         self._zones = zones
         return self._zones
 
-    def updates_may_exist(self):
+    def updates_may_exist(self) -> bool:
         # FIXME: this should actually capture the latest version
         # and compare if different!!!
         # ...this doesn't actually work if other components are also checking
         #  if updates exist
         return self._adt_service.updates_exist
 
-    def update(self):
+    def update(self) -> None:
         """Force an update of the site and zones with current data from the service"""
         self._adt_service.update()

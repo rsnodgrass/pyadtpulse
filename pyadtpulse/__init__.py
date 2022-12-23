@@ -3,9 +3,10 @@
 import logging
 import re
 import time
+from typing import Dict, List, Optional
 
-import requests
 from bs4 import BeautifulSoup
+from requests import HTTPError, Response, Session
 
 from pyadtpulse.const import (
     ADT_DEFAULT_HTTP_HEADERS,
@@ -17,6 +18,7 @@ from pyadtpulse.const import (
     DEFAULT_API_HOST,
 )
 from pyadtpulse.site import ADTPulseSite
+from pyadtpulse.util import handle_response
 
 LOG = logging.getLogger(__name__)
 
@@ -26,16 +28,16 @@ class PyADTPulse(object):
 
     def __init__(
         self,
-        username=None,
-        password=None,
-        fingerprint=None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        fingerprint: Optional[str] = None,
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
     ):
         """Create a python interface to the ADT Pulse service.
         :param username: ADT Pulse username
         :param password: ADT Pulse password
         """
-        self._session = requests.Session()
+        self._session = Session()
         self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
         self._user_agent = user_agent
         self._api_version = None
@@ -49,34 +51,36 @@ class PyADTPulse(object):
 
         # authenticate the user
         self._authenticated = False
+
+        # FIXME: should username and password really be optional?
         self._username = username
         self._password = password
         self._fingerprint = fingerprint
 
         self.login()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Object representation."""
         return "<{0}: {1}>".format(self.__class__.__name__, self._username)
 
     # ADTPulse API endpoint is configurable (besides default US ADT Pulse endpoint) to
     # support testing as well as alternative ADT Pulse endpoints such as
     # portal-ca.adtpulse.com
-    def set_service_host(self, host):
+    def set_service_host(self, host: str) -> None:
         """Override the default ADT Pulse host (e.g. to point to
         'portal-ca.adtpulse.com')"""
         self._api_host = f"https://{host}"
         self._session.headers.update({"Host": host})
 
-    def make_url(self, uri: str):
+    def make_url(self, uri: str) -> str:
         return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
 
     @property
-    def username(self):
+    def username(self) -> Optional[str]:
         return self._username
 
     @property
-    def version(self):
+    def version(self) -> str:
         if not self._api_version:
             response = self._session.get(self._api_host)
             m = re.search("/myhome/(.+)/access", response.url)
@@ -96,7 +100,7 @@ class PyADTPulse(object):
 
         return self._api_version
 
-    def _update_sites(self, summary_html):
+    def _update_sites(self, summary_html: str) -> None:
         soup = BeautifulSoup(summary_html, "html.parser")
 
         if not self._sites:
@@ -116,7 +120,7 @@ class PyADTPulse(object):
             for site in self._sites:
                 site._update_alarm_status(soup, update_zones=True)
 
-    def _initialize_sites(self, soup):
+    def _initialize_sites(self, soup: BeautifulSoup) -> None:
         sites = []
 
         # typically, ADT Pulse accounts have only a single site (premise/location)
@@ -151,7 +155,7 @@ class PyADTPulse(object):
     #
     # ... or perhaps better, just extract all from /system/settings.jsp
 
-    def login(self):
+    def login(self) -> None:
         self._authenticated = False
         LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
 
@@ -167,6 +171,15 @@ class PyADTPulse(object):
             },
             force_login=False,
         )
+
+        if not handle_response(
+            response, logging.ERROR, "Could not log into ADT Pulse site"
+        ):
+            self._authenticated = False
+            return
+
+        if response is None:
+            return
 
         soup = BeautifulSoup(response.text, "html.parser")
         error = soup.find("div", {"id": "warnMsgContents"})
@@ -184,20 +197,24 @@ class PyADTPulse(object):
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
         self._update_sites(response.text)
-        return response.text
 
-    def logout(self):
+    def logout(self) -> None:
         LOG.info(f"Logging {self._username} out of ADT Pulse")
         self.query(ADT_LOGOUT_URI)
         self._authenticated = False
 
     @property
-    def updates_exist(self):
+    def updates_exist(self) -> bool:
         response = self.query(
             ADT_SYNC_CHECK_URI,
             extra_headers={"Accept": "*/*", "Referer": self.make_url(ADT_SUMMARY_URI)},
             extra_params={"ts": self._sync_timestamp},
         )
+
+        if response is None:
+            LOG.error("Error querying ADT sync")
+            return False
+
         text = response.text
         self._sync_timestamp = time.time()
 
@@ -221,7 +238,7 @@ class PyADTPulse(object):
             return False
 
     @property
-    def is_connected(self):
+    def is_connected(self) -> bool:
         """Connection status of client with ADT Pulse cloud service."""
         # FIXME: timeout automatically based on ADT default expiry?
         # self._authenticated_timestamp
@@ -229,18 +246,18 @@ class PyADTPulse(object):
 
     def query(
         self,
-        uri,
-        method="GET",
-        extra_params=None,
-        extra_headers=None,
-        retry=3,
-        force_login=True,
-        version_prefix=True,
-    ):
+        uri: str,
+        method: str = "GET",
+        extra_params: Optional[Dict] = None,
+        extra_headers: Optional[Dict] = None,
+        retry: int = 3,
+        force_login: Optional[bool] = True,
+        version_prefix: Optional[bool] = True,
+    ) -> Optional[Response]:
         """
         Returns a JSON object for an HTTP request.
         :param url: API URL
-        :param method: GET, POST or PUT (default=POST)
+        :param method: GET, POST or PUT (default=GET)
         :param extra_params: Dictionary to be appended to request.body
         :param extra_headers: Dictionary to be apppended to request.headers
         :param retry: Retry attempts for the query (default=3)
@@ -268,23 +285,41 @@ class PyADTPulse(object):
                 params.update(extra_params)
 
             # define connection method
-            if method == "GET":
-                response = self._session.get(url, headers=extra_headers)
-            elif method == "POST":
-                response = self._session.post(url, headers=extra_headers, data=params)
-            else:
-                LOG.error("Invalid request method '%s'", method)
-                return None
+            try:
+                if method == "GET":
+                    response = self._session.get(url, headers=extra_headers)
+                elif method == "POST":
+                    response = self._session.post(
+                        url, headers=extra_headers, data=params
+                    )
+                else:
+                    LOG.error("Invalid request method '%s'", method)
+                    return None
+                response.raise_for_status()
 
-            if response and (response.status_code == 200):
-                break  # success!
+                # success!
+                return response
 
-        return response
+            except HTTPError as err:
+                code = err.response.status_code
+                if code in [429, 500, 502, 503, 504]:
+                    continue
+                else:
+                    LOG.error(
+                        "Unrecoverable HTTP error code {code} in request to ADT Pulse: "
+                    )
+                    break
 
-    def update(self):
+        return None
+
+    def update(self) -> None:
         """Refresh any cached state."""
         LOG.debug("Checking ADT Pulse cloud service for updates")
         response = self.query(ADT_SUMMARY_URI, method="GET")
+        if response is None:
+            LOG.info("Error returned from ADT Pulse service check")
+            return
+
         if response.ok:
             self._update_sites(response.text)
         else:
@@ -293,6 +328,6 @@ class PyADTPulse(object):
             )
 
     @property
-    def sites(self):
+    def sites(self) -> List[ADTPulseSite]:
         """Return all sites for this ADT Pulse account"""
         return self._sites
