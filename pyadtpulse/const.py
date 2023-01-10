@@ -1,3 +1,5 @@
+"""Constants for pyadtpulse."""
+
 DEFAULT_API_HOST = "https://portal.adtpulse.com"
 API_HOST_CA = "https://portal-ca.adtpulse.com"  # Canada
 
@@ -33,6 +35,8 @@ ADT_STATUS_CHANGE_URI = "/quickcontrol/serv/ChangeVariableServ"
 ADT_SET_PREMISE_URI = "/site/site?action=changepremise&siteId=[NETWORKID]"
 
 ADT_SYSTEM_SETTINGS = "/system/settings.jsp"
+
+ADT_DEFAULT_VERSION = "24.0.0-117"
 
 STATE_OK = "OK"
 STATE_OPEN = "Open"
