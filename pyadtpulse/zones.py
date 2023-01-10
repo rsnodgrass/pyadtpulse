@@ -12,7 +12,7 @@ def assert_is_dict(var):
     return var
 
 
-class ADTZone(object):
+class ADTZone:
     """ADT Pulse zone implementation."""
 
     def __init__(self, name, attrs, adtpulse_session):
@@ -30,7 +30,7 @@ class ADTZone(object):
 
     def __repr__(self):
         """Representation string of object."""
-        return "<{0}: {1}>".format(self.__class__.__name__, self.name)
+        return "<{}: {}>".format(self.__class__.__name__, self.name)
 
     @property
     def attrs(self):

@@ -27,7 +27,7 @@ from pyadtpulse.util import handle_response
 LOG = logging.getLogger(__name__)
 
 
-class PyADTPulse(object):
+class PyADTPulse:
     """Base object for ADT Pulse service."""
 
     def __init__(
@@ -70,7 +70,7 @@ class PyADTPulse(object):
 
     def __repr__(self) -> str:
         """Object representation."""
-        return "<{0}: {1}>".format(self.__class__.__name__, self._username)
+        return "<{}: {}>".format(self.__class__.__name__, self._username)
 
     # ADTPulse API endpoint is configurable (besides default US ADT Pulse endpoint) to
     # support testing as well as alternative ADT Pulse endpoints such as

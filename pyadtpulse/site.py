@@ -60,6 +60,7 @@ class ADTPulseSite(object):
             summary_html_soup (Optional[BeautifulSoup], optional):
                 A BeautifulSoup Object. Defaults to None.
         """
+
         self._adt_service = adt_service
         self._id = site_id
         self._name = name
