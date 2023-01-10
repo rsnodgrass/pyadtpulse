@@ -9,3 +9,4 @@ build
 __pycache__
 .mypy_cache
 *.swp
+
