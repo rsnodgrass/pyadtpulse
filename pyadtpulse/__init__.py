@@ -32,20 +32,29 @@ class PyADTPulse:
 
     def __init__(
         self,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        fingerprint: Optional[str] = None,
+        username: str,
+        password: str,
+        fingerprint: str,
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
     ):
         """Create a PyADTPulse object.
 
         Args:
-            username (Optional[str], optional): Username. Defaults to None.
-            password (Optional[str], optional): Password. Defaults to None.
-            fingerprint (Optional[str], optional): 2FA fingerprint. Defaults to None.
-            user_agent (_type_, optional): User Agent.
+            username (str): Username.
+            password (str): Password.
+            fingerprint (str): 2FA fingerprint.
+            user_agent (str, optional): User Agent.
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].
         """
+        if username is None or username == '':
+            raise ValueError("Username is madatory")
+        pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        if not re.match(pattern, username):
+            raise ValueError("Username must be an email address")
+        if password is None or password == '':
+            raise ValueError("Password is mandatory")
+        if fingerprint is None or fingerprint == '':
+            raise ValueError("Fingerprint is required")
         self._session = Session()
         self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
         self._user_agent = user_agent
@@ -61,7 +70,6 @@ class PyADTPulse:
         # authenticate the user
         self._authenticated = False
 
-        # FIXME: should username and password really be optional?
         self._username = username
         self._password = password
         self._fingerprint = fingerprint
@@ -96,11 +104,11 @@ class PyADTPulse:
         return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
 
     @property
-    def username(self) -> Optional[str]:
+    def username(self) -> str:
         """Get username.
 
         Returns:
-            Optional[str]: the username
+            str: the username
         """
         return self._username
 
@@ -378,7 +386,8 @@ class PyADTPulse:
 
         self._update_sites(response.text)
 
-    # FIXME circular reference, should be ADTPulseSite
+# FIXME circular reference, should be ADTPulseSite
+
     @property
     def sites(self) -> List[Any]:
         """Return all sites for this ADT Pulse account."""

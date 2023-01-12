@@ -60,7 +60,6 @@ class ADTPulseSite(object):
             summary_html_soup (Optional[BeautifulSoup], optional):
                 A BeautifulSoup Object. Defaults to None.
         """
-
         self._adt_service = adt_service
         self._id = site_id
         self._name = name
@@ -341,7 +340,7 @@ class ADTPulseSite(object):
                 tags = None
 
                 for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
-                    # convert to update first
+                    # convert to uppercase first
                     if search_term.upper() in dType.upper():
                         tags = default_tags
                         break
@@ -397,6 +396,7 @@ class ADTPulseSite(object):
             # update device state from ORB info
             for device in zones:
                 if device["zone"] == zone:
+                    LOG.debug(f"Setting zone {zone} - {device['name']} to {state}")
                     device["state"] = state
                     break
 
