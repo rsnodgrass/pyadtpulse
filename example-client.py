@@ -66,6 +66,8 @@ def usage() -> None:
     print(f"  {USER.upper()}, {PASSWD.upper()}, and {FINGERPRINT.upper()}")
     print("  must be set either through the json file, or environment variables.")
     print("")
+    print(f"  Set {PULSE_DEBUG} to True to enable debugging")
+    print("")
     print("  values can be passed on the command line i.e.")
     print(f"  {USER}=someone@example.com")
 

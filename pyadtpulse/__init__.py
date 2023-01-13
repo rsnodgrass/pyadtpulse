@@ -205,7 +205,7 @@ class PyADTPulse:
         if not self._authenticated:
             return
         LOG.debug("Resetting timeout")
-        response = self.query(ADT_TIMEOUT_URI, method="POST", extra_params={"fn": "2"})
+        response = self.query(ADT_TIMEOUT_URI, method="GET", extra_params={"fn": "2"})
         if handle_response(
             response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
         ):
