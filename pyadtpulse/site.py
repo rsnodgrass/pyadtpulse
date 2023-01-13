@@ -125,7 +125,7 @@ class ADTPulseSite(object):
         """
         return self._status == ADT_ALARM_OFF
 
-    def _arm(self, mode) -> None:
+    def _arm(self, mode) -> bool:
         """Set the alarm arm mode to one of: off, home, away.
 
         :param mode: alarm mode to set
@@ -152,22 +152,22 @@ class ADTPulseSite(object):
             logging.WARNING,
             f"Failed updating ADT Pulse alarm {self._name} " "to {mode}",
         ):
-            return
+            return False
 
         self._status = mode
-        self.update()
+        return self.update()
 
-    def arm_away(self) -> None:
+    def arm_away(self) -> bool:
         """Arm the alarm in Away mode."""
-        self._arm(ADT_ALARM_AWAY)
+        return self._arm(ADT_ALARM_AWAY)
 
-    def arm_home(self) -> None:
+    def arm_home(self) -> bool:
         """Arm the alarm in Home mode."""
-        self._arm(ADT_ALARM_HOME)
+        return self._arm(ADT_ALARM_HOME)
 
-    def disarm(self) -> None:
+    def disarm(self) -> bool:
         """Disarm the alarm."""
-        self._arm(ADT_ALARM_OFF)
+        return self._arm(ADT_ALARM_OFF)
 
     @property
     def zones(self) -> Optional[List[Dict]]:
@@ -236,7 +236,12 @@ class ADTPulseSite(object):
             self.fetch_zones()
 
     def fetch_zones(self) -> Optional[List[Dict]]:
-        """Fetch a fresh copy of the zone data from ADT Pulse service."""
+        """Fetch zones for a site.
+
+        Returns:
+            Optional[List[Dict]]: a list of zones
+            None if an error occurred
+        """
         LOG.debug(f"fetching zones for site { self._id}")
         # call ADT orb uri
         response = self._adt_service.query(
@@ -417,9 +422,9 @@ class ADTPulseSite(object):
         #  if updates exist
         return self._adt_service.updates_exist
 
-    def update(self) -> None:
+    def update(self) -> bool:
         """Force an update of the site and zones with current data from the service."""
-        self._adt_service.update()
+        return self._adt_service.update()
 
     def fetch_zones_OLD(self):
         """Fetch a fresh copy of the zone data from ADT Pulse service."""

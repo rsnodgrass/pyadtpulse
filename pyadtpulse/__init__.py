@@ -141,7 +141,8 @@ class PyADTPulse:
 
         return self._api_version
 
-    def _update_sites(self, summary_html: str) -> None:
+    def _update_sites(self, summary_html: str) -> bool:
+        return_val = True
         soup = BeautifulSoup(summary_html, "html.parser")
 
         if not self._sites:
@@ -159,7 +160,10 @@ class PyADTPulse:
                 )
 
         for site in self._sites:
-            site._update_alarm_status(soup, update_zones=True)
+            if not site._update_alarm_status(soup, update_zones=True):
+                return_val = False
+           
+        return return_val
 
     def _initialize_sites(self, soup: BeautifulSoup) -> None:
         sites = self._sites
@@ -385,7 +389,12 @@ class PyADTPulse:
 
         return None
 
-    def update(self) -> None:
+    def update(self) -> bool:
+        """Update ADT Pulse data.
+
+        Returns:
+            bool: True on success
+        """
         """Refresh any cached state."""
         LOG.debug("Checking ADT Pulse cloud service for updates")
         if time.time() - self._sync_timestamp > ADT_TIMEOUT_INTERVAL:
@@ -396,13 +405,13 @@ class PyADTPulse:
         if not handle_response(
             response, logging.INFO, "Error returned from ADT Pulse service check"
         ):
-            return
+            return False
 
         # shut up linter
         if response is None:
-            return
+            return False
 
-        self._update_sites(response.text)
+        return self._update_sites(response.text)
 
     # FIXME circular reference, should be ADTPulseSite
 

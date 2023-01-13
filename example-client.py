@@ -47,6 +47,8 @@ def handle_args() -> Optional[Dict]:
             curr_value = curr_arg.split("=")
             result.update({curr_value[0]: curr_value[1]})
 
+    if PULSE_DEBUG in result:
+        result.update( {PULSE_DEBUG: str(result[PULSE_DEBUG])})
     if USER not in result:
         result.update({USER: os.getenv(USER.upper(), None)})
     if PASSWD not in result:
@@ -98,11 +100,11 @@ def main():
         print(f"ERROR! {USER}, {PASSWD}, and {FINGERPRINT} must all be set")
         raise SystemExit
 
-    if args and PULSE_DEBUG == "true":
+    if args and args[PULSE_DEBUG].casefold() == "True".casefold():
         level = logging.DEBUG
     else:
         level = logging.ERROR
-        
+
     setup_logger(level)
 
     ####
@@ -112,10 +114,13 @@ def main():
     while True:
         try:
             for site in adt.sites:
+                print_site(site)
                 print("----")
                 if site.updates_may_exist:
                     print("Updates exist, refreshing")
-                    adt.update()
+                    if not adt.update():
+                        print("Error occurred fetching updates, exiting..")
+                        break
                 else:
                     print("No updates exist")
 
@@ -129,6 +134,7 @@ def main():
             print("exiting...")
             break
 
+    print("Logging out")
     adt.logout
 
 
