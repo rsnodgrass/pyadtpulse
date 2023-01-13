@@ -1,26 +1,29 @@
-#!/usr/local/bin/python3
+#!/usr/bin/env python
 
-import os
-import sys
 import logging
 import json
+import os
+import sys
+from time import sleep
 from typing import Dict, Optional
 
 from pyadtpulse import PyADTPulse
+from pyadtpulse.site import ADTPulseSite
 
-USER = 'adtpulse_user'
-PASSWD = 'adtpulse_password'
-FINGERPRINT = 'adtpulse_fingerprint'
+USER = "adtpulse_user"
+PASSWD = "adtpulse_password"
+FINGERPRINT = "adtpulse_fingerprint"
+PULSE_DEBUG = "debug"
 
-def setup_logger():
+
+def setup_logger(level: int):
     """Set up logger."""
-    log_level = logging.DEBUG
 
     logger = logging.getLogger()
-    logger.setLevel(log_level)
+    logger.setLevel(level)
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(log_level)
+    handler.setLevel(level)
 
     formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
@@ -36,7 +39,6 @@ def handle_args() -> Optional[Dict]:
     result: Dict = {}
 
     for curr_arg in sys.argv[1:]:
-        
         if "." in curr_arg:
             f = open(curr_arg, "rb")
             parameters = json.load(f)
@@ -51,8 +53,32 @@ def handle_args() -> Optional[Dict]:
         result.update({PASSWD: os.getenv(PASSWD.upper(), None)})
     if FINGERPRINT not in result:
         result.update({FINGERPRINT: os.getenv(FINGERPRINT.upper(), None)})
-
+    if PULSE_DEBUG not in result:
+        result.update({PULSE_DEBUG: os.getenv(PULSE_DEBUG, None)})
     return result
+
+
+def usage() -> None:
+    """Print program usage."""
+    print(f"Usage {sys.argv[0]}: [json-file]")
+    print(f"  {USER.upper()}, {PASSWD.upper()}, and {FINGERPRINT.upper()}")
+    print("  must be set either through the json file, or environment variables.")
+    print("")
+    print("  values can be passed on the command line i.e.")
+    print(f"  {USER}=someone@example.com")
+
+
+def print_site(site: ADTPulseSite) -> None:
+    """Print site information.
+
+    Args:
+        site (ADTPulseSite): The site to display
+    """
+    print(f"Site: {site.name} (id={site.id})")
+    print(f"Alarm Status = {site.status}")
+    print(f"Disarmed? = {site.is_disarmed}")
+    print(f"Armed Away? = {site.is_away}")
+    print(f"Armed Home? = {site.is_home}")
 
 
 def main():
@@ -61,57 +87,47 @@ def main():
     Raises:
         SystemExit: Environment variables not set.
     """
-    if sys.argv[1] == "--help":
-        print(f"Usage {sys.argv[0]}: [json-file]")
-        print(f"  {USER.upper()}, {PASSWD.upper()}, and {FINGERPRINT.upper()}")
-        print("  must be set either through the json file, or environment variables.")
-        print("")
-        print("  values can be passed on the command line i.e.")
-        print(f"  {USER}=someone@example.com")
-        sys.exit(0)
-    args = handle_args()
+    args = None
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--help":
+            usage()
+            sys.exit(0)
+        args = handle_args()
 
-    if (
-        not args
-        or USER not in args
-        or PASSWD not in args
-        or FINGERPRINT not in args
-    ):
-        print(
-            f"ERROR! {USER}, {PASSWD}, and {FINGERPRINT} must all be set"
-        )
+    if not args or USER not in args or PASSWD not in args or FINGERPRINT not in args:
+        print(f"ERROR! {USER}, {PASSWD}, and {FINGERPRINT} must all be set")
         raise SystemExit
 
-    setup_logger()
+    if args and PULSE_DEBUG == "true":
+        level = logging.DEBUG
+    else:
+        level = logging.ERROR
+        
+    setup_logger(level)
 
     ####
 
-    adt = PyADTPulse(
-        args[USER], args[PASSWD], args[FINGERPRINT]
-    )
+    adt = PyADTPulse(args[USER], args[PASSWD], args[FINGERPRINT])
 
-    #    for i in range(20):
-    #        print(f"{i} Updated exists? {adt.updates_exist}")
-    #        time.sleep(60)
+    while True:
+        try:
+            for site in adt.sites:
+                print("----")
+                if site.updates_may_exist:
+                    print("Updates exist, refreshing")
+                    adt.update()
+                else:
+                    print("No updates exist")
 
-    for site in adt.sites:
-        print("----")
-        print(f"Site: {site.name} (id={site.id})")
-        print(f"Alarm Status = {site.status}")
+                print("\nZones:")
+                for zone in site.zones:
+                    print(zone)
 
-        print(f"Disarmed? = {site.is_disarmed}")
-        print(f"Armed Away? = {site.is_away}")
-        print(f"Armed Home? = {site.is_home}")
+            sleep(10)
 
-        print(f"Changes exist? {site.updates_may_exist}")
-
-        print("\nZones:")
-        for zone in site.zones:
-            print(zone)
-
-        # site.arm_away()
-        # site.arm_home()
-        # site.disarm()
+        except KeyboardInterrupt:
+            print("exiting...")
+            break
 
     adt.logout
 

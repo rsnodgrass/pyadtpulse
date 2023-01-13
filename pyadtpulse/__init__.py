@@ -17,6 +17,8 @@ from pyadtpulse.const import (
     ADT_SYNC_CHECK_URI,
     API_PREFIX,
     DEFAULT_API_HOST,
+    ADT_TIMEOUT_URI,
+    ADT_TIMEOUT_INTERVAL,
 )
 from pyadtpulse.util import handle_response
 
@@ -46,21 +48,21 @@ class PyADTPulse:
             user_agent (str, optional): User Agent.
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].
         """
-        if username is None or username == '':
+        if username is None or username == "":
             raise ValueError("Username is madatory")
-        pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
         if not re.match(pattern, username):
             raise ValueError("Username must be an email address")
-        if password is None or password == '':
+        if password is None or password == "":
             raise ValueError("Password is mandatory")
-        if fingerprint is None or fingerprint == '':
+        if fingerprint is None or fingerprint == "":
             raise ValueError("Fingerprint is required")
         self._session = Session()
         self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
         self._user_agent = user_agent
         self._api_version: Optional[str] = None
 
-        self._sync_timestamp = 0
+        self._sync_timestamp = time.time()
         self._sync_token = "0-0-0"
         # fixme circular import, should be an ADTPulseSite
         self._sites: List[Any] = []
@@ -156,8 +158,8 @@ class PyADTPulse:
                     )
                 )
 
-            for site in self._sites:
-                site._update_alarm_status(soup, update_zones=True)
+        for site in self._sites:
+            site._update_alarm_status(soup, update_zones=True)
 
     def _initialize_sites(self, soup: BeautifulSoup) -> None:
         sites = self._sites
@@ -194,6 +196,16 @@ class PyADTPulse:
     # onclick="return flagSignOutInProcess();">
     #
     # ... or perhaps better, just extract all from /system/settings.jsp
+
+    def _reset_timeout(self) -> None:
+        if not self._authenticated:
+            return
+        LOG.debug("Resetting timeout")
+        response = self.query(ADT_TIMEOUT_URI, method="POST", extra_params={"fn": "2"})
+        if handle_response(
+            response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
+        ):
+            self._sync_timestamp = time.time()
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
@@ -239,6 +251,7 @@ class PyADTPulse:
         """Log out of ADT Pulse."""
         LOG.info(f"Logging {self._username} out of ADT Pulse")
         self.query(ADT_LOGOUT_URI)
+        self._sync_timestamp = time.time()
         self._authenticated = False
 
     @property
@@ -248,6 +261,8 @@ class PyADTPulse:
         Returns:
             bool: True if updated data exists
         """
+        if time.time() - self._sync_timestamp > ADT_TIMEOUT_INTERVAL:
+            self._reset_timeout()
         response = self.query(
             ADT_SYNC_CHECK_URI,
             extra_headers={"Accept": "*/*", "Referer": self.make_url(ADT_SUMMARY_URI)},
@@ -373,6 +388,9 @@ class PyADTPulse:
     def update(self) -> None:
         """Refresh any cached state."""
         LOG.debug("Checking ADT Pulse cloud service for updates")
+        if time.time() - self._sync_timestamp > ADT_TIMEOUT_INTERVAL:
+            self._reset_timeout()
+
         response = self.query(ADT_SUMMARY_URI, method="GET")
 
         if not handle_response(
@@ -386,7 +404,7 @@ class PyADTPulse:
 
         self._update_sites(response.text)
 
-# FIXME circular reference, should be ADTPulseSite
+    # FIXME circular reference, should be ADTPulseSite
 
     @property
     def sites(self) -> List[Any]:

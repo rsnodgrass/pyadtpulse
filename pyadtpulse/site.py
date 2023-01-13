@@ -189,6 +189,7 @@ class ADTPulseSite(object):
     def _update_alarm_status(
         self, summary_html_soup: BeautifulSoup, update_zones: Optional[bool] = True
     ) -> None:
+        LOG.debug("Updating alarm status")
         value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
         sat_location = "security_button_0"
         if value:
@@ -236,6 +237,7 @@ class ADTPulseSite(object):
 
     def fetch_zones(self) -> Optional[List[Dict]]:
         """Fetch a fresh copy of the zone data from ADT Pulse service."""
+        LOG.debug(f"fetching zones for site { self._id}")
         # call ADT orb uri
         response = self._adt_service.query(
             ADT_ORB_URI,
