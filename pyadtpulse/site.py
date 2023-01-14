@@ -62,7 +62,7 @@ class ADTPulseSite(object):
         self._adt_service = adt_service
         self._id = site_id
         self._name = name
-        self._zones: List[Dict] = []
+        self._fetch_zones()
         self._status = ADT_ALARM_UNKNOWN
         self._sat = ""
         if summary_html_soup is not None:
@@ -177,7 +177,7 @@ class ADTPulseSite(object):
         if self._zones:
             return self._zones
 
-        return self.fetch_zones()
+        return self._fetch_zones()
 
     @property
     def history(self):
@@ -231,47 +231,37 @@ class ADTPulseSite(object):
         # if we should also update the zone details, force a fresh fetch
         # of data from ADT Pulse
         if update_zones:
-            self.fetch_zones()
+            self.update_zones()
 
-    def fetch_zones(self) -> Optional[List[Dict]]:
+    def _fetch_zones(self) -> Optional[List[Dict]]:
         """Fetch zones for a site.
 
         Returns:
             Optional[List[Dict]]: a list of zones
             None if an error occurred
         """
-        LOG.debug(f"fetching zones for site { self._id}")
-        # call ADT orb uri
-        response = self._adt_service.query(ADT_ORB_URI)
-
-        if not handle_response(
-            response, logging.ERROR, "Could not query ADT Pulse Orb for zone refresh"
-        ):
-            return None
-
         # summary.jsp contains more device id details
-        response2 = self._adt_service.query(ADT_SYSTEM_URI)
+        response = self._adt_service.query(ADT_SYSTEM_URI)
         if not handle_response(
-            response2,
+            response,
             logging.ERROR,
             "Could not query ADT Pulse system page for zone refresh",
         ):
             return None
 
-        if response is None or response2 is None:  # shut up type checker
+        if response is None:  # shut up type checker
             return None
 
         soup = BeautifulSoup(response.text, "html.parser")
-        soup2 = BeautifulSoup(response2.text, "html.parser")
 
-        if not soup or not soup2:
+        if not soup:
             LOG.warning("Failed loading zone status from ADT Pulse service")
             LOG.debug(f"Failed ADT Pulse zone data response: {response.text}")
             return None
 
         zones = []
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
-        for row in soup2.find_all("tr", {"class": "p_listRow", "onclick": True}):
+        for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
             onClickValueText = row.get("onclick")
             result = re.findall(regexDevice, onClickValueText)
 
@@ -345,7 +335,7 @@ class ADTPulseSite(object):
                 zones.append(
                     {
                         "id": f"sensor-{dZone}",
-                        "zone": dZone,
+                        "zone": int(dZone),
                         "name": dName,
                         "status": dStatus,
                         "state": "",
@@ -353,9 +343,36 @@ class ADTPulseSite(object):
                         "timestamp": time.time(),
                     }
                 )
+        self._zones = zones
+        return self._zones
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
+    def update_zones(self) -> Optional[List[Dict]]:
+        """Update zone status information.
+
+        Returns:
+            Optional[List[Dict]]: a list of zones with status
+        """
+        if self._zones is None:
+            if self._fetch_zones() is None:
+                LOG.error("Could not update zones, none found")
+                return None
+
+        LOG.debug(f"fetching zones for site { self._id}")
+        # call ADT orb uri
+        response = self._adt_service.query(ADT_ORB_URI)
+
+        if not handle_response(
+            response, logging.ERROR, "Could not query ADT Pulse Orb for zone refresh"
+        ):
+            return None
+
+        # shut up linter
+        if response is None:
+            return None
+
+        soup = BeautifulSoup(response.text, "html.parser")
         # parse ADT's convulated html to get sensor status
         for row in soup.find_all("tr", {"class": "p_listRow"}):
             # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
@@ -384,14 +401,13 @@ class ADTPulseSite(object):
             #        Unknown (device offline)
 
             # update device state from ORB info
-            for device in zones:
+            for device in self._zones:
                 if device["zone"] == zone:
                     LOG.debug(f"Setting zone {zone} - {device['name']} to {state}")
                     device["state"] = state
                     break
 
-        self._zones = zones
-        return zones
+        return self._zones
 
     def updates_may_exist(self) -> bool:
         """Query whether updated sensor data exists.
