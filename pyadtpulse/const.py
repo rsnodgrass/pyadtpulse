@@ -32,10 +32,6 @@ ADT_ARM_DISARM_URI = (
     "/quickcontrol/armDisarm.jsp?href=rest/adt/ui/client/security/setArmState"
 )
 
-ADT_STATUS_CHANGE_URI = "/quickcontrol/serv/ChangeVariableServ"
-
-ADT_SET_PREMISE_URI = "/site/site?action=changepremise&siteId=[NETWORKID]"
-
 ADT_SYSTEM_SETTINGS = "/system/settings.jsp"
 
 ADT_DEFAULT_VERSION = "24.0.0-117"

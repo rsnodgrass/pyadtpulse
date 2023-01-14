@@ -13,7 +13,6 @@ from pyadtpulse.const import (
     ADT_ARM_DISARM_URI,
     ADT_DEVICE_URI,
     ADT_ORB_URI,
-    ADT_SUMMARY_URI,
     ADT_SYSTEM_URI,
     ADT_ZONES_URI,
 )
@@ -244,13 +243,7 @@ class ADTPulseSite(object):
         """
         LOG.debug(f"fetching zones for site { self._id}")
         # call ADT orb uri
-        response = self._adt_service.query(
-            ADT_ORB_URI,
-            extra_headers={
-                "Accept": "*/*",
-                "Referer": self._adt_service.make_url(ADT_SUMMARY_URI),
-            },
-        )
+        response = self._adt_service.query(ADT_ORB_URI)
 
         if not handle_response(
             response, logging.ERROR, "Could not query ADT Pulse Orb for zone refresh"
@@ -258,13 +251,7 @@ class ADTPulseSite(object):
             return None
 
         # summary.jsp contains more device id details
-        response2 = self._adt_service.query(
-            ADT_SYSTEM_URI,
-            extra_headers={
-                "Accept": "*/*",
-                "Referer": self._adt_service.make_url(ADT_ORB_URI),
-            },
-        )
+        response2 = self._adt_service.query(ADT_SYSTEM_URI)
         if not handle_response(
             response2,
             logging.ERROR,
@@ -299,12 +286,7 @@ class ADTPulseSite(object):
                 continue
 
             device_id = result[0]
-            deviceResponse = self._adt_service.query(
-                ADT_DEVICE_URI + device_id,
-                extra_headers={
-                    "Referer": self._adt_service.make_url(ADT_DEVICE_URI),
-                },
-            )
+            deviceResponse = self._adt_service.query(ADT_DEVICE_URI + device_id)
 
             if not handle_response(
                 deviceResponse,

@@ -18,7 +18,6 @@ PULSE_DEBUG = "debug"
 
 def setup_logger(level: int):
     """Set up logger."""
-
     logger = logging.getLogger()
     logger.setLevel(level)
 
@@ -48,7 +47,7 @@ def handle_args() -> Optional[Dict]:
             result.update({curr_value[0]: curr_value[1]})
 
     if PULSE_DEBUG in result:
-        result.update( {PULSE_DEBUG: str(result[PULSE_DEBUG])})
+        result.update({PULSE_DEBUG: str(result[PULSE_DEBUG])})
     if USER not in result:
         result.update({USER: os.getenv(USER.upper(), None)})
     if PASSWD not in result:
@@ -113,28 +112,30 @@ def main():
 
     adt = PyADTPulse(args[USER], args[PASSWD], args[FINGERPRINT])
 
-    while True:
+    done = False
+
+    while not done:
         try:
             for site in adt.sites:
                 print_site(site)
                 print("----")
-                if site.updates_may_exist:
+                if site.updates_may_exist():
                     print("Updates exist, refreshing")
                     if not adt.update():
                         print("Error occurred fetching updates, exiting..")
+                        done = True
                         break
+                    print("\nZones:")
+                    for zone in site.zones:
+                        print(zone)
                 else:
                     print("No updates exist")
-
-                print("\nZones:")
-                for zone in site.zones:
-                    print(zone)
 
             sleep(10)
 
         except KeyboardInterrupt:
             print("exiting...")
-            break
+            done = True
 
     print("Logging out")
     adt.logout
