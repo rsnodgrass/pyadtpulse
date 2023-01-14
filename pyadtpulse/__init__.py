@@ -11,14 +11,17 @@ from requests import HTTPError, Response, Session
 from pyadtpulse.const import (
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_VERSION,
+    ADT_DEVICE_URI,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
     ADT_SUMMARY_URI,
+    ADT_SYSTEM_URI,
     ADT_SYNC_CHECK_URI,
     API_PREFIX,
     DEFAULT_API_HOST,
     ADT_TIMEOUT_URI,
     ADT_TIMEOUT_INTERVAL,
+    ADT_HTTP_REFERER_URIS,
 )
 from pyadtpulse.util import handle_response
 
@@ -216,6 +219,7 @@ class PyADTPulse:
             ADT_LOGIN_URI,
             method="POST",
             extra_params={
+                "partner": "adt",
                 "usernameForm": self._username,
                 "passwordForm": self._password,
                 "fingerprint": self._fingerprint,
@@ -342,15 +346,14 @@ class PyADTPulse:
         if force_login and not self.is_connected:
             self.login()
 
-        is_ajax = uri.lower().startswith("/ajax")
-        accept_header = {}
         url = self.make_url(uri)
-        if is_ajax:
-            accept_header = {"Accept": "*/*"}
+        if uri in ADT_HTTP_REFERER_URIS:
+            new_headers = {"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]}
         else:
-            accept_header = {"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]}
+            new_headers = {"Accept": "*/*"}
 
-        self._session.headers.update(accept_header)
+        LOG.debug(f"Updating HTTP headers: {new_headers}")
+        self._session.headers.update(new_headers)
 
         loop = 0
         while loop < retry:
@@ -360,8 +363,6 @@ class PyADTPulse:
             # FIXME: reauthenticate if received:
             # "You have not yet signed in or you
             #  have been signed out due to inactivity."
-
-            # update default headers and body/json values
 
             # define connection method
             try:
@@ -374,11 +375,17 @@ class PyADTPulse:
                         url, headers=extra_headers, data=extra_params
                     )
                 else:
-                    LOG.error("Invalid request method '%s'", method)
+                    LOG.error(f"Invalid request method {method}")
                     return None
                 response.raise_for_status()
-                if not is_ajax or not uri.lower().startswith("/quickcontrol"):
-                    self._session.headers.update({"Referer": response.url})
+                # FIXME? login uses redirects so final url is wrong
+                if uri in ADT_HTTP_REFERER_URIS:
+                    if uri == ADT_DEVICE_URI:
+                        referer = self.make_url(ADT_SYSTEM_URI)
+                    else:
+                        referer = response.url
+                    LOG.debug(f"Setting Referer to: {referer}")
+                    self._session.headers.update({"Referer": referer})
 
                 # success!
                 return response

@@ -140,7 +140,6 @@ class ADTPulseSite(object):
             ADT_ARM_DISARM_URI,
             method="POST",
             extra_headers={
-                "Accept": "*/*",
                 "Referer": ADT_ARM_DISARM_URI.split("?")[0],
             },
             extra_params=params,
@@ -286,7 +285,7 @@ class ADTPulseSite(object):
                 continue
 
             device_id = result[0]
-            deviceResponse = self._adt_service.query(ADT_DEVICE_URI + device_id)
+            deviceResponse = self._adt_service.query(ADT_DEVICE_URI ,extra_params={"id": device_id})
 
             if not handle_response(
                 deviceResponse,
