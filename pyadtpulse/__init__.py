@@ -6,7 +6,9 @@ import time
 from typing import Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
-from requests import HTTPError, Response, Session
+from requests import HTTPError, Response, Session, RequestException
+from requests.adapters import HTTPAdapter
+from urllib3 import Retry
 
 from pyadtpulse.const import (
     ADT_DEFAULT_HTTP_HEADERS,
@@ -31,6 +33,8 @@ from pyadtpulse.util import handle_response
 
 LOG = logging.getLogger(__name__)
 
+RECOVERABLE_ERRORS = [429, 500, 502, 503, 504]
+
 
 class PyADTPulse:
     """Base object for ADT Pulse service."""
@@ -51,17 +55,8 @@ class PyADTPulse:
             user_agent (str, optional): User Agent.
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].
         """
-        if username is None or username == "":
-            raise ValueError("Username is madatory")
-        pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-        if not re.match(pattern, username):
-            raise ValueError("Username must be an email address")
-        if password is None or password == "":
-            raise ValueError("Password is mandatory")
-        if fingerprint is None or fingerprint == "":
-            raise ValueError("Fingerprint is required")
-        self._session = Session()
-        self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
+        self._init_login_info(username, password, fingerprint)
+        self._init_session()
         self._user_agent = user_agent
         self._api_version: Optional[str] = None
 
@@ -74,12 +69,34 @@ class PyADTPulse:
 
         # authenticate the user
         self._authenticated = False
+        self.login()
 
+    def _init_login_info(self, username: str, password: str, fingerprint: str) -> None:
+        if username is None or username == "":
+            raise ValueError("Username is madatory")
+        pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+        if not re.match(pattern, username):
+            raise ValueError("Username must be an email address")
         self._username = username
+        if password is None or password == "":
+            raise ValueError("Password is mandatory")
         self._password = password
+        if fingerprint is None or fingerprint == "":
+            raise ValueError("Fingerprint is required")
         self._fingerprint = fingerprint
 
-        self.login()
+    def _init_session(self) -> None:
+        retry_strategy = Retry(
+            total=3,
+            status_forcelist=RECOVERABLE_ERRORS,
+            allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],
+            backoff_factor=1,
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self._session = Session()
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
+        self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
 
     def __repr__(self) -> str:
         """Object representation."""
@@ -226,6 +243,7 @@ class PyADTPulse:
                 "sun": "yes",
             },
             force_login=False,
+            timeout=3
         )
 
         if not handle_response(
@@ -254,7 +272,7 @@ class PyADTPulse:
     def logout(self) -> None:
         """Log out of ADT Pulse."""
         LOG.info(f"Logging {self._username} out of ADT Pulse")
-        self.query(ADT_LOGOUT_URI)
+        self.query(ADT_LOGOUT_URI, timeout=3)
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
         self._authenticated = False
@@ -320,9 +338,9 @@ class PyADTPulse:
         method: str = "GET",
         extra_params: Optional[Dict] = None,
         extra_headers: Optional[Dict] = None,
-        retry: int = 3,
         force_login: Optional[bool] = True,
         version_prefix: Optional[bool] = True,
+        timeout=.2
     ) -> Optional[Response]:
         """Query ADT Pulse server.
 
@@ -333,9 +351,9 @@ class PyADTPulse:
                 Defaults to None.
             extra_headers (Optional[Dict], optional): extra HTTP headers.
                 Defaults to None.
-            retry (int, optional): number of retries. Defaults to 3.
             force_login (Optional[bool], optional): force login. Defaults to True.
             version_prefix (Optional[bool], optional): _description_. Defaults to True.
+            timeout int: number of seconds to wait for request.  Defaults to .2
 
         Returns:
             Optional[Response]: a Response object if successful, None on failure
@@ -355,52 +373,46 @@ class PyADTPulse:
         LOG.debug(f"Updating HTTP headers: {new_headers}")
         self._session.headers.update(new_headers)
 
-        loop = 0
-        while loop < retry:
-            loop += 1
-            LOG.debug(f"Attempting {method} {url} (try {loop}/{retry})")
+        LOG.debug(f"Attempting {method} {url}")
 
-            # FIXME: reauthenticate if received:
-            # "You have not yet signed in or you
-            #  have been signed out due to inactivity."
+        # FIXME: reauthenticate if received:
+        # "You have not yet signed in or you
+        #  have been signed out due to inactivity."
 
-            # define connection method
-            try:
-                if method == "GET":
-                    response = self._session.get(
-                        url, headers=extra_headers, params=extra_params
-                    )
-                elif method == "POST":
-                    response = self._session.post(
-                        url, headers=extra_headers, data=extra_params
-                    )
-                else:
-                    LOG.error(f"Invalid request method {method}")
-                    return None
-                response.raise_for_status()
-                # FIXME? login uses redirects so final url is wrong
-                if uri in ADT_HTTP_REFERER_URIS:
-                    if uri == ADT_DEVICE_URI:
-                        referer = self.make_url(ADT_SYSTEM_URI)
-                    else:
-                        referer = response.url
-                    LOG.debug(f"Setting Referer to: {referer}")
-                    self._session.headers.update({"Referer": referer})
+        # define connection method
+        try:
+            if method == "GET":
+                response = self._session.get(url,
+                                             headers=extra_headers,
+                                             params=extra_params, timeout=timeout)
+            elif method == "POST":
+                response = self._session.post(url,
+                                              headers=extra_headers,
+                                              data=extra_params, timeout=timeout)
+            else:
+                LOG.error(f"Invalid request method {method}")
+                return None
+            response.raise_for_status()
 
-                # success!
-                return response
+        except HTTPError as err:
+            code = err.response.status_code
+            LOG.exception(f"Received HTTP error code {code} in request to ADT Pulse")
+            return None
+        except RequestException:
+            LOG.exception("An exception occurred in request to ADT Pulse")
+            return None
 
-            except HTTPError as err:
-                code = err.response.status_code
-                if code in [429, 500, 502, 503, 504]:
-                    continue
-                else:
-                    LOG.error(
-                        "Unrecoverable HTTP error code {code} in request to ADT Pulse: "
-                    )
-                    break
+        # success!
+        # FIXME? login uses redirects so final url is wrong
+        if uri in ADT_HTTP_REFERER_URIS:
+            if uri == ADT_DEVICE_URI:
+                referer = self.make_url(ADT_SYSTEM_URI)
+            else:
+                referer = response.url
+                LOG.debug(f"Setting Referer to: {referer}")
+            self._session.headers.update({"Referer": referer})
 
-        return None
+        return response
 
     def update(self) -> bool:
         """Update ADT Pulse data.

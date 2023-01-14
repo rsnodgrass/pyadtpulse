@@ -285,7 +285,9 @@ class ADTPulseSite(object):
                 continue
 
             device_id = result[0]
-            deviceResponse = self._adt_service.query(ADT_DEVICE_URI ,extra_params={"id": device_id})
+            deviceResponse = self._adt_service.query(
+                ADT_DEVICE_URI, extra_params={"id": device_id}
+            )
 
             if not handle_response(
                 deviceResponse,
