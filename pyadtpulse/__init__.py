@@ -141,8 +141,7 @@ class PyADTPulse:
 
         return self._api_version
 
-    def _update_sites(self, summary_html: str) -> bool:
-        return_val = True
+    def _update_sites(self, summary_html: str) -> None:
         soup = BeautifulSoup(summary_html, "html.parser")
 
         if not self._sites:
@@ -160,10 +159,7 @@ class PyADTPulse:
                 )
 
         for site in self._sites:
-            if not site._update_alarm_status(soup, update_zones=True):
-                return_val = False
-           
-        return return_val
+            site._update_alarm_status(soup, update_zones=True)
 
     def _initialize_sites(self, soup: BeautifulSoup) -> None:
         sites = self._sites
@@ -205,7 +201,11 @@ class PyADTPulse:
         if not self._authenticated:
             return
         LOG.debug("Resetting timeout")
-        response = self.query(ADT_TIMEOUT_URI, method="GET", extra_params={"fn": "2"})
+        response = self.query(
+            ADT_TIMEOUT_URI,
+            extra_headers={"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]},
+            extra_params={"fn": "2"},
+        )
         if handle_response(
             response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
         ):
@@ -265,11 +265,10 @@ class PyADTPulse:
         Returns:
             bool: True if updated data exists
         """
-        if time.time() - self._sync_timestamp > ADT_TIMEOUT_INTERVAL:
+        if (time.time() - self._sync_timestamp) > ADT_TIMEOUT_INTERVAL:
             self._reset_timeout()
         response = self.query(
             ADT_SYNC_CHECK_URI,
-            extra_headers={"Accept": "*/*", "Referer": self.make_url(ADT_SUMMARY_URI)},
             extra_params={"ts": self._sync_timestamp},
         )
 
@@ -288,7 +287,7 @@ class PyADTPulse:
             LOG.warn(f"Unexpected sync check format ({pattern}), forcing re-auth")
             LOG.debug(f"Received {text} from ADT Pulse site")
             self._authenticated = False
-            return True
+            return False
 
         if text != self._sync_token:
             LOG.debug(
@@ -345,7 +344,15 @@ class PyADTPulse:
         if force_login and not self.is_connected:
             self.login()
 
+        is_ajax = uri.lower().startswith("/ajax")
+        accept_header = {}
         url = self.make_url(uri)
+        if is_ajax:
+            accept_header = {"Accept": "*/*"}
+        else:
+            accept_header = {"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]}
+
+        self._session.headers.update(accept_header)
 
         loop = 0
         while loop < retry:
@@ -357,22 +364,23 @@ class PyADTPulse:
             #  have been signed out due to inactivity."
 
             # update default headers and body/json values
-            params = {}
-            if extra_params:
-                params.update(extra_params)
 
             # define connection method
             try:
                 if method == "GET":
-                    response = self._session.get(url, headers=extra_headers)
+                    response = self._session.get(
+                        url, headers=extra_headers, params=extra_params
+                    )
                 elif method == "POST":
                     response = self._session.post(
-                        url, headers=extra_headers, data=params
+                        url, headers=extra_headers, data=extra_params
                     )
                 else:
                     LOG.error("Invalid request method '%s'", method)
                     return None
                 response.raise_for_status()
+                if not is_ajax or not uri.lower().startswith("/quickcontrol"):
+                    self._session.headers.update({"Referer": response.url})
 
                 # success!
                 return response
@@ -397,7 +405,7 @@ class PyADTPulse:
         """
         """Refresh any cached state."""
         LOG.debug("Checking ADT Pulse cloud service for updates")
-        if time.time() - self._sync_timestamp > ADT_TIMEOUT_INTERVAL:
+        if (time.time() - self._sync_timestamp) > ADT_TIMEOUT_INTERVAL:
             self._reset_timeout()
 
         response = self.query(ADT_SUMMARY_URI, method="GET")
@@ -411,7 +419,8 @@ class PyADTPulse:
         if response is None:
             return False
 
-        return self._update_sites(response.text)
+        self._update_sites(response.text)
+        return True
 
     # FIXME circular reference, should be ADTPulseSite
 
