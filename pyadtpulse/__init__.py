@@ -62,7 +62,7 @@ class PyADTPulse:
         self._user_agent = user_agent
         self._api_version: Optional[str] = None
 
-        self._sync_timestamp = time.time()
+        self._last_timeout_reset = self._sync_timestamp = time.time()
         self._sync_token = "0-0-0"
         # fixme circular import, should be an ADTPulseSite
         self._sites: List[Any] = []
@@ -201,15 +201,11 @@ class PyADTPulse:
         if not self._authenticated:
             return
         LOG.debug("Resetting timeout")
-        response = self.query(
-            ADT_TIMEOUT_URI,
-            extra_headers={"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]},
-            extra_params={"fn": "2"},
-        )
+        response = self.query(ADT_TIMEOUT_URI, "POST")
         if handle_response(
             response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
         ):
-            self._sync_timestamp = time.time()
+            self._last_timeout_reset = time.time()
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
@@ -245,7 +241,7 @@ class PyADTPulse:
             return
 
         self._authenticated = True
-        self._authenticated_timestamp = time.time()
+        self._sync_timestamp = self._last_timeout_reset = time.time()
 
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
@@ -255,7 +251,8 @@ class PyADTPulse:
         """Log out of ADT Pulse."""
         LOG.info(f"Logging {self._username} out of ADT Pulse")
         self.query(ADT_LOGOUT_URI)
-        self._sync_timestamp = time.time()
+        self._last_timeout_reset = time.time()
+        self._sync_timestamp = 0.0
         self._authenticated = False
 
     @property
@@ -265,7 +262,8 @@ class PyADTPulse:
         Returns:
             bool: True if updated data exists
         """
-        if (time.time() - self._sync_timestamp) > ADT_TIMEOUT_INTERVAL:
+        LOG.debug(f"Last timeout reset: {time.time() - self._last_timeout_reset}")
+        if (time.time() - self._last_timeout_reset) > ADT_TIMEOUT_INTERVAL:
             self._reset_timeout()
         response = self.query(
             ADT_SYNC_CHECK_URI,
@@ -280,7 +278,6 @@ class PyADTPulse:
             return False
 
         text = response.text
-        self._sync_timestamp = int(time.time())
 
         pattern = r"\d+[-]\d+[-]\d+"
         if not re.match(pattern, text):
@@ -289,6 +286,7 @@ class PyADTPulse:
             self._authenticated = False
             return False
 
+        self._sync_timestamp = time.time()
         if text != self._sync_token:
             LOG.debug(
                 f"Sync token {text} != existing {self._sync_token}; updates may exist"
@@ -405,7 +403,7 @@ class PyADTPulse:
         """
         """Refresh any cached state."""
         LOG.debug("Checking ADT Pulse cloud service for updates")
-        if (time.time() - self._sync_timestamp) > ADT_TIMEOUT_INTERVAL:
+        if (time.time() - self._last_timeout_reset) > ADT_TIMEOUT_INTERVAL:
             self._reset_timeout()
 
         response = self.query(ADT_SUMMARY_URI, method="GET")

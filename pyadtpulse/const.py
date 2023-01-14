@@ -15,7 +15,7 @@ ADT_SYSTEM_URI = "/system/system.jsp"
 ADT_DEVICE_URI = "/system/device.jsp?id="
 ADT_STATES_URI = "/ajax/currentStates.jsp"
 ADT_SYNC_CHECK_URI = "/Ajax/SyncCheckServ"
-ADT_TIMEOUT_URI = "/ajax/sessionTimeout.jsp"
+ADT_TIMEOUT_URI = "/KeepAlive"
 ADT_TIMEOUT_INTERVAL = 300.0
 
 ADT_DEFAULT_HTTP_HEADERS = {
