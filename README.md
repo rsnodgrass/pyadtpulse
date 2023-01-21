@@ -21,7 +21,7 @@ behavior is subject to change by ADT without notice.
 
 ## WARNING
 
-Do not refresh status of sensors often as the ADT service is not designed for high volume requests. E.g. updating every 5 minutes, not seconds. Keep your authenticated session to avoid logging in repeatedly.
+Do not reauthenticate to the ADT service frequently as ADT's service is not designed for high volume requests. E.g. every 5 minutes, not seconds. Keep your authenticated session to avoid logging in repeatedly.
 
 ## Installation
 
