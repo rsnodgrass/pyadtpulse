@@ -312,9 +312,8 @@ class PyADTPulse:
 
             # we can have 0-0-0 followed by 1-0-0 followed by 2-0-0, etc
             # wait until these settle
-            if text.endswith('-0-0'):
-                LOG.debug(
-                    f"Sync token {text} indicates updates may exist, requerying")
+            if text.endswith("-0-0"):
+                LOG.debug(f"Sync token {text} indicates updates may exist, requerying")
                 self._sync_timestamp = time.time()
                 retval = True
                 continue
