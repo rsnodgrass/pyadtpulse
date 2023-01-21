@@ -6,10 +6,6 @@ Python client interface to the ADT Pulse security system.
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=WREP29UDAMB6G)
 
-## Archived
-
-This repo has been archived - please consider forking to continue development.
-
 ## UNSUPPORTED
 
 **This is an unsupported interface provided only as a basis for others to explore integrating
