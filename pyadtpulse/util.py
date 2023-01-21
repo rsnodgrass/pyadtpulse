@@ -2,7 +2,7 @@
 from typing import Optional
 
 from requests import Response
-
+from bs4 import BeautifulSoup
 import logging
 
 LOG = logging.getLogger(__name__)
@@ -46,3 +46,25 @@ def remove_prefix(text: str, prefix: str) -> str:
         str: modified string
     """
     return text[text.startswith(prefix) and len(prefix) :]
+
+
+def make_soup(
+    response: Optional[Response], level: int, error_message: str
+) -> Optional[BeautifulSoup]:
+    """Make a BS object from a Response.
+
+    Args:
+        response (Optional[Response]): the response
+        level (int): the logging level on error
+        error_message (str): the error message
+
+    Returns:
+        Optional[BeautifulSoup]: a BS object, or None on failure
+    """
+    if not handle_response(response, level, error_message):
+        return None
+
+    if response is None:  # shut up type checker
+        return None
+
+    return BeautifulSoup(response.text, "html.parser")
