@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""Sample client for using pyadtpulse."""
 
 import logging
 import json
@@ -6,6 +7,7 @@ import os
 import sys
 from time import sleep
 from typing import Dict, Optional
+from datetime import datetime
 
 from pyadtpulse import PyADTPulse
 from pyadtpulse.site import ADTPulseSite
@@ -14,6 +16,8 @@ USER = "adtpulse_user"
 PASSWD = "adtpulse_password"
 FINGERPRINT = "adtpulse_fingerprint"
 PULSE_DEBUG = "debug"
+TEST_ALARM = "test_alarm"
+SLEEP_INTERVAL = "sleep_interval"
 
 
 def setup_logger(level: int):
@@ -46,8 +50,6 @@ def handle_args() -> Optional[Dict]:
             curr_value = curr_arg.split("=")
             result.update({curr_value[0]: curr_value[1]})
 
-    if PULSE_DEBUG in result:
-        result.update({PULSE_DEBUG: str(result[PULSE_DEBUG])})
     if USER not in result:
         result.update({USER: os.getenv(USER.upper(), None)})
     if PASSWD not in result:
@@ -66,6 +68,9 @@ def usage() -> None:
     print("  must be set either through the json file, or environment variables.")
     print("")
     print(f"  Set {PULSE_DEBUG} to True to enable debugging")
+    print(f"  Set {TEST_ALARM} to True to test alarm arming/disarming")
+    print(f"  Set {SLEEP_INTERVAL} to the number of seconds to sleep between each call")
+    print("                     (default:10)")
     print("")
     print("  values can be passed on the command line i.e.")
     print(f"  {USER}=someone@example.com")
@@ -82,6 +87,73 @@ def print_site(site: ADTPulseSite) -> None:
     print(f"Disarmed? = {site.is_disarmed}")
     print(f"Armed Away? = {site.is_away}")
     print(f"Armed Home? = {site.is_home}")
+    print(f"Last updated: {datetime.fromtimestamp(site.last_updated)}")
+
+
+def check_updates(site: ADTPulseSite, adt: PyADTPulse) -> None:
+    """Check a site for updates and print details.
+
+    Args:
+        site (ADTPulseSite): site to check
+        adt (PyADTPulse): Pulse connection object
+    """
+    # Pusle takes a while to update alarm status
+    # so site.updates_exist is unreliable until that happens
+    # so we need to sleep a little until the status gets updated on ADT's side
+    sleep(1)
+    assert site.updates_may_exist is True
+
+    if adt.update():
+        print(
+            "ADT Data updated, at "
+            f"{datetime.fromtimestamp(site.last_updated)}, refreshing"
+        )
+    else:
+        print("Site update failed")
+
+
+def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None:
+    """Test alarm functions.
+
+    Args:
+        site (ADTPulseSite): site to test
+        adt (PyADTPulse): ADT Pulse connection objecct
+        sleep_interval (int): length to sleep between tests
+    """
+    print("Arming alarm stay")
+    if site.arm_home():
+        print("Alarm arming home succeeded")
+        check_updates(site, adt)
+        assert site.is_home
+    else:
+        print("Alarm arming home failed")
+
+    print("")
+    print_site(site)
+
+    print("Disarming alarm")
+    if site.disarm():
+        print("Disarming succeeded")
+        check_updates(site, adt)
+        assert site.is_disarmed
+    else:
+        print("Disarming failed")
+
+    print("")
+    print_site(site)
+    print("Arming alarm away")
+
+    if site.arm_away():
+        print("Arm away succeeded")
+        check_updates(site, adt)
+        assert site.is_away
+    else:
+        print("Arm away failed")
+
+    print("")
+    print_site(site)
+    site.disarm()
+    print("Disarmed")
 
 
 def main():
@@ -101,10 +173,34 @@ def main():
         print(f"ERROR! {USER}, {PASSWD}, and {FINGERPRINT} must all be set")
         raise SystemExit
 
-    if args and args[PULSE_DEBUG].casefold() == "True".casefold():
+    debug = False
+    try:
+        debug = bool(args[PULSE_DEBUG])
+    except ValueError:
+        print(f"{PULSE_DEBUG} must be True or False, defaulting to False")
+    except KeyError:
+        pass
+
+    if debug:
         level = logging.DEBUG
     else:
         level = logging.ERROR
+
+    run_alarm_test = False
+    try:
+        run_alarm_test = bool(args[TEST_ALARM])
+    except ValueError:
+        print(f"{TEST_ALARM} must be True or False, defaulting to False")
+    except KeyError:
+        pass
+
+    sleep_interval = 10
+    try:
+        sleep_interval = int(args[SLEEP_INTERVAL])
+    except ValueError:
+        print(f"{SLEEP_INTERVAL} must be an integer, defaulting to 10 seconds")
+    except KeyError:
+        pass
 
     setup_logger(level)
 
@@ -112,14 +208,21 @@ def main():
 
     adt = PyADTPulse(args[USER], args[PASSWD], args[FINGERPRINT])
 
-    done = False
+    if len(adt.sites) == 0:
+        print("Error: could not retrieve sites")
+        raise SystemError
+    for site in adt.sites:
+        print_site(site)
+        if run_alarm_test:
+            test_alarm(site, adt, sleep_interval)
 
+    done = False
     while not done:
         try:
             for site in adt.sites:
                 print_site(site)
                 print("----")
-                if site.updates_may_exist():
+                if site.updates_may_exist:
                     print("Updates exist, refreshing")
                     if not adt.update():
                         print("Error occurred fetching updates, exiting..")
@@ -131,7 +234,7 @@ def main():
                 else:
                     print("No updates exist")
 
-            sleep(10)
+            sleep(sleep_interval)
 
         except KeyboardInterrupt:
             print("exiting...")

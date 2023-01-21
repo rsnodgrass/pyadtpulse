@@ -3,7 +3,7 @@
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from bs4 import BeautifulSoup
 from requests import HTTPError, Response, Session, RequestException
@@ -16,7 +16,6 @@ from pyadtpulse.const import (
     ADT_DEVICE_URI,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
-    ADT_SUMMARY_URI,
     ADT_SYSTEM_URI,
     ADT_SYNC_CHECK_URI,
     API_PREFIX,
@@ -24,12 +23,15 @@ from pyadtpulse.const import (
     ADT_TIMEOUT_URI,
     ADT_TIMEOUT_INTERVAL,
     ADT_HTTP_REFERER_URIS,
+    ADT_ORB_URI,
 )
-from pyadtpulse.util import handle_response
+from pyadtpulse.util import handle_response, make_soup
 
 # FIXME -- circular reference
 # from pyadtpulse.site import ADTPulseSite
 
+if TYPE_CHECKING:
+    from pyadtpulse.site import ADTPulseSite
 
 LOG = logging.getLogger(__name__)
 
@@ -60,10 +62,13 @@ class PyADTPulse:
         self._user_agent = user_agent
         self._api_version: Optional[str] = None
 
-        self._last_timeout_reset = self._sync_timestamp = time.time()
-        self._sync_token = "0-0-0"
+        self._last_timeout_reset = time.time()
+        self._sync_timestamp = 0.0
         # fixme circular import, should be an ADTPulseSite
-        self._sites: List[Any] = []
+        if TYPE_CHECKING:
+            self._sites: List[ADTPulseSite]
+        else:
+            self._sites: List[Any] = []
 
         self._api_host = DEFAULT_API_HOST
 
@@ -90,7 +95,7 @@ class PyADTPulse:
             total=3,
             status_forcelist=RECOVERABLE_ERRORS,
             allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],
-            backoff_factor=1,
+            backoff_factor=0.1,
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self._session = Session()
@@ -161,10 +166,9 @@ class PyADTPulse:
 
         return self._api_version
 
-    def _update_sites(self, summary_html: str) -> None:
-        soup = BeautifulSoup(summary_html, "html.parser")
+    def _update_sites(self, soup: BeautifulSoup) -> None:
 
-        if not self._sites:
+        if len(self._sites) == 0:
             self._initialize_sites(soup)
         else:
             # FIXME: this will have to be fixed once multiple ADT sites
@@ -243,19 +247,14 @@ class PyADTPulse:
                 "sun": "yes",
             },
             force_login=False,
-            timeout=3
+            timeout=10,
         )
 
-        if not handle_response(
-            response, logging.ERROR, "Could not log into ADT Pulse site"
-        ):
+        soup = make_soup(response, logging.ERROR, "Could not log into ADT Pulse site")
+        if soup is None:
             self._authenticated = False
             return
 
-        if response is None:  # shut up linter
-            return
-
-        soup = BeautifulSoup(response.text, "html.parser")
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
             LOG.error(f"Invalid ADT Pulse response: ): {error}")
@@ -263,18 +262,19 @@ class PyADTPulse:
             return
 
         self._authenticated = True
-        self._sync_timestamp = self._last_timeout_reset = time.time()
+        self._last_timeout_reset = time.time()
 
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
-        self._update_sites(response.text)
+
+        self._update_sites(soup)
+        self._sync_timestamp = time.time()
 
     def logout(self) -> None:
         """Log out of ADT Pulse."""
         LOG.info(f"Logging {self._username} out of ADT Pulse")
-        self.query(ADT_LOGOUT_URI, timeout=3)
+        self.query(ADT_LOGOUT_URI, timeout=10)
         self._last_timeout_reset = time.time()
-        self._sync_timestamp = 0.0
         self._authenticated = False
 
     @property
@@ -284,42 +284,43 @@ class PyADTPulse:
         Returns:
             bool: True if updated data exists
         """
-        LOG.debug(f"Last timeout reset: {time.time() - self._last_timeout_reset}")
-        if (time.time() - self._last_timeout_reset) > ADT_TIMEOUT_INTERVAL:
-            self._reset_timeout()
-        response = self.query(
-            ADT_SYNC_CHECK_URI,
-            extra_params={"ts": self._sync_timestamp},
-        )
-
-        if not handle_response(response, logging.ERROR, "Error querying ADT sync"):
-            return False
-
-        # shut up linter
-        if response is None:
-            return False
-
-        text = response.text
-
-        pattern = r"\d+[-]\d+[-]\d+"
-        if not re.match(pattern, text):
-            LOG.warn(f"Unexpected sync check format ({pattern}), forcing re-auth")
-            LOG.debug(f"Received {text} from ADT Pulse site")
-            self._authenticated = False
-            return False
-
-        self._sync_timestamp = time.time()
-        if text != self._sync_token:
-            LOG.debug(
-                f"Sync token {text} != existing {self._sync_token}; updates may exist"
+        retval = False
+        while True:
+            LOG.debug(f"Last timeout reset: {time.time() - self._last_timeout_reset}")
+            if (time.time() - self._last_timeout_reset) > ADT_TIMEOUT_INTERVAL:
+                self._reset_timeout()
+            response = self.query(
+                ADT_SYNC_CHECK_URI,
+                extra_params={"ts": int(self._sync_timestamp * 1000)},
             )
-            self._sync_token = text
-            return True
-        else:
-            LOG.debug(
-                f"Sync token {self._sync_token} matches, no remote updates to process"
-            )
-            return False
+
+            if not handle_response(response, logging.ERROR, "Error querying ADT sync"):
+                return False
+
+            # shut up linter
+            if response is None:
+                return False
+
+            text = response.text
+
+            pattern = r"\d+[-]\d+[-]\d+"
+            if not re.match(pattern, text):
+                LOG.warn(f"Unexpected sync check format ({pattern}), forcing re-auth")
+                LOG.debug(f"Received {text} from ADT Pulse site")
+                self._authenticated = False
+                return False
+
+            # we can have 0-0-0 followed by 1-0-0 followed by 2-0-0, etc
+            # wait until these settle
+            if text.endswith('-0-0'):
+                LOG.debug(
+                    f"Sync token {text} indicates updates may exist, requerying")
+                self._sync_timestamp = time.time()
+                retval = True
+                continue
+            LOG.debug(f"Sync token {text} indicates no remote updates to process")
+            self._sync_timestamp = time.time()
+            return retval
 
     @property
     def is_connected(self) -> bool:
@@ -340,7 +341,7 @@ class PyADTPulse:
         extra_headers: Optional[Dict] = None,
         force_login: Optional[bool] = True,
         version_prefix: Optional[bool] = True,
-        timeout=.2
+        timeout=1,
     ) -> Optional[Response]:
         """Query ADT Pulse server.
 
@@ -382,13 +383,13 @@ class PyADTPulse:
         # define connection method
         try:
             if method == "GET":
-                response = self._session.get(url,
-                                             headers=extra_headers,
-                                             params=extra_params, timeout=timeout)
+                response = self._session.get(
+                    url, headers=extra_headers, params=extra_params, timeout=timeout
+                )
             elif method == "POST":
-                response = self._session.post(url,
-                                              headers=extra_headers,
-                                              data=extra_params, timeout=timeout)
+                response = self._session.post(
+                    url, headers=extra_headers, data=extra_params, timeout=timeout
+                )
             else:
                 LOG.error(f"Invalid request method {method}")
                 return None
@@ -414,6 +415,12 @@ class PyADTPulse:
 
         return response
 
+    # FIXME? might have to move this to site for multiple sites
+    def _query_orb(self, level: int, error_message: str) -> Optional[BeautifulSoup]:
+        response = self.query(ADT_ORB_URI)
+
+        return make_soup(response, level, error_message)
+
     def update(self) -> bool:
         """Update ADT Pulse data.
 
@@ -425,19 +432,15 @@ class PyADTPulse:
         if (time.time() - self._last_timeout_reset) > ADT_TIMEOUT_INTERVAL:
             self._reset_timeout()
 
-        response = self.query(ADT_SUMMARY_URI, method="GET")
+        # FIXME will have to query other URIs for camera/zwave/etc
+        soup = self._query_orb(
+            logging.INFO, "Error returned from ADT Pulse service check"
+        )
+        if soup is not None:
+            self._update_sites(soup)
+            return True
 
-        if not handle_response(
-            response, logging.INFO, "Error returned from ADT Pulse service check"
-        ):
-            return False
-
-        # shut up linter
-        if response is None:
-            return False
-
-        self._update_sites(response.text)
-        return True
+        return False
 
     # FIXME circular reference, should be ADTPulseSite
 
