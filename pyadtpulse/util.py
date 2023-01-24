@@ -1,15 +1,15 @@
 """Utility functions for pyadtpulse."""
 from typing import Optional
 
-from requests import Response
+from aiohttp import ClientResponse
 from bs4 import BeautifulSoup
 import logging
 
 LOG = logging.getLogger(__name__)
 
 
-def handle_response(
-    response: Optional[Response], level: int, error_message: str
+async def handle_response(
+    response: Optional[ClientResponse], level: int, error_message: str
 ) -> bool:
     """Handle the response from query().
 
@@ -28,9 +28,10 @@ def handle_response(
     if response.ok:
         return True
 
-    LOG.log(level, f"{error_message}: error code={response.status_code}")
-    if response.text is not None:
-        LOG.debug(f"ADT Pulse error additional info: {response.text}")
+    LOG.log(level, f"{error_message}: error code={response.status}")
+    body_text = str(await response.content.read())
+    if body_text is not None:
+        LOG.debug(f"ADT Pulse error additional info: {body_text}")
 
     return False
 
@@ -48,8 +49,8 @@ def remove_prefix(text: str, prefix: str) -> str:
     return text[text.startswith(prefix) and len(prefix) :]
 
 
-def make_soup(
-    response: Optional[Response], level: int, error_message: str
+async def make_soup(
+    response: Optional[ClientResponse], level: int, error_message: str
 ) -> Optional[BeautifulSoup]:
     """Make a BS object from a Response.
 
@@ -61,10 +62,10 @@ def make_soup(
     Returns:
         Optional[BeautifulSoup]: a BS object, or None on failure
     """
-    if not handle_response(response, level, error_message):
+    if not await handle_response(response, level, error_message):
         return None
 
     if response is None:  # shut up type checker
         return None
-
-    return BeautifulSoup(response.text, "html.parser")
+    body_text = await response.content.read()
+    return BeautifulSoup(body_text, "html.parser")

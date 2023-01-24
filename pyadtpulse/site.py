@@ -1,4 +1,5 @@
 """Module representing an ADT Pulse Site."""
+from asyncio import get_event_loop, run_coroutine_threadsafe
 import logging
 import re
 import time
@@ -56,12 +57,14 @@ class ADTPulseSite(object):
         self._adt_service = adt_service
         self._id = site_id
         self._name = name
-        self._fetch_zones()
+        coro = self._fetch_zones()
+        run_coroutine_threadsafe(coro, get_event_loop()).done()
         self._status = ADT_ALARM_UNKNOWN
         self._sat = ""
         self._last_updated = 0.0
         if summary_html_soup is not None:
-            self._update_alarm_status(summary_html_soup)
+            coro2 = self._update_alarm_status(summary_html_soup)
+            run_coroutine_threadsafe(coro2, get_event_loop())
 
     @property
     def id(self) -> str:
@@ -128,7 +131,7 @@ class ADTPulseSite(object):
         """
         return self._last_updated
 
-    def _arm(self, mode: str) -> bool:
+    async def _arm(self, mode: str) -> bool:
         """Set the alarm arm mode to one of: off, home, away.
 
         :param mode: alarm mode to set
@@ -140,7 +143,7 @@ class ADTPulseSite(object):
             "arm": mode,  # new state
             "sat": self._sat,
         }
-        response = self._adt_service.query(
+        response = await self._adt_service.async_query(
             ADT_ARM_DISARM_URI,
             method="POST",
             extra_params=params,
@@ -158,16 +161,55 @@ class ADTPulseSite(object):
         return True
 
     def arm_away(self) -> bool:
-        """Arm the alarm in Away mode."""
-        return self._arm(ADT_ALARM_AWAY)
+        """Arm the alarm in Away mode.
+
+        Returns:
+            bool: True if arm succeeded
+        """
+        coro = self._arm(ADT_ALARM_AWAY)
+        return run_coroutine_threadsafe(coro, get_event_loop()).result()
 
     def arm_home(self) -> bool:
-        """Arm the alarm in Home mode."""
-        return self._arm(ADT_ALARM_HOME)
+        """Arm the alarm in Home mode.
+
+        Returns:
+            bool: True if arm succeeded
+        """
+        coro = self._arm(ADT_ALARM_HOME)
+        return run_coroutine_threadsafe(coro, get_event_loop()).result()
 
     def disarm(self) -> bool:
-        """Disarm the alarm."""
-        return self._arm(ADT_ALARM_OFF)
+        """Disarm the alarm.
+
+        Returns:
+            bool: True if disarm succeeded
+        """
+        coro = self._arm(ADT_ALARM_OFF)
+        return run_coroutine_threadsafe(coro, get_event_loop()).result()
+
+    async def async_arm_away(self) -> bool:
+        """Arm alarm away async.
+
+        Returns:
+            bool: True if arm succeeded
+        """
+        return await self._arm(ADT_ALARM_AWAY)
+
+    async def async_arm_home(self) -> bool:
+        """Arm alarm home async.
+
+        Returns:
+            bool: True if arm succeeded
+        """
+        return await self._arm(ADT_ALARM_HOME)
+
+    async def async_disarm(self) -> bool:
+        """Disarm alarm async.
+
+        Returns:
+            bool: True if disarm succeeded
+        """
+        return await self._arm(ADT_ALARM_OFF)
 
     @property
     def zones(self) -> Optional[List[Dict]]:
@@ -178,15 +220,15 @@ class ADTPulseSite(object):
         """
         if self._zones:
             return self._zones
-
-        return self._fetch_zones()
+        coro = self._fetch_zones()
+        return run_coroutine_threadsafe(coro, get_event_loop()).result()
 
     @property
     def history(self):
         """Return log of history for this zone (NOT IMPLEMENTED)."""
         raise NotImplementedError
 
-    def _update_alarm_status(
+    async def _update_alarm_status(
         self, summary_html_soup: BeautifulSoup, update_zones: Optional[bool] = False
     ) -> None:
         LOG.debug("Updating alarm status")
@@ -237,9 +279,9 @@ class ADTPulseSite(object):
         # of data from ADT Pulse
 
         if update_zones:
-            self.update_zones()
+            await self.async_update_zones()
 
-    def _fetch_zones(self) -> Optional[List[Dict]]:
+    async def _fetch_zones(self) -> Optional[List[Dict]]:
         """Fetch zones for a site.
 
         Returns:
@@ -247,8 +289,8 @@ class ADTPulseSite(object):
             None if an error occurred
         """
         # summary.jsp contains more device id details
-        response = self._adt_service.query(ADT_SYSTEM_URI)
-        soup = make_soup(
+        response = await self._adt_service.async_query(ADT_SYSTEM_URI)
+        soup = await make_soup(
             response,
             logging.WARNING,
             "Failed loading zone status from ADT Pulse service",
@@ -272,10 +314,10 @@ class ADTPulseSite(object):
                 continue
 
             device_id = result[0]
-            deviceResponse = self._adt_service.query(
+            deviceResponse = await self._adt_service.async_query(
                 ADT_DEVICE_URI, extra_params={"id": device_id}
             )
-            deviceResponseSoup = make_soup(
+            deviceResponseSoup = await make_soup(
                 deviceResponse,
                 logging.DEBUG,
                 "Failed loading zone data from ADT Pulse service",
@@ -342,20 +384,20 @@ class ADTPulseSite(object):
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
-    def update_zones(self) -> Optional[List[Dict]]:
-        """Update zone status information.
+    async def async_update_zones(self) -> Optional[List[Dict]]:
+        """Update zone status information asynchronously.
 
         Returns:
             Optional[List[Dict]]: a list of zones with status
         """
         if self._zones is None:
-            if self._fetch_zones() is None:
+            if await self._fetch_zones() is None:
                 LOG.error("Could not update zones, none found")
                 return None
 
         LOG.debug(f"fetching zones for site { self._id}")
         # call ADT orb uri
-        soup = self._adt_service._query_orb(
+        soup = await self._adt_service._query_orb(
             logging.WARNING, "Could not fetch zone status updates"
         )
 
@@ -398,6 +440,15 @@ class ADTPulseSite(object):
         self._last_updated = time.time()
         return self._zones
 
+    async def update_zones(self) -> Optional[List[Dict]]:
+        """Update zone status information.
+
+        Returns:
+            Optional[List[Dict]]: a list of zones with status
+        """
+        coro = self.async_update_zones()
+        return run_coroutine_threadsafe(coro, get_event_loop()).result()
+
     @property
     def updates_may_exist(self) -> bool:
         """Query whether updated sensor data exists.
@@ -411,8 +462,23 @@ class ADTPulseSite(object):
         #  if updates exist
         return self._adt_service.updates_exist
 
+    async def async_update(self) -> bool:
+        """Force update site/zone data async with current data.
+
+        Returns:
+            bool: True if update succeeded
+        """
+        retval = await self._adt_service.async_update()
+        if retval:
+            self._last_updated = time.time()
+        return retval
+
     def update(self) -> bool:
-        """Force an update of the site and zones with current data from the service."""
+        """Force update site/zones with current data.
+
+        Returns:
+            bool: True if update succeeded
+        """
         retval = self._adt_service.update()
         if retval:
             self._last_updated = time.time()
