@@ -1,5 +1,6 @@
 {
   "sleep_interval": 5,
+  "use_async": true,
   "test_alarm": false,
   "debug": false,
   "adtpulse_user": "me@myisp.com",

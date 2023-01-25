@@ -9,6 +9,7 @@ from time import sleep
 from typing import Dict, Optional
 from datetime import datetime
 
+import asyncio
 from pyadtpulse import PyADTPulse
 from pyadtpulse.site import ADTPulseSite
 
@@ -18,6 +19,7 @@ FINGERPRINT = "adtpulse_fingerprint"
 PULSE_DEBUG = "debug"
 TEST_ALARM = "test_alarm"
 SLEEP_INTERVAL = "sleep_interval"
+USE_ASYNC = "use_async"
 
 
 def setup_logger(level: int):
@@ -90,17 +92,21 @@ def print_site(site: ADTPulseSite) -> None:
     print(f"Last updated: {datetime.fromtimestamp(site.last_updated)}")
 
 
-def check_updates(site: ADTPulseSite, adt: PyADTPulse) -> None:
+def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool:
     """Check a site for updates and print details.
 
     Args:
         site (ADTPulseSite): site to check
         adt (PyADTPulse): Pulse connection object
+        test_alarm: bool: sleep a bit if testing alarm
+
+        Returns: bool: True if update successful
     """
     # Pusle takes a while to update alarm status
     # so site.updates_exist is unreliable until that happens
     # so we need to sleep a little until the status gets updated on ADT's side
-    sleep(1)
+    if test_alarm:
+        sleep(1)
     assert site.updates_may_exist is True
 
     if adt.update():
@@ -108,8 +114,9 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse) -> None:
             "ADT Data updated, at "
             f"{datetime.fromtimestamp(site.last_updated)}, refreshing"
         )
-    else:
-        print("Site update failed")
+        return True
+    print("Site update failed")
+    return False
 
 
 def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None:
@@ -123,7 +130,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     print("Arming alarm stay")
     if site.arm_home():
         print("Alarm arming home succeeded")
-        check_updates(site, adt)
+        check_updates(site, adt, True)
         assert site.is_home
     else:
         print("Alarm arming home failed")
@@ -134,7 +141,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     print("Disarming alarm")
     if site.disarm():
         print("Disarming succeeded")
-        check_updates(site, adt)
+        check_updates(site, adt, True)
         assert site.is_disarmed
     else:
         print("Disarming failed")
@@ -145,7 +152,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
 
     if site.arm_away():
         print("Arm away succeeded")
-        check_updates(site, adt)
+        check_updates(site, adt, True)
         assert site.is_away
     else:
         print("Arm away failed")
@@ -154,6 +161,146 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     print_site(site)
     site.disarm()
     print("Disarmed")
+
+
+def sync_example(
+    username: str,
+    password: str,
+    fingerprint: str,
+    run_alarm_test: bool,
+    sleep_interval: int,
+) -> None:
+    """Run example of sync pyadtpulse calls.
+
+    Args:
+        username (str): Pulse username
+        password (str): Pulse password
+        fingerprint (str): Pulse fingerprint
+        run_alarm_test (bool): True if alarm test to be run
+        sleep_interval (int): how long in seconds to sleep between update checks
+    """
+    adt = PyADTPulse(username, password, fingerprint)
+
+    if len(adt.sites) == 0:
+        print("Error: could not retrieve sites")
+        raise SystemError
+
+    for site in adt.sites:
+        print_site(site)
+        if run_alarm_test:
+            test_alarm(site, adt, sleep_interval)
+
+    done = False
+    while not done:
+        try:
+            for site in adt.sites:
+                print_site(site)
+                print("----")
+                if site.updates_may_exist:
+                    print("Updates exist, refreshing")
+                    if not adt.update():
+                        print("Error occurred fetching updates, exiting..")
+                        done = True
+                        break
+                    print("\nZones:")
+                    for zone in site.zones:
+                        print(zone)
+                else:
+                    print("No updates exist")
+
+            sleep(sleep_interval)
+
+        except KeyboardInterrupt:
+            print("exiting...")
+            done = True
+
+    print("Logging out")
+    adt.logout()
+
+
+async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
+    """Test alarm functions.
+
+    Args:
+        site (ADTPulseSite): site to test
+        adt (PyADTPulse): ADT Pulse connection objecct
+    """
+    print("Arming alarm stay")
+    if await site.async_arm_away():
+        print("Alarm arming home succeeded")
+        check_updates(site, adt, False)
+        assert site.is_home
+    else:
+        print("Alarm arming home failed")
+
+    print("")
+    print_site(site)
+
+    print("Disarming alarm")
+    if await site.async_disarm():
+        print("Disarming succeeded")
+        check_updates(site, adt, False)
+        assert site.is_disarmed
+    else:
+        print("Disarming failed")
+
+    print("")
+    print_site(site)
+    print("Arming alarm away")
+
+    if await site.async_arm_away():
+        print("Arm away succeeded")
+        check_updates(site, adt, False)
+        assert site.is_away
+    else:
+        print("Arm away failed")
+
+    print("")
+    print_site(site)
+    await site.async_disarm()
+    print("Disarmed")
+
+
+async def async_example(
+    username: str, password: str, fingerprint: str, run_alarm_test: bool
+) -> None:
+    """Run example of pytadtpulse async usage.
+
+    Args:
+        username (str): Pulse username
+        password (str): Pulse password
+        fingerprint (str): Pulse fingerprint
+        run_alarm_test (bool): True if alarm tests should be run
+    """
+    adt = PyADTPulse(username, password, fingerprint)
+
+    if len(adt.sites) == 0:
+        print("Error: could not retrieve sites")
+        raise SystemError
+
+    for site in adt.sites:
+        print_site(site)
+        if run_alarm_test:
+            await async_test_alarm(site, adt)
+
+    done = False
+    while not done:
+        try:
+            for site in adt.sites:
+                print_site(site)
+                print("----")
+                await adt.wait_for_update()
+                print("Updates exist, refreshing")
+                # no need to call an update method
+                print("\nZones:")
+                for zone in site.zones:
+                    print(zone)
+        except KeyboardInterrupt:
+            print("exiting...")
+            done = True
+
+    print("Logging out")
+    await adt.async_logout()
 
 
 def main():
@@ -194,11 +341,21 @@ def main():
     except KeyError:
         pass
 
+    use_async = False
+    try:
+        use_async = bool(args[USE_ASYNC])
+    except ValueError:
+        print(f"{USE_ASYNC} must be an boolean, defaulting to False")
+    except KeyError:
+        pass
+
+    # don't need to sleep with async
     sleep_interval = 10
     try:
         sleep_interval = int(args[SLEEP_INTERVAL])
     except ValueError:
-        print(f"{SLEEP_INTERVAL} must be an integer, defaulting to 10 seconds")
+        if use_async:
+            print(f"{SLEEP_INTERVAL} must be an integer, defaulting to 10 seconds")
     except KeyError:
         pass
 
@@ -206,42 +363,14 @@ def main():
 
     ####
 
-    adt = PyADTPulse(args[USER], args[PASSWD], args[FINGERPRINT])
-
-    if len(adt.sites) == 0:
-        print("Error: could not retrieve sites")
-        raise SystemError
-    for site in adt.sites:
-        print_site(site)
-        if run_alarm_test:
-            test_alarm(site, adt, sleep_interval)
-
-    done = False
-    while not done:
-        try:
-            for site in adt.sites:
-                print_site(site)
-                print("----")
-                if site.updates_may_exist:
-                    print("Updates exist, refreshing")
-                    if not adt.update():
-                        print("Error occurred fetching updates, exiting..")
-                        done = True
-                        break
-                    print("\nZones:")
-                    for zone in site.zones:
-                        print(zone)
-                else:
-                    print("No updates exist")
-
-            sleep(sleep_interval)
-
-        except KeyboardInterrupt:
-            print("exiting...")
-            done = True
-
-    print("Logging out")
-    adt.logout
+    if not use_async:
+        sync_example(
+            args[USER], args[PASSWD], args[FINGERPRINT], run_alarm_test, sleep_interval
+        )
+    else:
+        asyncio.run(
+            async_example(args[USER], args[PASSWD], args[FINGERPRINT], run_alarm_test)
+        )
 
 
 if __name__ == "__main__":
