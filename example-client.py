@@ -272,8 +272,9 @@ async def async_example(
         fingerprint (str): Pulse fingerprint
         run_alarm_test (bool): True if alarm tests should be run
     """
-    adt = PyADTPulse(username, password, fingerprint)
+    adt = PyADTPulse(username, password, fingerprint, do_login=False)
 
+    await adt.async_login()
     if len(adt.sites) == 0:
         print("Error: could not retrieve sites")
         raise SystemError

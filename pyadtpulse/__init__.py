@@ -52,6 +52,7 @@ class PyADTPulse:
         fingerprint: str,
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
         websession: Optional[ClientSession] = None,
+        do_login: bool = True,
     ):
         """Create a PyADTPulse object.
 
@@ -63,13 +64,19 @@ class PyADTPulse:
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].
             websession (ClientSession, optional): an initialized
                         aiohttp.ClientSession to use, defaults to None
+            do_login (bool): login synchronously when creating object
+                            Should be set to False for asynchronous usage
+                            and async_login() should be called instead
+                            Setting websession will override this
+                            and not login
+                        Defaults to True
         """
         self._session = websession
         if self._session is not None:
             self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
         self._init_login_info(username, password, fingerprint)
         self._user_agent = user_agent
-        self._api_version: Optional[str] = None
+        self._api_version: str = ADT_DEFAULT_VERSION
 
         self._sync_task: Optional[asyncio.Task] = None
         self._timeout_task: Optional[asyncio.Task] = None
@@ -86,7 +93,8 @@ class PyADTPulse:
 
         self._api_host = DEFAULT_API_HOST
         # authenticate the user
-        self.login()
+        if do_login and self._session is None:
+            self.login()
 
     def _init_login_info(self, username: str, password: str, fingerprint: str) -> None:
         if username is None or username == "":
@@ -147,37 +155,45 @@ class PyADTPulse:
         Returns:
             str: a string containing the version
         """
-        if not self._api_version:
-            fetch_version = self._fetch_version()
-            return asyncio.run_coroutine_threadsafe(
-                fetch_version, asyncio.get_event_loop()
-            ).result()
         return self._api_version
 
-    async def _fetch_version(self) -> str:
-        if not self._api_version:
-            if self._session:
+    async def _async_fetch_version(self) -> None:
+        result = None
+        if self._session:
+            try:
                 async with self._session.get(self._api_host) as response:
-
-                    LOG.debug(
-                        f"Retrieved {response.url} trying to GET {self._api_host}"
-                    )
-                    m = re.search("/myhome/(.+)/access", str(response.url))
-                    if m is not None:
-                        self._api_version = m.group(1)
-                        LOG.debug(
-                            "Discovered ADT Pulse version"
-                            f" {self._api_version} at {self._api_host}"
-                        )
-                        return self._api_version
-
-            self._api_version = ADT_DEFAULT_VERSION
+                    result = await response.text()
+                    response.raise_for_status()
+                    LOG.debug(f"Retrieved {result} trying to GET {self._api_host}")
+            except (ClientResponseError, ClientConnectionError):
+                LOG.warning(
+                    "Error occurred during API version fetch, defaulting to"
+                    f"{ADT_DEFAULT_VERSION}"
+                )
+                self._api_version = ADT_DEFAULT_VERSION
+                return
+        if result is None:
             LOG.warning(
-                "Couldn't auto-detect ADT Pulse version, "
-                f"defaulting to {self._api_version}"
+                "Error occurred during API version fetch, defaulting to"
+                f"{ADT_DEFAULT_VERSION}"
             )
+            self._api_version = ADT_DEFAULT_VERSION
+            return
 
-        return self._api_version
+        m = re.search("/myhome/(.+)/access", result)
+        if m is not None:
+            self._api_version = m.group(1)
+            LOG.debug(
+                "Discovered ADT Pulse version"
+                f" {self._api_version} at {self._api_host}"
+            )
+            return
+
+        self._api_version = ADT_DEFAULT_VERSION
+        LOG.warning(
+            "Couldn't auto-detect ADT Pulse version, "
+            f"defaulting to {self._api_version}"
+        )
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
 
@@ -264,6 +280,7 @@ class PyADTPulse:
             self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
         self._authenticated = asyncio.locks.Event()
         LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
+        await self._async_fetch_version()
 
         response = await self.async_query(
             ADT_LOGIN_URI,
