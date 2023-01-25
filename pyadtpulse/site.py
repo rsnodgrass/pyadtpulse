@@ -62,6 +62,7 @@ class ADTPulseSite(object):
         self._status = ADT_ALARM_UNKNOWN
         self._sat = ""
         self._last_updated = 0.0
+        self._zones: Optional[List[dict]] = None
         if summary_html_soup is not None:
             coro2 = self._update_alarm_status(summary_html_soup)
             run_coroutine_threadsafe(coro2, get_event_loop())
@@ -143,7 +144,7 @@ class ADTPulseSite(object):
             "arm": mode,  # new state
             "sat": self._sat,
         }
-        response = await self._adt_service.async_query(
+        response = await self._adt_service._async_query(
             ADT_ARM_DISARM_URI,
             method="POST",
             extra_params=params,
@@ -289,7 +290,7 @@ class ADTPulseSite(object):
             None if an error occurred
         """
         # summary.jsp contains more device id details
-        response = await self._adt_service.async_query(ADT_SYSTEM_URI)
+        response = await self._adt_service._async_query(ADT_SYSTEM_URI)
         soup = await make_soup(
             response,
             logging.WARNING,
@@ -314,7 +315,7 @@ class ADTPulseSite(object):
                 continue
 
             device_id = result[0]
-            deviceResponse = await self._adt_service.async_query(
+            deviceResponse = await self._adt_service._async_query(
                 ADT_DEVICE_URI, extra_params={"id": device_id}
             )
             deviceResponseSoup = await make_soup(
@@ -432,6 +433,9 @@ class ADTPulseSite(object):
             #        Unknown (device offline)
 
             # update device state from ORB info
+            if self._zones is None:
+                LOG.warning("No zones exist")
+                return None
             for device in self._zones:
                 if device["zone"] == zone:
                     LOG.debug(f"Setting zone {zone} - {device['name']} to {state}")

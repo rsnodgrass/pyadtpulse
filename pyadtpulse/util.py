@@ -29,9 +29,6 @@ async def handle_response(
         return True
 
     LOG.log(level, f"{error_message}: error code={response.status}")
-    body_text = str(await response.content.read())
-    if body_text is not None:
-        LOG.debug(f"ADT Pulse error additional info: {body_text}")
 
     return False
 
@@ -67,5 +64,6 @@ async def make_soup(
 
     if response is None:  # shut up type checker
         return None
-    body_text = await response.content.read()
+    body_text = await response.text()
+    response.close()
     return BeautifulSoup(body_text, "html.parser")

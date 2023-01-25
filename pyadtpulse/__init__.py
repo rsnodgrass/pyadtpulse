@@ -180,7 +180,7 @@ class PyADTPulse:
             self._api_version = ADT_DEFAULT_VERSION
             return
 
-        m = re.search("/myhome/(.+)/access", result)
+        m = re.search("/myhome/(.+)/[a-z]*/", result)
         if m is not None:
             self._api_version = m.group(1)
             LOG.debug(
@@ -250,7 +250,12 @@ class PyADTPulse:
     #
     # ... or perhaps better, just extract all from /system/settings.jsp
 
+    def _close_response(self, response: Optional[ClientResponse]) -> None:
+        if response is not None and not response.closed:
+            response.close()
+
     async def _keepalive_task(self) -> None:
+        response = None
         if self._authenticated is None:
             raise RuntimeError(
                 "Keepalive task is runnng without an authenticated event"
@@ -259,19 +264,22 @@ class PyADTPulse:
             try:
                 await asyncio.sleep(ADT_TIMEOUT_INTERVAL)
                 LOG.debug("Resetting timeout")
-                response = await self.async_query(ADT_TIMEOUT_URI, "POST")
+                response = await self._async_query(ADT_TIMEOUT_URI, "POST")
                 if handle_response(
                     response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
                 ):
+                    self._close_response(response)
                     continue
+                self._close_response(response)
             except asyncio.CancelledError:
                 LOG.debug("ADT Pulse timeout task cancelled")
+                self._close_response(response)
                 return
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
-        login_func = self.async_login()
-        asyncio.run_coroutine_threadsafe(login_func, asyncio.get_event_loop()).result()
+        coro = self.async_login()
+        asyncio.run_coroutine_threadsafe(coro, asyncio.get_running_loop())
 
     async def async_login(self) -> None:
         """Login asynchronously to ADT."""
@@ -282,7 +290,7 @@ class PyADTPulse:
         LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
         await self._async_fetch_version()
 
-        response = await self.async_query(
+        response = await self._async_query(
             ADT_LOGIN_URI,
             method="POST",
             extra_params={
@@ -339,7 +347,10 @@ class PyADTPulse:
                 LOG.debug("Pulse sync check task successfully cancelled")
 
         self._timeout_task = self._sync_task = None
-        await self.async_query(ADT_LOGOUT_URI, timeout=10)
+        await self._async_query(ADT_LOGOUT_URI, timeout=10)
+        if self._session is not None:
+            if not self._session.closed:
+                await self._session.close()
         self._last_timeout_reset = time.time()
         if self._authenticated is not None:
             self._authenticated.clear()
@@ -347,9 +358,10 @@ class PyADTPulse:
     def logout(self) -> None:
         """Log out of ADT Pulse."""
         coro = self.async_logout()
-        asyncio.run_coroutine_threadsafe(coro, asyncio.get_event_loop()).result()
+        asyncio.run_coroutine_threadsafe(coro, asyncio.get_running_loop())
 
     async def _sync_check_task(self) -> None:
+        response = None
         if self._updates_exist is None:
             raise RuntimeError(
                 "Sync check task started without update event initialized"
@@ -357,17 +369,17 @@ class PyADTPulse:
         while True:
             try:
                 await asyncio.sleep(0.75)
-                response = await self.async_query(
+                response = await self._async_query(
                     ADT_SYNC_CHECK_URI,
                     extra_params={"ts": int(self._sync_timestamp * 1000)},
                 )
                 if response is None:
                     continue
                 text = await response.text()
-                response.close()
                 if not handle_response(
                     response, logging.ERROR, "Error querying ADT sync"
                 ):
+                    self._close_response(response)
                     continue
 
                 pattern = r"\d+[-]\d+[-]\d+"
@@ -376,6 +388,7 @@ class PyADTPulse:
                         f"Unexpected sync check format ({pattern}), forcing re-auth"
                     )
                     LOG.debug(f"Received {text} from ADT Pulse site")
+                    self._close_response(response)
                     await self.async_login()
                     continue
 
@@ -385,15 +398,18 @@ class PyADTPulse:
                     LOG.debug(
                         f"Sync token {text} indicates updates may exist, requerying"
                     )
+                    self._close_response(response)
                     self._sync_timestamp = time.time()
                     self._updates_exist.set()
                     if await self.async_update() is False:
                         LOG.debug("Pulse data update from sync task failed")
                     continue
                 LOG.debug(f"Sync token {text} indicates no remote updates to process")
+                self._close_response(response)
                 self._sync_timestamp = time.time()
             except asyncio.CancelledError:
                 LOG.debug("ADT Pulse sync check task cancelled")
+                self._close_response(response)
                 return
 
     @property
@@ -434,7 +450,7 @@ class PyADTPulse:
             return False
         return self._authenticated.is_set()
 
-    async def async_query(
+    async def _async_query(
         self,
         uri: str,
         method: str = "GET",
@@ -454,6 +470,7 @@ class PyADTPulse:
             force_login (Optional[bool], optional): login if not connected.
                         Defaults to True.
             timeout (int, optional): timeout in seconds. Defaults to 1.
+
         Returns:
             Optional[ClientResponse]: aiohttp.ClientResponse object
                                       None on failure
@@ -488,18 +505,16 @@ class PyADTPulse:
                 async with self._session.get(
                     url, headers=extra_headers, params=extra_params, timeout=timeout
                 ) as response:
-                    pass
+                    await response.text()
             elif method == "POST":
                 async with self._session.post(
                     url, headers=extra_headers, data=extra_params, timeout=timeout
                 ) as response:
-                    pass
+                    await response.text()
             else:
                 LOG.error(f"Invalid request method {method}")
                 return None
             response.raise_for_status()
-            await response.text()
-            response.close()
 
         except ClientResponseError as err:
             code = err.code
@@ -546,7 +561,7 @@ class PyADTPulse:
                                       None on failure
                                       ClientResponse will already be closed.
         """
-        coro = self.async_query(
+        coro = self._async_query(
             uri, method, extra_params, extra_headers, force_login, timeout
         )
         return asyncio.run_coroutine_threadsafe(coro, asyncio.get_event_loop()).result()
@@ -555,7 +570,7 @@ class PyADTPulse:
     async def _query_orb(
         self, level: int, error_message: str
     ) -> Optional[BeautifulSoup]:
-        response = await self.async_query(ADT_ORB_URI)
+        response = await self._async_query(ADT_ORB_URI)
 
         return await make_soup(response, level, error_message)
 
