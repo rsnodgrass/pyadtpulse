@@ -212,10 +212,10 @@ class PyADTPulse:
                 )
 
         for site in self._sites:
-            await site._update_alarm_status(soup, update_zones=True)
+            site._update_alarm_from_soup(soup)
+            site._update_zone_from_soup(soup)
 
     async def _initialize_sites(self, soup: BeautifulSoup) -> None:
-        sites = self._sites
         # typically, ADT Pulse accounts have only a single site (premise/location)
         singlePremise = soup.find("span", {"id": "p_singlePremise"})
         if singlePremise:
@@ -233,8 +233,13 @@ class PyADTPulse:
                     site_id = m.group(1)
                     LOG.debug(f"Discovered site id {site_id}: {site_name}")
                     # FIXME ADTPulseSite circular reference
-                    sites.append(ADTPulseSite(self, site_id, site_name, soup))
-                    self._sites = sites
+                    new_site = (ADTPulseSite(self, site_id, site_name))
+                    # fetch zones first, so that we can have the status
+                    # updated with _update_alarm_status
+                    await new_site._fetch_zones(None)
+                    new_site._update_alarm_from_soup(soup)
+                    new_site._update_zone_from_soup(soup)
+                    self._sites.append(new_site)
                     return
             else:
                 LOG.warning(

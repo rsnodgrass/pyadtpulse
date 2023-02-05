@@ -8,7 +8,7 @@ import logging
 LOG = logging.getLogger(__name__)
 
 
-async def handle_response(
+def handle_response(
     response: Optional[ClientResponse], level: int, error_message: str
 ) -> bool:
     """Handle the response from query().
@@ -59,7 +59,7 @@ async def make_soup(
     Returns:
         Optional[BeautifulSoup]: a BS object, or None on failure
     """
-    if not await handle_response(response, level, error_message):
+    if not handle_response(response, level, error_message):
         return None
 
     if response is None:  # shut up type checker

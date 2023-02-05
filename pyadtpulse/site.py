@@ -30,34 +30,21 @@ LOG = logging.getLogger(__name__)
 class ADTPulseSite(object):
     """Represents an individual ADT Pulse site."""
 
-    def __init__(
-        self,
-        adt_service: PyADTPulse,
-        site_id: str,
-        name: str,
-        summary_html_soup: Optional[BeautifulSoup] = None,
-    ):
+    def __init__(self, adt_service: PyADTPulse, site_id: str, name: str):
         """Initialize.
 
         Args:
             adt_service (PyADTPulse): a PyADTPulse object
             site_id (str): site ID
             name (str): site name
-            summary_html_soup (Optional[BeautifulSoup], optional):
-                A BeautifulSoup Object. Defaults to None.
         """
         self._adt_service = adt_service
         self._id = site_id
         self._name = name
-        coro = self._fetch_zones()
-        run_coroutine_threadsafe(coro, get_event_loop()).done()
         self._status = ADT_ALARM_UNKNOWN
         self._sat = ""
         self._last_updated = 0.0
         self._zones = ADTPulseZones()
-        if summary_html_soup is not None:
-            coro2 = self._update_alarm_status(summary_html_soup)
-            run_coroutine_threadsafe(coro2, get_event_loop())
 
     @property
     def id(self) -> str:
@@ -211,13 +198,9 @@ class ADTPulseSite(object):
         (cached copy of last fetch)
         See Also fetch_zones()
         """
-        if self._zones:
-            return self._zones.flatten()
-        coro = self._fetch_zones()
-        result = run_coroutine_threadsafe(coro, get_event_loop()).result()
-        if not result:
-            return None
-        return result.flatten()
+        if not self._zones:
+            raise RuntimeError("No zones exist")
+        return self._zones.flatten()
 
     @property
     def zones_as_dict(self) -> Optional[ADTPulseZones]:
@@ -226,6 +209,8 @@ class ADTPulseSite(object):
         Returns:
             ADTPulseZones: all zone information
         """
+        if not self._zones:
+            raise RuntimeError("No zones exist")
         return self._zones
 
     @property
@@ -233,8 +218,8 @@ class ADTPulseSite(object):
         """Return log of history for this zone (NOT IMPLEMENTED)."""
         raise NotImplementedError
 
-    async def _update_alarm_status(
-        self, summary_html_soup: BeautifulSoup, update_zones: Optional[bool] = False
+    def _update_alarm_from_soup(
+        self, summary_html_soup: BeautifulSoup
     ) -> None:
         LOG.debug("Updating alarm status")
         value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
@@ -283,10 +268,9 @@ class ADTPulseSite(object):
         # if we should also update the zone details, force a fresh fetch
         # of data from ADT Pulse
 
-        if update_zones:
-            await self.async_update_zones()
-
-    async def _fetch_zones(self) -> Optional[ADTPulseZones]:
+    async def _fetch_zones(
+        self, soup: Optional[BeautifulSoup]
+    ) -> Optional[ADTPulseZones]:
         """Fetch zones for a site.
 
         Returns:
@@ -294,15 +278,15 @@ class ADTPulseSite(object):
 
             None if an error occurred
         """
-        # summary.jsp contains more device id details
-        response = await self._adt_service._async_query(ADT_SYSTEM_URI)
-        soup = await make_soup(
-            response,
-            logging.WARNING,
-            "Failed loading zone status from ADT Pulse service",
-        )
         if not soup:
-            return None
+            response = await self._adt_service._async_query(ADT_SYSTEM_URI)
+            soup = await make_soup(
+                response,
+                logging.WARNING,
+                "Failed loading zone status from ADT Pulse service",
+            )
+            if not soup:
+                return None
 
         temp_zone: ADTPulseZoneData
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
@@ -383,7 +367,9 @@ class ADTPulseSite(object):
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
-    async def async_update_zones_as_dict(self) -> Optional[ADTPulseZones]:
+    async def async_update_zones_as_dict(
+        self, soup: Optional[BeautifulSoup]
+    ) -> Optional[ADTPulseZones]:
         """Update zone status information asynchronously.
 
         Returns:
@@ -391,19 +377,19 @@ class ADTPulseSite(object):
             None if an error occurred
         """
         if self._zones is None:
-            if await self._fetch_zones() is None:
-                LOG.error("Could not update zones, none found")
-                return None
-
+            raise RuntimeError("No zones exist")
         LOG.debug(f"fetching zones for site { self._id}")
-        # call ADT orb uri
-        soup = await self._adt_service._query_orb(
-            logging.WARNING, "Could not fetch zone status updates"
-        )
+        if not soup:
+            # call ADT orb uri
+            soup = await self._adt_service._query_orb(
+                logging.WARNING, "Could not fetch zone status updates"
+            )
 
-        if soup is None:
-            return None
+            if soup is None:
+                return None
+        return self._update_zone_from_soup(soup)
 
+    def _update_zone_from_soup(self, soup: BeautifulSoup) -> Optional[ADTPulseZones]:
         # parse ADT's convulated html to get sensor status
         for row in soup.find_all("tr", {"class": "p_listRow"}):
             # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
@@ -452,7 +438,7 @@ class ADTPulseSite(object):
         """
         if not self._zones:
             return None
-        zonelist = await self.async_update_zones_as_dict()
+        zonelist = await self.async_update_zones_as_dict(None)
         if not zonelist:
             return None
         return zonelist.flatten()
