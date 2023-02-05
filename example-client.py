@@ -72,7 +72,8 @@ def usage() -> None:
     print(f"  Set {PULSE_DEBUG} to True to enable debugging")
     print(f"  Set {TEST_ALARM} to True to test alarm arming/disarming")
     print(f"  Set {SLEEP_INTERVAL} to the number of seconds to sleep between each call")
-    print("                     (default:10)")
+    print("     Default: 10 seconds")
+    print(f"  Set {USE_ASYNC} to true to use asyncio (default: false)")
     print("")
     print("  values can be passed on the command line i.e.")
     print(f"  {USER}=someone@example.com")
@@ -196,6 +197,10 @@ def sync_example(
             for site in adt.sites:
                 print_site(site)
                 print("----")
+                if not site.zones:
+                    print("Error, no zones exist, exiting...")
+                    done = True
+                    break
                 if site.updates_may_exist:
                     print("Updates exist, refreshing")
                     if not adt.update():
@@ -205,6 +210,7 @@ def sync_example(
                     print("\nZones:")
                     for zone in site.zones:
                         print(zone)
+                    print(f"{site.zones_as_dict}")
                 else:
                     print("No updates exist")
 
@@ -290,12 +296,18 @@ async def async_example(
             for site in adt.sites:
                 print_site(site)
                 print("----")
-                await adt.wait_for_update()
-                print("Updates exist, refreshing")
-                # no need to call an update method
+                if not site.zones:
+                    print("No zones exist, exiting...")
+                    done = True
+                    break
                 print("\nZones:")
                 for zone in site.zones:
                     print(zone)
+                print(f"{site.zone_as_dict}")
+
+                await adt.wait_for_update()
+                print("Updates exist, refreshing")
+                # no need to call an update method
         except KeyboardInterrupt:
             print("exiting...")
             done = True

@@ -1,36 +1,28 @@
 """Module representing an ADT Pulse Site."""
-from asyncio import get_event_loop, run_coroutine_threadsafe
 import logging
 import re
 import time
-from typing import Dict, List, Optional
+from asyncio import get_event_loop, run_coroutine_threadsafe
+from typing import List, Optional
 
 # import dateparser
 from bs4 import BeautifulSoup
 
 from pyadtpulse import PyADTPulse
-
 from pyadtpulse.const import ADT_ARM_DISARM_URI, ADT_DEVICE_URI, ADT_SYSTEM_URI
-
-from pyadtpulse.util import handle_response, remove_prefix, make_soup
+from pyadtpulse.util import handle_response, make_soup, remove_prefix
+from pyadtpulse.zones import (
+    ADT_NAME_TO_DEFAULT_TAGS,
+    ADTPulseZoneData,
+    ADTPulseFlattendZone,
+    ADTPulseZones,
+)
 
 ADT_ALARM_AWAY = "away"
 ADT_ALARM_HOME = "stay"
 ADT_ALARM_OFF = "off"
 ADT_ALARM_UNKNOWN = "unknown"
 
-ADT_NAME_TO_DEFAULT_TAGS = {
-    "Door": ["sensor", "doorWindow"],
-    "Window": ["sensor", "doorWindow"],
-    "Motion": ["sensor", "motion"],
-    "Glass": ["sensor", "glass"],
-    "Gas": ["sensor", "co"],
-    "Carbon": ["sensor", "co"],
-    "Smoke": ["sensor", "smoke"],
-    "Flood": ["sensor", "flood"],
-    "Floor": ["sensor", "flood"],
-    "Moisture": ["sensor", "flood"],
-}
 
 LOG = logging.getLogger(__name__)
 
@@ -62,7 +54,7 @@ class ADTPulseSite(object):
         self._status = ADT_ALARM_UNKNOWN
         self._sat = ""
         self._last_updated = 0.0
-        self._zones: Optional[List[dict]] = None
+        self._zones = ADTPulseZones()
         if summary_html_soup is not None:
             coro2 = self._update_alarm_status(summary_html_soup)
             run_coroutine_threadsafe(coro2, get_event_loop())
@@ -213,16 +205,28 @@ class ADTPulseSite(object):
         return await self._arm(ADT_ALARM_OFF)
 
     @property
-    def zones(self) -> Optional[List[Dict]]:
+    def zones(self) -> Optional[List[ADTPulseFlattendZone]]:
         """Return all zones registered with the ADT Pulse account.
 
         (cached copy of last fetch)
         See Also fetch_zones()
         """
         if self._zones:
-            return self._zones
+            return self._zones.flatten()
         coro = self._fetch_zones()
-        return run_coroutine_threadsafe(coro, get_event_loop()).result()
+        result = run_coroutine_threadsafe(coro, get_event_loop()).result()
+        if not result:
+            return None
+        return result.flatten()
+
+    @property
+    def zones_as_dict(self) -> Optional[ADTPulseZones]:
+        """Return zone information in dictionary form.
+
+        Returns:
+            ADTPulseZones: all zone information
+        """
+        return self._zones
 
     @property
     def history(self):
@@ -282,11 +286,12 @@ class ADTPulseSite(object):
         if update_zones:
             await self.async_update_zones()
 
-    async def _fetch_zones(self) -> Optional[List[Dict]]:
+    async def _fetch_zones(self) -> Optional[ADTPulseZones]:
         """Fetch zones for a site.
 
         Returns:
-            Optional[List[Dict]]: a list of zones
+            ADTPulseZones
+
             None if an error occurred
         """
         # summary.jsp contains more device id details
@@ -299,7 +304,7 @@ class ADTPulseSite(object):
         if not soup:
             return None
 
-        zones = []
+        temp_zone: ADTPulseZoneData
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
         for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
             onClickValueText = row.get("onclick")
@@ -340,6 +345,7 @@ class ADTPulseSite(object):
 
                 value = sibling.get_text().strip()
 
+                # FIXME: parse last activity
                 if identityText == "NAME:":
                     dName = value
                 elif identityText == "TYPE/MODEL:":
@@ -365,31 +371,24 @@ class ADTPulseSite(object):
                     LOG.warning(
                         f"Unknown sensor type for '{dType}', defaulting to doorWindow"
                     )
-                    tags = ["sensor", "doorWindow"]
+                    tags = ("sensor", "doorWindow")
                 LOG.debug(f"Adding sensor {dName} id: sensor-{dZone}")
-                LOG.debug(f"Status: {dStatus}, tags {tags}, timestamp {time.time()}")
-                zones.append(
-                    {
-                        "id": f"sensor-{dZone}",
-                        "zone": int(dZone),
-                        "name": dName,
-                        "status": dStatus,
-                        "state": "",
-                        "tags": tags,
-                        "timestamp": time.time(),
-                    }
+                LOG.debug(f"Status: {dStatus}, tags {tags}")
+
+                self._zones.update(
+                    {int(dZone): {"name": dName, "status": dStatus, "tags": tags}}
                 )
-        self._zones = zones
         self._last_updated = time.time()
         return self._zones
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
-    async def async_update_zones(self) -> Optional[List[Dict]]:
+    async def async_update_zones_as_dict(self) -> Optional[ADTPulseZones]:
         """Update zone status information asynchronously.
 
         Returns:
-            Optional[List[Dict]]: a list of zones with status
+            ADTPulseZones: a dictionary of zones with status
+            None if an error occurred
         """
         if self._zones is None:
             if await self._fetch_zones() is None:
@@ -433,22 +432,36 @@ class ADTPulseSite(object):
             #        Unknown (device offline)
 
             # update device state from ORB info
-            if self._zones is None:
+            if not self._zones:
                 LOG.warning("No zones exist")
                 return None
-            for device in self._zones:
-                if device["zone"] == zone:
-                    LOG.debug(f"Setting zone {zone} - {device['name']} to {state}")
-                    device["state"] = state
-                    break
+            self._zones.update_state(zone, state)
+
+            LOG.debug(f"Setting zone {zone} - to {state}")
+
         self._last_updated = time.time()
         return self._zones
 
-    async def update_zones(self) -> Optional[List[Dict]]:
+    async def async_update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:
+        """Update zones asynchronously.
+
+        Returns:
+            List[ADTPulseFlattendZone]: a list of zones with their status
+
+            None on error
+        """
+        if not self._zones:
+            return None
+        zonelist = await self.async_update_zones_as_dict()
+        if not zonelist:
+            return None
+        return zonelist.flatten()
+
+    def update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:
         """Update zone status information.
 
         Returns:
-            Optional[List[Dict]]: a list of zones with status
+            Optional[List[ADTPulseFlattendZone]]: a list of zones with status
         """
         coro = self.async_update_zones()
         return run_coroutine_threadsafe(coro, get_event_loop()).result()
