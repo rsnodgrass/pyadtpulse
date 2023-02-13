@@ -140,14 +140,22 @@ class ADTPulseSite(object):
         self._status = mode
         return True
 
+    def _sync_set_alarm_mode(self, mode: str) -> bool:
+        loop = self._adt_service.loop
+        if loop is None:
+            raise RuntimeError(
+                "Attempting to sync change alarm mode from async session"
+            )
+        coro = self._arm(mode)
+        return run_coroutine_threadsafe(coro, loop).result()
+
     def arm_away(self) -> bool:
         """Arm the alarm in Away mode.
 
         Returns:
             bool: True if arm succeeded
         """
-        coro = self._arm(ADT_ALARM_AWAY)
-        return run_coroutine_threadsafe(coro, get_event_loop()).result()
+        return self._sync_set_alarm_mode(ADT_ALARM_AWAY)
 
     def arm_home(self) -> bool:
         """Arm the alarm in Home mode.
@@ -155,8 +163,7 @@ class ADTPulseSite(object):
         Returns:
             bool: True if arm succeeded
         """
-        coro = self._arm(ADT_ALARM_HOME)
-        return run_coroutine_threadsafe(coro, get_event_loop()).result()
+        return self._sync_set_alarm_mode(ADT_ALARM_HOME)
 
     def disarm(self) -> bool:
         """Disarm the alarm.
@@ -164,8 +171,7 @@ class ADTPulseSite(object):
         Returns:
             bool: True if disarm succeeded
         """
-        coro = self._arm(ADT_ALARM_OFF)
-        return run_coroutine_threadsafe(coro, get_event_loop()).result()
+        return self._sync_set_alarm_mode(ADT_ALARM_OFF)
 
     async def async_arm_away(self) -> bool:
         """Arm alarm away async.
@@ -218,9 +224,7 @@ class ADTPulseSite(object):
         """Return log of history for this zone (NOT IMPLEMENTED)."""
         raise NotImplementedError
 
-    def _update_alarm_from_soup(
-        self, summary_html_soup: BeautifulSoup
-    ) -> None:
+    def _update_alarm_from_soup(self, summary_html_soup: BeautifulSoup) -> None:
         LOG.debug("Updating alarm status")
         value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
         sat_location = "security_button_0"
@@ -320,7 +324,6 @@ class ADTPulseSite(object):
             for devInfoRow in deviceResponseSoup.find_all(
                 "td", {"class", "InputFieldDescriptionL"}
             ):
-
                 identityText = devInfoRow.get_text().upper()
 
                 sibling = devInfoRow.find_next_sibling()

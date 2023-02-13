@@ -3,6 +3,7 @@
 import logging
 import asyncio
 import re
+from threading import Thread
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -30,6 +31,8 @@ from pyadtpulse.const import (
     DEFAULT_API_HOST,
 )
 from pyadtpulse.util import handle_response, make_soup
+
+import uvloop
 
 # FIXME -- circular reference
 # from pyadtpulse.site import ADTPulseSite
@@ -81,8 +84,11 @@ class PyADTPulse:
         self._sync_task: Optional[asyncio.Task] = None
         self._timeout_task: Optional[asyncio.Task] = None
         # FIXME use thread event/condition, regular condition?
+        # defer initialization to make sure we have an event loop
         self._authenticated: Optional[asyncio.locks.Event] = None
         self._updates_exist: Optional[asyncio.locks.Event] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._session_thread: Optional[Thread] = None
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
         # fixme circular import, should be an ADTPulseSite
@@ -92,6 +98,7 @@ class PyADTPulse:
             self._sites: List[Any] = []
 
         self._api_host = DEFAULT_API_HOST
+
         # authenticate the user
         if do_login and self._session is None:
             self.login()
@@ -196,7 +203,6 @@ class PyADTPulse:
         )
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
-
         if len(self._sites) == 0:
             await self._initialize_sites(soup)
         else:
@@ -233,7 +239,7 @@ class PyADTPulse:
                     site_id = m.group(1)
                     LOG.debug(f"Discovered site id {site_id}: {site_name}")
                     # FIXME ADTPulseSite circular reference
-                    new_site = (ADTPulseSite(self, site_id, site_name))
+                    new_site = ADTPulseSite(self, site_id, site_name)
                     # fetch zones first, so that we can have the status
                     # updated with _update_alarm_status
                     await new_site._fetch_zones(None)
@@ -281,10 +287,37 @@ class PyADTPulse:
                 self._close_response(response)
                 return
 
+    def _pulse_session_thread(self) -> None:
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        self._loop = asyncio.new_event_loop()
+        self._loop.run_until_complete(self.async_login())
+        self._loop.close()
+        self._loop = None
+        self._session_thread = None
+
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
-        coro = self.async_login()
-        asyncio.run_coroutine_threadsafe(coro, asyncio.get_running_loop())
+        if self._session_thread is None:
+            self._session_thread = Thread(
+                target=self._pulse_session_thread,
+                name="PyADTPulse Session",
+                daemon=True,
+            )
+            self._session_thread.run()
+        else:
+            assert self._loop is not None
+            coro = self.async_login()
+            asyncio.run_coroutine_threadsafe(coro, self._loop)
+
+    @property
+    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        """Get event loop.
+
+        Returns:
+            Optional[asyncio.AbstractEventLoop]: the event loop object or
+                                                 None if no thread is running
+        """
+        return self._loop
 
     async def async_login(self) -> None:
         """Login asynchronously to ADT."""
@@ -331,9 +364,13 @@ class PyADTPulse:
         await self._update_sites(soup)
         self._sync_timestamp = time.time()
         if self._sync_task is None:
-            self._sync_task = asyncio.create_task(self._sync_check_task())
+            self._sync_task = asyncio.create_task(
+                self._sync_check_task(), name="PyADTPulse sync check"
+            )
         if self._timeout_task is None:
-            self._timeout_task = asyncio.create_task(self._keepalive_task())
+            self._timeout_task = asyncio.create_task(
+                self._keepalive_task(), name="PyADTPulse timeout"
+            )
         if self._updates_exist is None:
             self._updates_exist = asyncio.locks.Event()
 
@@ -362,8 +399,10 @@ class PyADTPulse:
 
     def logout(self) -> None:
         """Log out of ADT Pulse."""
+        if self._loop is None:
+            raise RuntimeError("Attempting to call sync logout without sync login")
         coro = self.async_logout()
-        asyncio.run_coroutine_threadsafe(coro, asyncio.get_running_loop())
+        asyncio.run_coroutine_threadsafe(coro, self._loop)
 
     async def _sync_check_task(self) -> None:
         response = None
@@ -566,10 +605,12 @@ class PyADTPulse:
                                       None on failure
                                       ClientResponse will already be closed.
         """
+        if self._loop is None:
+            raise RuntimeError("Attempting to run sync query from async login")
         coro = self._async_query(
             uri, method, extra_params, extra_headers, force_login, timeout
         )
-        return asyncio.run_coroutine_threadsafe(coro, asyncio.get_event_loop()).result()
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
 
     # FIXME? might have to move this to site for multiple sites
     async def _query_orb(
@@ -603,8 +644,10 @@ class PyADTPulse:
         Returns:
             bool: True on success
         """
+        if self._loop is None:
+            raise RuntimeError("Attempting to run sync update from async login")
         coro = self.async_update()
-        return asyncio.run_coroutine_threadsafe(coro, asyncio.get_event_loop()).result()
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
 
     # FIXME circular reference, should be ADTPulseSite
 
