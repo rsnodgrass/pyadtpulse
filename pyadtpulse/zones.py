@@ -67,6 +67,14 @@ class ADTPulseZones(UserDict):
     """Dictionary containing ADTPulseZoneData with zone as the key."""
 
     def __getitem__(self, key: int) -> ADTPulseZoneData:
+        """Get a Zone.
+
+        Args:
+            key (int): zone id
+
+        Returns:
+            ADTPulseZoneData: zone data
+        """
         return super().__getitem__(key)
 
     @staticmethod
@@ -102,16 +110,34 @@ class ADTPulseZones(UserDict):
         super().__setitem__(key, value)
 
     def update_status(self, key: int, status: str) -> None:
+        """Update zone status.
+
+        Args:
+            key (int): zone id to change
+            status (str): status to set
+        """ """"""
         temp = self._get_zonedata(key)
         temp.status = status
         self.__setitem__(key, temp)
 
     def update_state(self, key: int, state: str) -> None:
+        """Update zone state.
+
+        Args:
+            key (int): zone id to change
+            state (str): state to set
+        """
         temp = self._get_zonedata(key)
         temp.state = state
         self.__setitem__(key, temp)
 
     def update_timestamp(self, key: int, dt: datetime) -> None:
+        """Update timestamp.
+
+        Args:
+            key (int): zone id to change
+            dt (datetime): timestamp to set
+        """
         temp = self._get_zonedata(key)
         temp.timestamp = dt
         self.__setitem__(key, temp)
