@@ -185,7 +185,6 @@ class PyADTPulse:
                 async with self._session.get(self._api_host) as response:
                     result = await response.text()
                     response.raise_for_status()
-                    LOG.debug(f"Retrieved {result} trying to GET {self._api_host}")
             except (ClientResponseError, ClientConnectionError):
                 LOG.warning(
                     "Error occurred during API version fetch, defaulting to"
