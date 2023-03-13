@@ -31,6 +31,17 @@ LOG = logging.getLogger(__name__)
 class ADTPulseSite(object):
     """Represents an individual ADT Pulse site."""
 
+    __slots__ = (
+        "_adt_service",
+        "_id",
+        "_name",
+        "_status",
+        "_sat",
+        "_last_updated",
+        "_zones",
+        "_site_lock",
+    )
+
     def __init__(self, adt_service: PyADTPulse, site_id: str, name: str):
         """Initialize.
 

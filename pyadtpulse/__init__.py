@@ -49,6 +49,27 @@ RECOVERABLE_ERRORS = [429, 500, 502, 503, 504]
 class PyADTPulse:
     """Base object for ADT Pulse service."""
 
+    __slots__ = (
+        "_session",
+        "_user_agent",
+        "_api_version",
+        "_sync_task",
+        "_timeout_task",
+        "_authenticated",
+        "_updates_exist",
+        "_loop",
+        "_session_thread",
+        "_attribute_lock",
+        "_last_timeout_reset",
+        "_sync_timestamp",
+        "_sites",
+        "_api_host",
+        "_poll_interval",
+        "_username",
+        "_password",
+        "_fingerprint",
+    )
+
     def __init__(
         self,
         username: str,
@@ -67,7 +88,7 @@ class PyADTPulse:
             password (str): Password.
             fingerprint (str): 2FA fingerprint.
             service_host (str, optional): host prefix to use
-                         i.e. https://portal.adtpulse.com or 
+                         i.e. https://portal.adtpulse.com or
                               https://portal-ca.adtpulse.com
             user_agent (str, optional): User Agent.
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].

@@ -18,7 +18,7 @@ ADT_NAME_TO_DEFAULT_TAGS = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class ADTPulseZoneData:
     """Data for an ADT Pulse zone.
 
