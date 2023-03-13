@@ -501,11 +501,19 @@ class PyADTPulse:
         Returns:
             bool: True if updated data exists
         """
+        if self.is_threaded:
+            self._attribute_lock.acquire()
         if self._updates_exist is None:
+            if self.is_threaded:
+                self._attribute_lock.release()
             return False
         if self._updates_exist.is_set():
             self._updates_exist.clear()
+            if self.is_threaded:
+                self._attribute_lock.release()
             return True
+        if self.is_threaded:
+            self._attribute_lock.release()
         return False
 
     async def wait_for_update(self) -> None:
