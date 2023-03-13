@@ -131,10 +131,14 @@ class PyADTPulse:
         Args:
             host (str): name of Pulse endpoint host
         """
+        if self.is_threaded:
+            self._attribute_lock.acquire()
         self._api_host = f"https://{host}"
         if self._session is not None:
             self._session.headers.update({"Host": host})
             self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
+        if self.is_threaded:
+            self._attribute_lock.release()
 
     def make_url(self, uri: str) -> str:
         """Create a URL to service host from a URI.
@@ -145,6 +149,9 @@ class PyADTPulse:
         Returns:
             str: the converted string
         """
+        if self.is_threaded:
+            with self._attribute_lock:
+                return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
         return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
 
     @property
@@ -154,6 +161,9 @@ class PyADTPulse:
         Returns:
             str: the username
         """
+        if self.is_threaded:
+            with self._attribute_lock:
+                return self._username
         return self._username
 
     @property
@@ -163,6 +173,9 @@ class PyADTPulse:
         Returns:
             str: a string containing the version
         """
+        if self.is_threaded:
+            with self._attribute_lock:
+                return self._api_version
         return self._api_version
 
     async def _async_fetch_version(self) -> None:
