@@ -3,6 +3,7 @@ import logging
 import re
 import time
 from asyncio import get_event_loop, run_coroutine_threadsafe
+from threading import RLock
 from typing import List, Optional
 
 # import dateparser
@@ -45,6 +46,7 @@ class ADTPulseSite(object):
         self._sat = ""
         self._last_updated = 0.0
         self._zones = ADTPulseZones()
+        self._site_lock = RLock()
 
     @property
     def id(self) -> str:
@@ -73,6 +75,9 @@ class ADTPulseSite(object):
         Returns:
             str: the alarm status
         """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._status
         return self._status
 
     @property
@@ -82,6 +87,9 @@ class ADTPulseSite(object):
         Returns:
             bool: True if armed away
         """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._status == ADT_ALARM_AWAY
         return self._status == ADT_ALARM_AWAY
 
     @property
@@ -91,6 +99,9 @@ class ADTPulseSite(object):
         Returns:
             bool: True if system is armed home/stay
         """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._status == ADT_ALARM_HOME
         return self._status == ADT_ALARM_HOME
 
     @property
@@ -100,6 +111,9 @@ class ADTPulseSite(object):
         Returns:
             bool: True if the system is disarmed
         """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._status == ADT_ALARM_OFF
         return self._status == ADT_ALARM_OFF
 
     @property
@@ -110,6 +124,17 @@ class ADTPulseSite(object):
             float: the time site last updated in UTC
         """
         return self._last_updated
+
+    @property
+    def site_lock(self) -> RLock:
+        """Get thread lock for site data.
+
+        Not needed for async
+
+        Returns:
+            RLock: thread RLock
+        """
+        return self._site_lock
 
     async def _arm(self, mode: str) -> bool:
         """Set the alarm arm mode to one of: off, home, away.
@@ -137,6 +162,10 @@ class ADTPulseSite(object):
         ):
             return False
         self._last_updated = time.time()
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                self._status = mode
+                return True
         self._status = mode
         return True
 
@@ -206,6 +235,9 @@ class ADTPulseSite(object):
         """
         if not self._zones:
             raise RuntimeError("No zones exist")
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._zones.flatten()
         return self._zones.flatten()
 
     @property
@@ -217,6 +249,8 @@ class ADTPulseSite(object):
         """
         if not self._zones:
             raise RuntimeError("No zones exist")
+        if self._adt_service.is_threaded:
+            return self._zones
         return self._zones
 
     @property
@@ -228,6 +262,8 @@ class ADTPulseSite(object):
         LOG.debug("Updating alarm status")
         value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
         sat_location = "security_button_0"
+        if self._adt_service.is_threaded:
+            self._site_lock.acquire()
         if value:
             text = value.text
             if re.match("Disarmed", text):
@@ -260,7 +296,8 @@ class ADTPulseSite(object):
                 LOG.debug("Extracted sat = %s", self._sat)
             else:
                 LOG.warning("Unable to extract sat")
-
+        if self._adt_service.is_threaded:
+            self._site_lock.release()
         #        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
         #        if status_orb:
         #            self._status = status_orb['orb']
@@ -321,6 +358,8 @@ class ADTPulseSite(object):
 
             dName = dType = dZone = dStatus = ""
             # dMan = ""
+            if self._adt_service.is_threaded:
+                self._site_lock.acquire()
             for devInfoRow in deviceResponseSoup.find_all(
                 "td", {"class", "InputFieldDescriptionL"}
             ):
@@ -366,6 +405,9 @@ class ADTPulseSite(object):
                     {int(dZone): {"name": dName, "status": dStatus, "tags": tags}}
                 )
         self._last_updated = time.time()
+        if self._adt_service.is_threaded:
+            self._site_lock.release()
+        # FIXME: possible concurrency issue
         return self._zones
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
@@ -379,6 +421,8 @@ class ADTPulseSite(object):
             ADTPulseZones: a dictionary of zones with status
             None if an error occurred
         """
+        if self._adt_service.is_threaded:
+            self._site_lock.acquire()
         if self._zones is None:
             raise RuntimeError("No zones exist")
         LOG.debug(f"fetching zones for site { self._id}")
@@ -390,10 +434,15 @@ class ADTPulseSite(object):
 
             if soup is None:
                 return None
-        return self._update_zone_from_soup(soup)
+        retval = self._update_zone_from_soup(soup)
+        if self._adt_service.is_threaded:
+            self._site_lock.release()
+        return retval
 
     def _update_zone_from_soup(self, soup: BeautifulSoup) -> Optional[ADTPulseZones]:
         # parse ADT's convulated html to get sensor status
+        if self._adt_service.is_threaded:
+            self._site_lock.acquire()
         for row in soup.find_all("tr", {"class": "p_listRow"}):
             # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
             zone = int(
@@ -429,6 +478,9 @@ class ADTPulseSite(object):
             LOG.debug(f"Setting zone {zone} - to {state}")
 
         self._last_updated = time.time()
+        if self._adt_service.is_threaded:
+            self._site_lock.release()
+        # FIXME: possible concurrency issue
         return self._zones
 
     async def async_update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:

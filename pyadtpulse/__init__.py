@@ -3,7 +3,7 @@
 import logging
 import asyncio
 import re
-from threading import Thread
+from threading import Thread, RLock
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -89,6 +89,7 @@ class PyADTPulse:
         self._updates_exist: Optional[asyncio.locks.Event] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session_thread: Optional[Thread] = None
+        self._attribute_lock = RLock()
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
         # fixme circular import, should be an ADTPulseSite
@@ -297,6 +298,7 @@ class PyADTPulse:
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
+        self._attribute_lock.acquire()
         if self._session_thread is None:
             self._session_thread = Thread(
                 target=self._pulse_session_thread,
@@ -308,6 +310,16 @@ class PyADTPulse:
             assert self._loop is not None
             coro = self.async_login()
             asyncio.run_coroutine_threadsafe(coro, self._loop)
+        self._attribute_lock.release()
+
+    @property
+    def attribute_lock(self) -> RLock:
+        """Get attribute lock for PyADTPulse object.
+
+        Returns:
+            RLock: thread Rlock
+        """
+        return self._attribute_lock
 
     @property
     def loop(self) -> Optional[asyncio.AbstractEventLoop]:
@@ -317,7 +329,20 @@ class PyADTPulse:
             Optional[asyncio.AbstractEventLoop]: the event loop object or
                                                  None if no thread is running
         """
+        if self.is_threaded:
+            with self._attribute_lock:
+                return self._loop
         return self._loop
+
+    @property
+    def is_threaded(self) -> bool:
+        """Query if ADT Pulse Session is threaded/sync.
+
+        Returns:
+            bool: True if the session is threaded/sync
+        """
+        with self._attribute_lock:
+            return self._loop is not None
 
     async def async_login(self) -> None:
         """Login asynchronously to ADT."""
@@ -490,8 +515,14 @@ class PyADTPulse:
         """
         # FIXME: timeout automatically based on ADT default expiry?
         # self._authenticated_timestamp
+        if self.is_threaded:
+            self._attribute_lock.acquire()
         if self._authenticated is None:
+            if self.is_threaded:
+                self._attribute_lock.release()
             return False
+        if self.is_threaded:
+            self._attribute_lock.release()
         return self._authenticated.is_set()
 
     async def _async_query(
@@ -654,4 +685,7 @@ class PyADTPulse:
     @property
     def sites(self) -> List[Any]:
         """Return all sites for this ADT Pulse account."""
+        if self.is_threaded:
+            with self._attribute_lock:
+                return self._sites
         return self._sites
