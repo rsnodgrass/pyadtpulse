@@ -279,6 +279,7 @@ class PyADTPulse:
             response.close()
 
     async def _keepalive_task(self) -> None:
+        LOG.debug("creating Pulse keepalive task")
         response = None
         if self._authenticated is None:
             raise RuntimeError(
@@ -301,12 +302,18 @@ class PyADTPulse:
                 return
 
     def _pulse_session_thread(self) -> None:
+        LOG.debug("creating Pulse background thread")
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self._loop = asyncio.new_event_loop()
-        self._loop.run_until_complete(self.async_login())
+        self._loop.run_until_complete(self._sync_loop())
         self._loop.close()
         self._loop = None
         self._session_thread = None
+
+    async def _sync_loop(self) -> None:
+        await self.async_login()
+        if self._sync_task is not None and self._timeout_task is not None:
+            await asyncio.wait((self._sync_task, self._timeout_task))
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
@@ -317,12 +324,13 @@ class PyADTPulse:
                 name="PyADTPulse Session",
                 daemon=True,
             )
+            self._attribute_lock.release()
             self._session_thread.run()
         else:
             assert self._loop is not None
             coro = self.async_login()
             asyncio.run_coroutine_threadsafe(coro, self._loop)
-        self._attribute_lock.release()
+            self._attribute_lock.release()
 
     @property
     def attribute_lock(self) -> RLock:
@@ -410,6 +418,7 @@ class PyADTPulse:
             )
         if self._updates_exist is None:
             self._updates_exist = asyncio.locks.Event()
+        await asyncio.sleep(0)
 
     async def async_logout(self) -> None:
         """Logout of ADT Pulse async."""
@@ -419,12 +428,13 @@ class PyADTPulse:
                 self._timeout_task.cancel()
             except asyncio.CancelledError:
                 LOG.debug("Pulse timeout task successfully cancelled")
+                await self._timeout_task
         if self._sync_task is not None:
             try:
                 self._sync_task.cancel()
             except asyncio.CancelledError:
                 LOG.debug("Pulse sync check task successfully cancelled")
-
+                await self._sync_task
         self._timeout_task = self._sync_task = None
         await self._async_query(ADT_LOGOUT_URI, timeout=10)
         if self._session is not None:
@@ -442,6 +452,7 @@ class PyADTPulse:
         asyncio.run_coroutine_threadsafe(coro, self._loop)
 
     async def _sync_check_task(self) -> None:
+        LOG.debug("creating Pulse sync check task")
         response = None
         if self._updates_exist is None:
             raise RuntimeError(

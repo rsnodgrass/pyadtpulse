@@ -103,7 +103,7 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
 
         Returns: bool: True if update successful
     """
-    # Pusle takes a while to update alarm status
+    # Pulse takes a while to update alarm status
     # so site.updates_exist is unreliable until that happens
     # so we need to sleep a little until the status gets updated on ADT's side
     if test_alarm:
@@ -195,6 +195,7 @@ def sync_example(
     while not done:
         try:
             for site in adt.sites:
+                site.site_lock.aquire()
                 print_site(site)
                 print("----")
                 if not site.zones:
@@ -208,14 +209,14 @@ def sync_example(
                         done = True
                         break
                     print("\nZones:")
-                    for zone in site.zones:
-                        print(zone)
-                    print(f"{site.zones_as_dict}")
+                    with site.site_lock:
+                        for zone in site.zones:
+                            print(zone)
+                        print(f"{site.zones_as_dict}")
                 else:
                     print("No updates exist")
 
             sleep(sleep_interval)
-
         except KeyboardInterrupt:
             print("exiting...")
             done = True

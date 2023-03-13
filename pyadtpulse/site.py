@@ -400,10 +400,8 @@ class ADTPulseSite(object):
                     tags = ("sensor", "doorWindow")
                 LOG.debug(f"Adding sensor {dName} id: sensor-{dZone}")
                 LOG.debug(f"Status: {dStatus}, tags {tags}")
-
-                self._zones.update(
-                    {int(dZone): {"name": dName, "status": dStatus, "tags": tags}}
-                )
+                tmpzone = ADTPulseZoneData(dName, dStatus, tags)
+                self._zones.update({int(dZone): tmpzone})
         self._last_updated = time.time()
         if self._adt_service.is_threaded:
             self._site_lock.release()
@@ -445,9 +443,12 @@ class ADTPulseSite(object):
             self._site_lock.acquire()
         for row in soup.find_all("tr", {"class": "p_listRow"}):
             # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
+            temp = row.find("span", {"class": "p_grayNormalText"})
+            if temp is None:
+                break
             zone = int(
                 remove_prefix(
-                    row.find("span", {"class": "p_grayNormalText"}).get_text(),
+                    temp.get_text(),
                     "Zone\xa0",
                 )
             )
