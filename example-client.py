@@ -215,7 +215,6 @@ def sync_example(
                         print(f"{site.zones_as_dict}")
                 else:
                     print("No updates exist")
-
             sleep(sleep_interval)
         except KeyboardInterrupt:
             print("exiting...")

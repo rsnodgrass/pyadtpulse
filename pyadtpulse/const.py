@@ -18,6 +18,10 @@ ADT_SYNC_CHECK_URI = "/Ajax/SyncCheckServ"
 ADT_TIMEOUT_URI = "/KeepAlive"
 ADT_TIMEOUT_INTERVAL = 300.0
 
+# ADT sets their keepalive to 1 second, so poll a little more often
+# than that
+ADT_DEFAULT_POLL_INTERVAL = 0.75
+
 ADT_DEFAULT_HTTP_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

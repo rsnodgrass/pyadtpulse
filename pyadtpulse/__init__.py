@@ -29,6 +29,7 @@ from pyadtpulse.const import (
     ADT_TIMEOUT_URI,
     API_PREFIX,
     DEFAULT_API_HOST,
+    ADT_DEFAULT_POLL_INTERVAL,
 )
 from pyadtpulse.util import handle_response, make_soup
 
@@ -56,6 +57,7 @@ class PyADTPulse:
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
         websession: Optional[ClientSession] = None,
         do_login: bool = True,
+        poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
     ):
         """Create a PyADTPulse object.
 
@@ -67,12 +69,13 @@ class PyADTPulse:
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].
             websession (ClientSession, optional): an initialized
                         aiohttp.ClientSession to use, defaults to None
-            do_login (bool): login synchronously when creating object
+            do_login (bool, optional): login synchronously when creating object
                             Should be set to False for asynchronous usage
                             and async_login() should be called instead
                             Setting websession will override this
                             and not login
                         Defaults to True
+            poll_interval (float, optional): number of seconds between update checks
         """
         self._session = websession
         if self._session is not None:
@@ -99,6 +102,7 @@ class PyADTPulse:
             self._sites: List[Any] = []
 
         self._api_host = DEFAULT_API_HOST
+        self._poll_interval = poll_interval
 
         # authenticate the user
         if do_login and self._session is None:
@@ -153,6 +157,32 @@ class PyADTPulse:
             with self._attribute_lock:
                 return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
         return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
+
+    @property
+    def poll_interval(self) -> float:
+        """Get polling interval.
+
+        Returns:
+            float: interval in seconds to poll for updates
+        """
+        if self.is_threaded:
+            with self._attribute_lock:
+                return self._poll_interval
+        return self._poll_interval
+
+    @poll_interval.setter
+    def poll_interval(self, interval: float) -> None:
+        """Set polling interval.
+
+        Args:
+            interval (float): interval in seconds to poll for updates
+        """
+        if self.is_threaded:
+            self._attribute_lock.acquire()
+            self._poll_interval = interval
+            self._attribute_lock.release()
+        else:
+            self._poll_interval = interval
 
     @property
     def username(self) -> str:
@@ -460,7 +490,9 @@ class PyADTPulse:
             )
         while True:
             try:
-                await asyncio.sleep(0.75)
+                # call property to lock value if necessary
+                pi = self.poll_interval
+                await asyncio.sleep(pi)
                 response = await self._async_query(
                     ADT_SYNC_CHECK_URI,
                     extra_params={"ts": int(self._sync_timestamp * 1000)},
