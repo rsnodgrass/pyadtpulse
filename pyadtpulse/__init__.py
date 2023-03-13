@@ -54,6 +54,7 @@ class PyADTPulse:
         username: str,
         password: str,
         fingerprint: str,
+        service_host: str = DEFAULT_API_HOST,
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
         websession: Optional[ClientSession] = None,
         do_login: bool = True,
@@ -65,6 +66,9 @@ class PyADTPulse:
             username (str): Username.
             password (str): Password.
             fingerprint (str): 2FA fingerprint.
+            service_host (str, optional): host prefix to use
+                         i.e. https://portal.adtpulse.com or 
+                              https://portal-ca.adtpulse.com
             user_agent (str, optional): User Agent.
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].
             websession (ClientSession, optional): an initialized
@@ -101,7 +105,7 @@ class PyADTPulse:
         else:
             self._sites: List[Any] = []
 
-        self._api_host = DEFAULT_API_HOST
+        self._api_host = service_host
         self._poll_interval = poll_interval
 
         # authenticate the user
