@@ -357,6 +357,8 @@ class PyADTPulse:
                 return
 
     def _pulse_session_thread(self) -> None:
+        # lock is released in sync_loop()
+        self._attribute_lock.acquire()
         LOG.debug("creating Pulse background thread")
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self._loop = asyncio.new_event_loop()
@@ -367,25 +369,30 @@ class PyADTPulse:
 
     async def _sync_loop(self) -> None:
         await self.async_login()
+        self._attribute_lock.release()
         if self._sync_task is not None and self._timeout_task is not None:
             await asyncio.wait((self._sync_task, self._timeout_task))
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
         self._attribute_lock.acquire()
-        if self._session_thread is None:
-            self._session_thread = Thread(
-                target=self._pulse_session_thread,
-                name="PyADTPulse Session",
-                daemon=True,
-            )
-            self._attribute_lock.release()
-            self._session_thread.run()
-        else:
-            assert self._loop is not None
-            coro = self.async_login()
-            asyncio.run_coroutine_threadsafe(coro, self._loop)
-            self._attribute_lock.release()
+        self._session_thread = Thread(
+            target=self._pulse_session_thread,
+            name="PyADTPulse Session",
+            daemon=True,
+        )
+        self._attribute_lock.release()
+        self._session_thread.start()
+        # busy wait until thread has aquired the lock
+        done = False
+        while not done:
+            if self._attribute_lock.acquire(False):
+                self._attribute_lock.release()
+                time.sleep(0.1)
+            else:
+                self._attribute_lock.acquire()
+                self._attribute_lock.release()
+                done = True
 
     @property
     def attribute_lock(self) -> RLock:
@@ -601,8 +608,6 @@ class PyADTPulse:
         Returns:
             bool: True if connected
         """
-        # FIXME: timeout automatically based on ADT default expiry?
-        # self._authenticated_timestamp
         if self.is_threaded:
             self._attribute_lock.acquire()
         if self._authenticated is None:

@@ -134,6 +134,9 @@ class ADTPulseSite(object):
         Returns:
             float: the time site last updated in UTC
         """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._last_updated
         return self._last_updated
 
     @property
@@ -433,6 +436,7 @@ class ADTPulseSite(object):
         if self._adt_service.is_threaded:
             self._site_lock.acquire()
         if self._zones is None:
+            self._site_lock.release()
             raise RuntimeError("No zones exist")
         LOG.debug(f"fetching zones for site { self._id}")
         if not soup:
@@ -442,6 +446,8 @@ class ADTPulseSite(object):
             )
 
             if soup is None:
+                if self._adt_service.is_threaded:
+                    self._site_lock.release()
                 return None
         retval = self._update_zone_from_soup(soup)
         if self._adt_service.is_threaded:
@@ -484,6 +490,8 @@ class ADTPulseSite(object):
             # update device state from ORB info
             if not self._zones:
                 LOG.warning("No zones exist")
+                if self._adt_service.is_threaded:
+                    self._site_lock.release()
                 return None
             self._zones.update_state(zone, state)
 
