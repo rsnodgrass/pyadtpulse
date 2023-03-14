@@ -5,6 +5,7 @@ import time
 from asyncio import get_event_loop, run_coroutine_threadsafe
 from threading import RLock
 from typing import List, Optional
+from pyadtpulse.util import debugRLock
 
 # import dateparser
 from bs4 import BeautifulSoup
@@ -42,7 +43,9 @@ class ADTPulseSite(object):
         "_site_lock",
     )
 
-    def __init__(self, adt_service: PyADTPulse, site_id: str, name: str):
+    def __init__(
+        self, adt_service: PyADTPulse, site_id: str, name: str
+    ):
         """Initialize.
 
         Args:
@@ -57,7 +60,11 @@ class ADTPulseSite(object):
         self._sat = ""
         self._last_updated = 0.0
         self._zones = ADTPulseZones()
-        self._site_lock = RLock()
+        self._site_lock: RLock | debugRLock
+        if type(self._adt_service.attribute_lock) == RLock:
+            self._site_lock = RLock()
+        else:
+            self._site_lock = debugRLock("ADTPulseSite._site_lock")
 
     @property
     def id(self) -> str:
@@ -140,7 +147,7 @@ class ADTPulseSite(object):
         return self._last_updated
 
     @property
-    def site_lock(self) -> RLock:
+    def site_lock(self) -> RLock | debugRLock:
         """Get thread lock for site data.
 
         Not needed for async

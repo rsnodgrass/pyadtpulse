@@ -31,7 +31,7 @@ from pyadtpulse.const import (
     DEFAULT_API_HOST,
     ADT_DEFAULT_POLL_INTERVAL,
 )
-from pyadtpulse.util import handle_response, make_soup
+from pyadtpulse.util import handle_response, make_soup, debugRLock
 
 import uvloop
 
@@ -80,6 +80,7 @@ class PyADTPulse:
         websession: Optional[ClientSession] = None,
         do_login: bool = True,
         poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
+        debug_locks: bool = False
     ):
         """Create a PyADTPulse object.
 
@@ -117,7 +118,11 @@ class PyADTPulse:
         self._updates_exist: Optional[asyncio.locks.Event] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session_thread: Optional[Thread] = None
-        self._attribute_lock = RLock()
+        self._attribute_lock: RLock | debugRLock
+        if not debug_locks:
+            self._attribute_lock = RLock()
+        else:
+            self._attribute_lock = debugRLock("PyADTPulse._attribute_lock")
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
         # fixme circular import, should be an ADTPulseSite
@@ -383,19 +388,20 @@ class PyADTPulse:
         )
         self._attribute_lock.release()
         self._session_thread.start()
+        time.sleep(1)
         # busy wait until thread has aquired the lock
         done = False
         while not done:
             if self._attribute_lock.acquire(False):
                 self._attribute_lock.release()
-                time.sleep(0.1)
+                time.sleep(1)
             else:
-                self._attribute_lock.acquire()
-                self._attribute_lock.release()
                 done = True
+        self._attribute_lock.acquire()
+        self._attribute_lock.release()
 
     @property
-    def attribute_lock(self) -> RLock:
+    def attribute_lock(self) -> RLock | debugRLock:
         """Get attribute lock for PyADTPulse object.
 
         Returns:

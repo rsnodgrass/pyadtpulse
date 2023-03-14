@@ -20,6 +20,7 @@ PULSE_DEBUG = "debug"
 TEST_ALARM = "test_alarm"
 SLEEP_INTERVAL = "sleep_interval"
 USE_ASYNC = "use_async"
+DEBUG_LOCKS = "debug_locks"
 
 
 def setup_logger(level: int):
@@ -74,6 +75,7 @@ def usage() -> None:
     print(f"  Set {SLEEP_INTERVAL} to the number of seconds to sleep between each call")
     print("     Default: 10 seconds")
     print(f"  Set {USE_ASYNC} to true to use asyncio (default: false)")
+    print(f"  Set {DEBUG_LOCKS} to true to debug thread locks")
     print("")
     print("  values can be passed on the command line i.e.")
     print(f"  {USER}=someone@example.com")
@@ -170,6 +172,7 @@ def sync_example(
     fingerprint: str,
     run_alarm_test: bool,
     sleep_interval: int,
+    debug_locks: bool,
 ) -> None:
     """Run example of sync pyadtpulse calls.
 
@@ -179,9 +182,13 @@ def sync_example(
         fingerprint (str): Pulse fingerprint
         run_alarm_test (bool): True if alarm test to be run
         sleep_interval (int): how long in seconds to sleep between update checks
+        debug_locks: bool: True to enable thread lock debugging
     """
-    adt = PyADTPulse(username, password, fingerprint)
+    adt = PyADTPulse(username, password, fingerprint, debug_locks=debug_locks)
 
+    if not adt.is_connected:
+        print("Error: Could not log into ADT Pulse site")
+        return
     if len(adt.sites) == 0:
         print("Error: could not retrieve sites")
         raise SystemError
@@ -268,7 +275,11 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
 
 
 async def async_example(
-    username: str, password: str, fingerprint: str, run_alarm_test: bool
+    username: str,
+    password: str,
+    fingerprint: str,
+    run_alarm_test: bool,
+    debug_locks: bool,
 ) -> None:
     """Run example of pytadtpulse async usage.
 
@@ -277,10 +288,17 @@ async def async_example(
         password (str): Pulse password
         fingerprint (str): Pulse fingerprint
         run_alarm_test (bool): True if alarm tests should be run
+        debug_locks (bool): True to enable thread lock debugging
     """
-    adt = PyADTPulse(username, password, fingerprint, do_login=False)
+    adt = PyADTPulse(
+        username, password, fingerprint, do_login=False, debug_locks=debug_locks
+    )
 
     await adt.async_login()
+    if not adt.is_connected:
+        print("Error: could not log into ADT Pulse site")
+        return
+
     if len(adt.sites) == 0:
         print("Error: could not retrieve sites")
         raise SystemError
@@ -362,6 +380,14 @@ def main():
     except KeyError:
         pass
 
+    debug_locks = False
+    try:
+        debug_locks = bool(args[DEBUG_LOCKS])
+    except ValueError:
+        print(f"{DEBUG_LOCKS} must be an boolean, defaulting to False")
+    except KeyError:
+        pass
+
     # don't need to sleep with async
     sleep_interval = 10
     try:
@@ -378,11 +404,18 @@ def main():
 
     if not use_async:
         sync_example(
-            args[USER], args[PASSWD], args[FINGERPRINT], run_alarm_test, sleep_interval
+            args[USER],
+            args[PASSWD],
+            args[FINGERPRINT],
+            run_alarm_test,
+            sleep_interval,
+            debug_locks,
         )
     else:
         asyncio.run(
-            async_example(args[USER], args[PASSWD], args[FINGERPRINT], run_alarm_test)
+            async_example(
+                args[USER], args[PASSWD], args[FINGERPRINT], run_alarm_test, debug_locks
+            )
         )
 
 
