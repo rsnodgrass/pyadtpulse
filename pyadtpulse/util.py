@@ -118,7 +118,7 @@ class debugRLock:
         else:
             caller2 = "*Unknown*"
         LOG.debug(f"pyadtpulse released lock {self._lock_name} from {caller2}")
-        self._Rlock
+        self._Rlock.release()
         LOG.debug(
             f"pyadtpulse released lock {self._lock_name} from {caller2} "
             f"info: {self._Rlock.__repr__()}"
@@ -132,4 +132,11 @@ class debugRLock:
             v (_type_): _description_
             b (_type_): _description_
         """
+        caller = sys._getframe().f_back
+        if caller is not None:
+            caller2 = caller.f_code.co_name
+        else:
+            caller2 = "*Unknown*"
+        LOG.debug(f"pyadtpulse released lock {self._lock_name} from {caller2} at exit")
+    
         self._Rlock.release()

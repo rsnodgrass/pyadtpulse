@@ -3,9 +3,9 @@
 import logging
 import asyncio
 import re
-from threading import Thread, RLock
+from threading import Thread, RLock, Event as tEvent
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from aiohttp import (
     ClientConnectionError,
@@ -68,6 +68,7 @@ class PyADTPulse:
         "_username",
         "_password",
         "_fingerprint",
+        "_login_complete",
     )
 
     def __init__(
@@ -80,7 +81,7 @@ class PyADTPulse:
         websession: Optional[ClientSession] = None,
         do_login: bool = True,
         poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
-        debug_locks: bool = False
+        debug_locks: bool = False,
     ):
         """Create a PyADTPulse object.
 
@@ -118,7 +119,7 @@ class PyADTPulse:
         self._updates_exist: Optional[asyncio.locks.Event] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session_thread: Optional[Thread] = None
-        self._attribute_lock: RLock | debugRLock
+        self._attribute_lock: Union[RLock, debugRLock]
         if not debug_locks:
             self._attribute_lock = RLock()
         else:
@@ -133,6 +134,7 @@ class PyADTPulse:
 
         self._api_host = service_host
         self._poll_interval = poll_interval
+        self._login_complete = tEvent()
 
         # authenticate the user
         if do_login and self._session is None:
@@ -375,6 +377,7 @@ class PyADTPulse:
     async def _sync_loop(self) -> None:
         await self.async_login()
         self._attribute_lock.release()
+        self._login_complete.set()
         if self._sync_task is not None and self._timeout_task is not None:
             await asyncio.wait((self._sync_task, self._timeout_task))
 
@@ -388,20 +391,10 @@ class PyADTPulse:
         )
         self._attribute_lock.release()
         self._session_thread.start()
-        time.sleep(1)
-        # busy wait until thread has aquired the lock
-        done = False
-        while not done:
-            if self._attribute_lock.acquire(False):
-                self._attribute_lock.release()
-                time.sleep(1)
-            else:
-                done = True
-        self._attribute_lock.acquire()
-        self._attribute_lock.release()
+        self._login_complete.wait()
 
     @property
-    def attribute_lock(self) -> RLock | debugRLock:
+    def attribute_lock(self) -> Union[RLock, debugRLock]:
         """Get attribute lock for PyADTPulse object.
 
         Returns:
