@@ -5,7 +5,7 @@ from aiohttp import ClientResponse
 from bs4 import BeautifulSoup
 import logging
 import sys
-from threading import RLock
+from threading import RLock, current_thread
 
 LOG = logging.getLogger(__name__)
 
@@ -93,18 +93,20 @@ class debugRLock:
                   obtained
         """
         caller = sys._getframe().f_back
+        thread_name = current_thread().name
         if caller is not None:
             caller2 = caller.f_code.co_name
         else:
             caller2 = "*Unknown*"
         LOG.debug(
             f"pyadtpulse acquiring lock {self._lock_name} "
-            f"blocking: {blocking} from {caller2}"
+            f"blocking: {blocking} from {caller2} from thread {thread_name}"
         )
         retval = self._Rlock.acquire(blocking, timeout)
         LOG.debug(
             f"pyadtpulse acquisition of {self._lock_name} from {caller2} "
-            f"returned {retval} info: {self._Rlock.__repr__()}"
+            f"from thread {thread_name}  returned {retval} "
+            f"info: {self._Rlock.__repr__()}"
         )
         return retval
 
@@ -117,11 +119,15 @@ class debugRLock:
             caller2 = caller.f_code.co_name
         else:
             caller2 = "*Unknown*"
-        LOG.debug(f"pyadtpulse released lock {self._lock_name} from {caller2}")
+        thread_name = current_thread().name
+        LOG.debug(
+            f"pyadtpulse attempting to release lock {self._lock_name} "
+            f"from {caller2} in thread {thread_name}"
+        )
         self._Rlock.release()
         LOG.debug(
             f"pyadtpulse released lock {self._lock_name} from {caller2} "
-            f"info: {self._Rlock.__repr__()}"
+            f"in thread {thread_name} info: {self._Rlock.__repr__()}"
         )
 
     def __exit__(self, t, v, b):
@@ -137,6 +143,10 @@ class debugRLock:
             caller2 = caller.f_code.co_name
         else:
             caller2 = "*Unknown*"
-        LOG.debug(f"pyadtpulse released lock {self._lock_name} from {caller2} at exit")
-    
+        thread_name = current_thread().name
+        LOG.debug(
+            f"pyadtpulse released lock {self._lock_name} from {caller2} "
+            f" in thread {thread_name} at exit"
+        )
+
         self._Rlock.release()
