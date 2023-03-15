@@ -3,6 +3,7 @@
   "use_async": true,
   "test_alarm": false,
   "debug": false,
+  "debug_locks": false,
   "adtpulse_user": "me@myisp.com",
   "adtpulse_password": "supersecretpassword",
   "adtpulse_fingerprint": "areallyreallyreallyreallyreallylongstring"

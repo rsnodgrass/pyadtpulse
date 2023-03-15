@@ -350,6 +350,9 @@ class ADTPulseSite(object):
 
         temp_zone: ADTPulseZoneData
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
+        if self._adt_service.is_threaded:
+            self._site_lock.acquire()
+
         for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
             onClickValueText = row.get("onclick")
             result = re.findall(regexDevice, onClickValueText)
@@ -377,8 +380,6 @@ class ADTPulseSite(object):
 
             dName = dType = dZone = dStatus = ""
             # dMan = ""
-            if self._adt_service.is_threaded:
-                self._site_lock.acquire()
             for devInfoRow in deviceResponseSoup.find_all(
                 "td", {"class", "InputFieldDescriptionL"}
             ):

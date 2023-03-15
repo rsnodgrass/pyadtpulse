@@ -89,6 +89,7 @@ def print_site(site: ADTPulseSite) -> None:
     """
     print(f"Site: {site.name} (id={site.id})")
     print(f"Alarm Status = {site.status}")
+    print("***********")
     print(f"Disarmed? = {site.is_disarmed}")
     print(f"Armed Away? = {site.is_away}")
     print(f"Armed Home? = {site.is_home}")
@@ -194,7 +195,9 @@ def sync_example(
         raise SystemError
 
     for site in adt.sites:
+        site.site_lock.acquire()
         print_site(site)
+        site.site_lock.release()
         if run_alarm_test:
             test_alarm(site, adt, sleep_interval)
 
@@ -202,8 +205,8 @@ def sync_example(
     while not done:
         try:
             for site in adt.sites:
-                site.site_lock.aquire()
-                print_site(site)
+                with site.site_lock:
+                    print_site(site)
                 print("----")
                 if not site.zones:
                     print("Error, no zones exist, exiting...")
@@ -211,6 +214,8 @@ def sync_example(
                     break
                 if site.updates_may_exist:
                     print("Updates exist, refreshing")
+                    # Don't need to explicitly call update() anymore
+                    # Background thread will already have updated
                     if not adt.update():
                         print("Error occurred fetching updates, exiting..")
                         done = True
