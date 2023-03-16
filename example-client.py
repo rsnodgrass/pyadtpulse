@@ -111,7 +111,7 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
     if test_alarm:
         done = False
         while not done:
-            sleep(.1)
+            sleep(0.1)
             if site.updates_may_exist:
                 done = True
 
@@ -261,10 +261,21 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
         adt (PyADTPulse): ADT Pulse connection objecct
     """
     print("Arming alarm stay")
-    if await site.async_arm_away():
+    if await site.async_arm_home():
         print("Alarm arming home succeeded")
         check_updates(site, adt, False)
         assert site.is_home
+        print("Testing invalid alarm state change from armed home to armed away")
+        if await site.async_arm_away():
+            print("Error, armed away while already armed")
+        else:
+            assert site.is_home
+            print("Testing changing alarm status to same value")
+            if await site.async_arm_home():
+                print("Error, allowed arming to same state")
+            else:
+                assert site.is_home
+
     else:
         print("Alarm arming home failed")
 
