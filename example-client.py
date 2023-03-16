@@ -113,10 +113,7 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
     assert site.updates_may_exist is True
 
     if adt.update():
-        print(
-            "ADT Data updated, at "
-            f"{site.last_updated}, refreshing"
-        )
+        print("ADT Data updated, at " f"{site.last_updated}, refreshing")
         return True
     print("Site update failed")
     return False

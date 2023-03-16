@@ -483,7 +483,9 @@ class ADTPulseSite(object):
                     last_update = datetime.strptime(tempdate, "%m/%d/%Y")
                     if last_update > t:
                         last_update = last_update - relativedelta.relativedelta(years=1)
-            update_time = datetime.time(datetime.strptime(datestring[1]+datestring[2],"%I:%M%p"))
+            update_time = datetime.time(
+                datetime.strptime(datestring[1] + datestring[2], "%I:%M%p")
+            )
             last_update = datetime.combine(last_update, update_time)
             # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
             temp = row.find("span", {"class": "p_grayNormalText"})
@@ -520,7 +522,7 @@ class ADTPulseSite(object):
                     self._site_lock.release()
                 return None
             self._zones.update_state(zone, state)
-            self._zones.update_timestamp(zone,last_update)
+            self._zones.update_timestamp(zone, last_update)
 
             LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
 
