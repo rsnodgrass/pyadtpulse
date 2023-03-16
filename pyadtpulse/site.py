@@ -1,11 +1,13 @@
 """Module representing an ADT Pulse Site."""
 import logging
 import re
-import time
 from asyncio import get_event_loop, run_coroutine_threadsafe
 from threading import RLock
+from time import strptime
 from typing import List, Optional, Union
 from pyadtpulse.util import debugRLock
+from datetime import datetime, timedelta, time
+from dateutil import relativedelta
 
 # import dateparser
 from bs4 import BeautifulSoup
@@ -56,7 +58,7 @@ class ADTPulseSite(object):
         self._name = name
         self._status = ADT_ALARM_UNKNOWN
         self._sat = ""
-        self._last_updated = 0.0
+        self._last_updated = datetime(1970, 1, 1)
         self._zones = ADTPulseZones()
         self._site_lock: Union[RLock, debugRLock]
         if isinstance(self._adt_service.attribute_lock, debugRLock):
@@ -133,11 +135,11 @@ class ADTPulseSite(object):
         return self._status == ADT_ALARM_OFF
 
     @property
-    def last_updated(self) -> float:
+    def last_updated(self) -> datetime:
         """Return time site last updated.
 
         Returns:
-            float: the time site last updated in UTC
+            datetime: the time site last updated in UTC
         """
         if self._adt_service.is_threaded:
             with self._site_lock:
@@ -180,7 +182,7 @@ class ADTPulseSite(object):
             f"Failed updating ADT Pulse alarm {self._name} to {mode}",
         ):
             return False
-        self._last_updated = time.time()
+        self._last_updated = datetime.utcnow()
         if self._adt_service.is_threaded:
             with self._site_lock:
                 self._status = mode
@@ -297,7 +299,7 @@ class ADTPulseSite(object):
 
             LOG.debug(f"Alarm status = {self._status}")
 
-        self._last_updated = time.time()
+        self._last_updated = datetime.utcnow()
 
         if self._sat == "":
             sat_button = summary_html_soup.find(
@@ -422,7 +424,7 @@ class ADTPulseSite(object):
                 LOG.debug(f"Status: {dStatus}, tags {tags}")
                 tmpzone = ADTPulseZoneData(dName, dStatus, tags)
                 self._zones.update({int(dZone): tmpzone})
-        self._last_updated = time.time()
+        self._last_updated = datetime.utcnow()
         if self._adt_service.is_threaded:
             self._site_lock.release()
         # FIXME: possible concurrency issue
@@ -465,6 +467,24 @@ class ADTPulseSite(object):
         if self._adt_service.is_threaded:
             self._site_lock.acquire()
         for row in soup.find_all("tr", {"class": "p_listRow"}):
+            temp = row.find("span", {"class": "devStatIcon"})
+            if temp is None:
+                break
+            t = datetime.today()
+            last_update = datetime(1970, 1, 1)
+            datestring = remove_prefix(temp.get("title"), "Last Event:").split("\xa0")
+            if datestring[0].lstrip() == "Today":
+                last_update = t
+            else:
+                if datestring[0].lstrip() == "Yesterday":
+                    last_update = t - timedelta(days=1)
+                else:
+                    tempdate = ("/".join((datestring[0], str(t.year)))).lstrip()
+                    last_update = datetime.strptime(tempdate, "%m/%d/%Y")
+                    if last_update > t:
+                        last_update = last_update - relativedelta.relativedelta(years=1)
+            update_time = datetime.time(datetime.strptime(datestring[1]+datestring[2],"%I:%M%p"))
+            last_update = datetime.combine(last_update, update_time)
             # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
             temp = row.find("span", {"class": "p_grayNormalText"})
             if temp is None:
@@ -500,10 +520,11 @@ class ADTPulseSite(object):
                     self._site_lock.release()
                 return None
             self._zones.update_state(zone, state)
+            self._zones.update_timestamp(zone,last_update)
 
-            LOG.debug(f"Setting zone {zone} - to {state}")
+            LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
 
-        self._last_updated = time.time()
+        self._last_updated = datetime.utcnow()
         if self._adt_service.is_threaded:
             self._site_lock.release()
         # FIXME: possible concurrency issue
@@ -554,7 +575,7 @@ class ADTPulseSite(object):
         """
         retval = await self._adt_service.async_update()
         if retval:
-            self._last_updated = time.time()
+            self._last_updated = datetime.utcnow()
         return retval
 
     def update(self) -> bool:
@@ -565,5 +586,5 @@ class ADTPulseSite(object):
         """
         retval = self._adt_service.update()
         if retval:
-            self._last_updated = time.time()
+            self._last_updated = datetime.utcnow()
         return retval

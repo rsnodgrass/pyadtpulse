@@ -2,14 +2,13 @@
 """Sample client for using pyadtpulse."""
 
 import logging
+import asyncio
 import json
 import os
 import sys
 from time import sleep
 from typing import Dict, Optional
-from datetime import datetime
 
-import asyncio
 from pyadtpulse import PyADTPulse
 from pyadtpulse.site import ADTPulseSite
 
@@ -93,7 +92,7 @@ def print_site(site: ADTPulseSite) -> None:
     print(f"Disarmed? = {site.is_disarmed}")
     print(f"Armed Away? = {site.is_away}")
     print(f"Armed Home? = {site.is_home}")
-    print(f"Last updated: {datetime.fromtimestamp(site.last_updated)}")
+    print(f"Last updated: {site.last_updated}")
 
 
 def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool:
@@ -116,7 +115,7 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
     if adt.update():
         print(
             "ADT Data updated, at "
-            f"{datetime.fromtimestamp(site.last_updated)}, refreshing"
+            f"{site.last_updated}, refreshing"
         )
         return True
     print("Site update failed")
@@ -192,11 +191,19 @@ def sync_example(
         return
     if len(adt.sites) == 0:
         print("Error: could not retrieve sites")
-        raise SystemError
+        adt.logout()
+        return
 
     for site in adt.sites:
         site.site_lock.acquire()
         print_site(site)
+        if not site.zones:
+            print("Error: no zones exist, exiting")
+            site.site_lock.release()
+            adt.logout()
+            return
+        for zone in site.zones:
+            print(zone)
         site.site_lock.release()
         if run_alarm_test:
             test_alarm(site, adt, sleep_interval)
@@ -306,10 +313,13 @@ async def async_example(
 
     if len(adt.sites) == 0:
         print("Error: could not retrieve sites")
-        raise SystemError
+        await adt.async_logout()
+        return
 
     for site in adt.sites:
         print_site(site)
+        for zone in site.zones:
+            print(zone)
         if run_alarm_test:
             await async_test_alarm(site, adt)
 
