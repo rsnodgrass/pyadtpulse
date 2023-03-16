@@ -3,10 +3,10 @@ import logging
 import re
 from asyncio import get_event_loop, run_coroutine_threadsafe
 from threading import RLock
-from time import strptime
+
 from typing import List, Optional, Union
 from pyadtpulse.util import debugRLock
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from dateutil import relativedelta
 
 # import dateparser
@@ -163,6 +163,21 @@ class ADTPulseSite(object):
         :param mode: alarm mode to set
         """
         LOG.debug(f"Setting ADT alarm '{self._name}' to '{mode}'")
+        if self._status == mode:
+            LOG.warning(
+                f"Attempting to set alarm status {mode} to "
+                f"existing status {self._status}"
+            )
+            return False
+        if (
+            self._status == ADT_ALARM_OFF
+            and (mode != ADT_ALARM_AWAY or mode != ADT_ALARM_HOME)
+        ) or (
+            (self._status == ADT_ALARM_AWAY or self._status == ADT_ALARM_HOME)
+            and mode != ADT_ALARM_OFF
+        ):
+            LOG.warning(f"Cannot set alarm status from {self._status} to {mode}")
+            return False
         params = {
             "href": "rest/adt/ui/client/security/setArmState",
             "armstate": self._status,  # existing state

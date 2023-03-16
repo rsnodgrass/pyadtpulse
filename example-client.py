@@ -109,8 +109,11 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
     # so site.updates_exist is unreliable until that happens
     # so we need to sleep a little until the status gets updated on ADT's side
     if test_alarm:
-        sleep(1)
-    assert site.updates_may_exist is True
+        done = False
+        while not done:
+            sleep(.1)
+            if site.updates_may_exist:
+                done = True
 
     if adt.update():
         print("ADT Data updated, at " f"{site.last_updated}, refreshing")
@@ -132,6 +135,16 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
         print("Alarm arming home succeeded")
         check_updates(site, adt, True)
         assert site.is_home
+        print("Testing invalid alarm state change from armed home to armed away")
+        if site.arm_away():
+            print("Error, armed away while already armed")
+        else:
+            assert site.is_home
+            print("Testing changing alarm status to same value")
+            if site.arm_home():
+                print("Error, allowed arming to same state")
+            else:
+                assert site.is_home
     else:
         print("Alarm arming home failed")
 
