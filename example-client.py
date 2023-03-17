@@ -96,7 +96,7 @@ def print_site(site: ADTPulseSite) -> None:
 
 def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool:
     """Check a site for updates and print details.
-    
+
     We don't really need to do this anymore, as the data will be
     updated in the background
 

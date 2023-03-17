@@ -1,11 +1,11 @@
 """Utility functions for pyadtpulse."""
+import logging
+import sys
+from threading import RLock, current_thread
 from typing import Optional
 
 from aiohttp import ClientResponse
 from bs4 import BeautifulSoup
-import logging
-import sys
-from threading import RLock, current_thread
 
 LOG = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ async def make_soup(
     return BeautifulSoup(body_text, "html.parser")
 
 
-class debugRLock:
+class DebugRLock:
     """Provides a debug lock logging caller who acquired/released."""
 
     def __init__(self, name: str):

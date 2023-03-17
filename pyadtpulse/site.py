@@ -2,23 +2,21 @@
 import logging
 import re
 from asyncio import get_event_loop, run_coroutine_threadsafe
-from threading import RLock
-
-from typing import List, Optional, Union
-from pyadtpulse.util import debugRLock
 from datetime import datetime, timedelta
-from dateutil import relativedelta
+from threading import RLock
+from typing import List, Optional, Union
 
 # import dateparser
 from bs4 import BeautifulSoup
+from dateutil import relativedelta
 
 from pyadtpulse import PyADTPulse
 from pyadtpulse.const import ADT_ARM_DISARM_URI, ADT_DEVICE_URI, ADT_SYSTEM_URI
-from pyadtpulse.util import handle_response, make_soup, remove_prefix
+from pyadtpulse.util import DebugRLock, handle_response, make_soup, remove_prefix
 from pyadtpulse.zones import (
     ADT_NAME_TO_DEFAULT_TAGS,
-    ADTPulseZoneData,
     ADTPulseFlattendZone,
+    ADTPulseZoneData,
     ADTPulseZones,
 )
 
@@ -60,9 +58,9 @@ class ADTPulseSite(object):
         self._sat = ""
         self._last_updated = datetime(1970, 1, 1)
         self._zones = ADTPulseZones()
-        self._site_lock: Union[RLock, debugRLock]
-        if isinstance(self._adt_service.attribute_lock, debugRLock):
-            self._site_lock = debugRLock("ADTPulseSite._site_lock")
+        self._site_lock: Union[RLock, DebugRLock]
+        if isinstance(self._adt_service.attribute_lock, DebugRLock):
+            self._site_lock = DebugRLock("ADTPulseSite._site_lock")
         else:
             self._site_lock = RLock()
 
@@ -147,7 +145,7 @@ class ADTPulseSite(object):
         return self._last_updated
 
     @property
-    def site_lock(self) -> Union[RLock, debugRLock]:
+    def site_lock(self) -> Union[RLock, DebugRLock]:
         """Get thread lock for site data.
 
         Not needed for async

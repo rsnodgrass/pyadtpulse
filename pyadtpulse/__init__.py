@@ -3,10 +3,12 @@
 import logging
 import asyncio
 import re
-from threading import Thread, RLock, Event as tEvent
 import time
+from threading import Event as tEvent
+from threading import RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
+import uvloop
 from aiohttp import (
     ClientConnectionError,
     ClientResponse,
@@ -17,6 +19,7 @@ from bs4 import BeautifulSoup
 
 from pyadtpulse.const import (
     ADT_DEFAULT_HTTP_HEADERS,
+    ADT_DEFAULT_POLL_INTERVAL,
     ADT_DEFAULT_VERSION,
     ADT_DEVICE_URI,
     ADT_HTTP_REFERER_URIS,
@@ -29,11 +32,8 @@ from pyadtpulse.const import (
     ADT_TIMEOUT_URI,
     API_PREFIX,
     DEFAULT_API_HOST,
-    ADT_DEFAULT_POLL_INTERVAL,
 )
-from pyadtpulse.util import handle_response, make_soup, debugRLock
-
-import uvloop
+from pyadtpulse.util import DebugRLock, handle_response, make_soup
 
 # FIXME -- circular reference
 # from pyadtpulse.site import ADTPulseSite
@@ -119,11 +119,11 @@ class PyADTPulse:
         self._updates_exist: Optional[asyncio.locks.Event] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session_thread: Optional[Thread] = None
-        self._attribute_lock: Union[RLock, debugRLock]
+        self._attribute_lock: Union[RLock, DebugRLock]
         if not debug_locks:
             self._attribute_lock = RLock()
         else:
-            self._attribute_lock = debugRLock("PyADTPulse._attribute_lock")
+            self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
         # fixme circular import, should be an ADTPulseSite
@@ -394,7 +394,7 @@ class PyADTPulse:
         self._login_complete.wait()
 
     @property
-    def attribute_lock(self) -> Union[RLock, debugRLock]:
+    def attribute_lock(self) -> Union[RLock, DebugRLock]:
         """Get attribute lock for PyADTPulse object.
 
         Returns:
