@@ -195,7 +195,7 @@ class ADTPulseSite(object):
             f"Failed updating ADT Pulse alarm {self._name} to {mode}",
         ):
             return False
-        self._last_updated = datetime.utcnow()
+        self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             with self._site_lock:
                 self._status = mode
@@ -312,7 +312,7 @@ class ADTPulseSite(object):
 
             LOG.debug(f"Alarm status = {self._status}")
 
-        self._last_updated = datetime.utcnow()
+        self._last_updated = datetime.now()
 
         if self._sat == "":
             sat_button = summary_html_soup.find(
@@ -437,7 +437,7 @@ class ADTPulseSite(object):
                 LOG.debug(f"Status: {dStatus}, tags {tags}")
                 tmpzone = ADTPulseZoneData(dName, dStatus, tags)
                 self._zones.update({int(dZone): tmpzone})
-        self._last_updated = datetime.utcnow()
+        self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             self._site_lock.release()
         # FIXME: possible concurrency issue
@@ -539,7 +539,7 @@ class ADTPulseSite(object):
 
             LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
 
-        self._last_updated = datetime.utcnow()
+        self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             self._site_lock.release()
         # FIXME: possible concurrency issue
@@ -590,7 +590,7 @@ class ADTPulseSite(object):
         """
         retval = await self._adt_service.async_update()
         if retval:
-            self._last_updated = datetime.utcnow()
+            self._last_updated = datetime.now()
         return retval
 
     def update(self) -> bool:
@@ -601,5 +601,5 @@ class ADTPulseSite(object):
         """
         retval = self._adt_service.update()
         if retval:
-            self._last_updated = datetime.utcnow()
+            self._last_updated = datetime.now()
         return retval
