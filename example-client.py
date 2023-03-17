@@ -88,7 +88,6 @@ def print_site(site: ADTPulseSite) -> None:
     """
     print(f"Site: {site.name} (id={site.id})")
     print(f"Alarm Status = {site.status}")
-    print("***********")
     print(f"Disarmed? = {site.is_disarmed}")
     print(f"Armed Away? = {site.is_away}")
     print(f"Armed Home? = {site.is_home}")
@@ -97,6 +96,9 @@ def print_site(site: ADTPulseSite) -> None:
 
 def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool:
     """Check a site for updates and print details.
+    
+    We don't really need to do this anymore, as the data will be
+    updated in the background
 
     Args:
         site (ADTPulseSite): site to check
@@ -105,16 +107,6 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
 
         Returns: bool: True if update successful
     """
-    # Pulse takes a while to update alarm status
-    # so site.updates_exist is unreliable until that happens
-    # so we need to sleep a little until the status gets updated on ADT's side
-    if test_alarm:
-        done = False
-        while not done:
-            sleep(0.1)
-            if site.updates_may_exist:
-                done = True
-
     if adt.update():
         print("ADT Data updated, at " f"{site.last_updated}, refreshing")
         return True
