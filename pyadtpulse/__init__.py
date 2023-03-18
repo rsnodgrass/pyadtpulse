@@ -2,6 +2,7 @@
 
 import logging
 import asyncio
+from random import uniform
 import re
 import time
 from threading import Event as tEvent
@@ -667,29 +668,47 @@ class PyADTPulse:
         #  have been signed out due to inactivity."
 
         # define connection method
-        try:
-            if method == "GET":
-                async with self._session.get(
-                    url, headers=extra_headers, params=extra_params, timeout=timeout
-                ) as response:
-                    await response.text()
-            elif method == "POST":
-                async with self._session.post(
-                    url, headers=extra_headers, data=extra_params, timeout=timeout
-                ) as response:
-                    await response.text()
-            else:
-                LOG.error(f"Invalid request method {method}")
+        retry = 0
+        max_retries = 3
+        while retry < max_retries:
+            try:
+                if method == "GET":
+                    async with self._session.get(
+                        url, headers=extra_headers, params=extra_params, timeout=timeout
+                    ) as response:
+                        await response.text()
+                elif method == "POST":
+                    async with self._session.post(
+                        url, headers=extra_headers, data=extra_params, timeout=timeout
+                    ) as response:
+                        await response.text()
+                else:
+                    LOG.error(f"Invalid request method {method}")
+                    return None
+                if response.status in RECOVERABLE_ERRORS:
+                    retry = retry + 1
+                    LOG.warning(
+                        f"pyadtpulse query returned recover error code "
+                        f"{response.status}, retrying (count ={retry})"
+                    )
+                    if retry == max_retries:
+                        LOG.warning("pyadtpulse exceeded max retries of "
+                                    f"{max_retries}, giving up")
+                        response.raise_for_status()
+                    await asyncio.sleep(0.5 * 2**retry + uniform(0.0, 1.0))
+                    continue
+                response.raise_for_status()
+                # success, break loop
+                retry = 4
+            except ClientResponseError as err:
+                code = err.code
+                LOG.exception(
+                    f"Received HTTP error code {code} in request to ADT Pulse"
+                )
                 return None
-            response.raise_for_status()
-
-        except ClientResponseError as err:
-            code = err.code
-            LOG.exception(f"Received HTTP error code {code} in request to ADT Pulse")
-            return None
-        except ClientConnectionError:
-            LOG.exception("An exception occurred in request to ADT Pulse")
-            return None
+            except ClientConnectionError:
+                LOG.exception("An exception occurred in request to ADT Pulse")
+                return None
 
         # success!
         # FIXME? login uses redirects so final url is wrong
@@ -697,9 +716,10 @@ class PyADTPulse:
             if uri == ADT_DEVICE_URI:
                 referer = self.make_url(ADT_SYSTEM_URI)
             else:
-                referer = str(response.url)
-                LOG.debug(f"Setting Referer to: {referer}")
-            self._session.headers.update({"Referer": referer})
+                if response is not None and response.url is not None:
+                    referer = str(response.url)
+                    LOG.debug(f"Setting Referer to: {referer}")
+                    self._session.headers.update({"Referer": referer})
 
         return response
 
