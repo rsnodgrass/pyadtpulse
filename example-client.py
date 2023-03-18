@@ -107,6 +107,10 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
 
         Returns: bool: True if update successful
     """
+    if test_alarm:
+        while not adt.updates_exist:
+            sleep(0.5)
+    
     if adt.update():
         print("ADT Data updated, at " f"{site.last_updated}, refreshing")
         return True

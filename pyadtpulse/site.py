@@ -167,13 +167,7 @@ class ADTPulseSite(object):
                 f"existing status {self._status}"
             )
             return False
-        if (
-            self._status == ADT_ALARM_OFF
-            and (mode != ADT_ALARM_AWAY or mode != ADT_ALARM_HOME)
-        ) or (
-            (self._status == ADT_ALARM_AWAY or self._status == ADT_ALARM_HOME)
-            and mode != ADT_ALARM_OFF
-        ):
+        if self._status != ADT_ALARM_OFF and mode != ADT_ALARM_OFF:
             LOG.warning(f"Cannot set alarm status from {self._status} to {mode}")
             return False
         params = {
