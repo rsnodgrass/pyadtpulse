@@ -692,8 +692,10 @@ class PyADTPulse:
                         f"{response.status}, retrying (count ={retry})"
                     )
                     if retry == max_retries:
-                        LOG.warning("pyadtpulse exceeded max retries of "
-                                    f"{max_retries}, giving up")
+                        LOG.warning(
+                            "pyadtpulse exceeded max retries of "
+                            f"{max_retries}, giving up"
+                        )
                         response.raise_for_status()
                     await asyncio.sleep(0.5 * 2**retry + uniform(0.0, 1.0))
                     continue

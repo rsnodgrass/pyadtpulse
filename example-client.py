@@ -143,7 +143,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
             print("Force arm succeeded")
         else:
             print("Force arm failed")
-            
+
     print("")
     print_site(site)
 
