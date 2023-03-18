@@ -12,7 +12,7 @@ from dateutil import relativedelta
 
 from pyadtpulse import PyADTPulse
 from pyadtpulse.const import ADT_ARM_DISARM_URI, ADT_DEVICE_URI, ADT_SYSTEM_URI
-from pyadtpulse.util import DebugRLock, handle_response, make_soup, remove_prefix
+from pyadtpulse.util import DebugRLock, make_soup, remove_prefix
 from pyadtpulse.zones import (
     ADT_NAME_TO_DEFAULT_TAGS,
     ADTPulseFlattendZone,
@@ -183,12 +183,22 @@ class ADTPulseSite(object):
             timeout=10,
         )
 
-        if not handle_response(
+        soup = await make_soup(
             response,
             logging.WARNING,
             f"Failed updating ADT Pulse alarm {self._name} to {mode}",
-        ):
+        )
+        if soup is None:
             return False
+        arm_result = soup.find("div", {"class": "p_armDisarmWrapper"})
+        if arm_result is not None:
+            error_block = arm_result.find("div")
+            if error_block is not None:
+                error_text = arm_result.get_text().replace("Arm AnywayCancel\n\n", "")
+                LOG.warning(
+                    f"Could not set alarm state to {mode} " f"because {error_text}"
+                )
+                return False
         self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             with self._site_lock:
