@@ -91,6 +91,7 @@ def print_site(site: ADTPulseSite) -> None:
     print(f"Disarmed? = {site.is_disarmed}")
     print(f"Armed Away? = {site.is_away}")
     print(f"Armed Home? = {site.is_home}")
+    print(f"Force armed? = {site.is_force_armed}")
     print(f"Last updated: {site.last_updated}")
 
 
@@ -137,8 +138,12 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
             else:
                 print("Test succeeded")
     else:
-        print("Alarm arming home failed")
-
+        print("Alarm arming home failed, attempting force arm")
+        if site.arm_home(True):
+            print("Force arm succeeded")
+        else:
+            print("Force arm failed")
+            
     print("")
     print_site(site)
 
@@ -270,7 +275,11 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
                 print("Test succeeded")
 
     else:
-        print("Alarm arming home failed")
+        print("Alarm arming home failed, attempting force arm")
+        if await site.async_arm_home(True):
+            print("Force arm succeeded")
+        else:
+            print("Force arm failed")
 
     print("")
     print_site(site)

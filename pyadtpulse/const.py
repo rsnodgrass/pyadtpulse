@@ -33,7 +33,7 @@ ADT_DEFAULT_HTTP_HEADERS = {
 
 ADT_ARM_URI = "/quickcontrol/serv/RunRRACommand"
 ADT_ARM_DISARM_URI = (
-    "/quickcontrol/armDisarm.jsp?href=rest/adt/ui/client/security/setArmState"
+    "/quickcontrol/armDisarm.jsp"
 )
 
 ADT_SYSTEM_SETTINGS = "/system/settings.jsp"
