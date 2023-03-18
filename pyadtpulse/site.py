@@ -435,7 +435,7 @@ class ADTPulseSite(object):
                     tags = ("sensor", "doorWindow")
                 LOG.debug(f"Adding sensor {dName} id: sensor-{dZone}")
                 LOG.debug(f"Status: {dStatus}, tags {tags}")
-                tmpzone = ADTPulseZoneData(dName, dStatus, tags)
+                tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
                 self._zones.update({int(dZone): tmpzone})
         self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
