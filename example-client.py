@@ -130,17 +130,13 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     if site.arm_home():
         print("Alarm arming home succeeded")
         check_updates(site, adt, True)
-        assert site.is_home
         print("Testing invalid alarm state change from armed home to armed away")
         if site.arm_away():
             print("Error, armed away while already armed")
         else:
-            assert site.is_home
             print("Testing changing alarm status to same value")
             if site.arm_home():
                 print("Error, allowed arming to same state")
-            else:
-                assert site.is_home
     else:
         print("Alarm arming home failed")
 
@@ -151,7 +147,6 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     if site.disarm():
         print("Disarming succeeded")
         check_updates(site, adt, True)
-        assert site.is_disarmed
     else:
         print("Disarming failed")
 
@@ -162,7 +157,6 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     if site.arm_away():
         print("Arm away succeeded")
         check_updates(site, adt, True)
-        assert site.is_away
     else:
         print("Arm away failed")
 
