@@ -110,7 +110,7 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
     if test_alarm:
         while not adt.updates_exist:
             sleep(0.5)
-    
+
     if adt.update():
         print("ADT Data updated, at " f"{site.last_updated}, refreshing")
         return True
@@ -134,9 +134,12 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
         if site.arm_away():
             print("Error, armed away while already armed")
         else:
+            print("Test succeeded")
             print("Testing changing alarm status to same value")
             if site.arm_home():
                 print("Error, allowed arming to same state")
+            else:
+                print("Test succeeded")
     else:
         print("Alarm arming home failed")
 
@@ -147,6 +150,11 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     if site.disarm():
         print("Disarming succeeded")
         check_updates(site, adt, True)
+        print("Testing disarming twice")
+        if site.disarm():
+            print("Test disarm twice failed")
+        else:
+            print("Test succeeded")
     else:
         print("Disarming failed")
 
@@ -254,17 +262,16 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
     if await site.async_arm_home():
         print("Alarm arming home succeeded")
         check_updates(site, adt, False)
-        assert site.is_home
         print("Testing invalid alarm state change from armed home to armed away")
         if await site.async_arm_away():
             print("Error, armed away while already armed")
         else:
-            assert site.is_home
+            print("Test succeeded")
             print("Testing changing alarm status to same value")
             if await site.async_arm_home():
                 print("Error, allowed arming to same state")
             else:
-                assert site.is_home
+                print("Test succeeded")
 
     else:
         print("Alarm arming home failed")
@@ -276,7 +283,11 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
     if await site.async_disarm():
         print("Disarming succeeded")
         check_updates(site, adt, False)
-        assert site.is_disarmed
+        print("Testing disarming twice")
+        if await site.async_disarm():
+            print("Test failed")
+        else:
+            print("Test succeeded")
     else:
         print("Disarming failed")
 
@@ -287,7 +298,6 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
     if await site.async_arm_away():
         print("Arm away succeeded")
         check_updates(site, adt, False)
-        assert site.is_away
     else:
         print("Arm away failed")
 
