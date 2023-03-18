@@ -37,6 +37,7 @@ class ADTPulseSite(object):
         "_id",
         "_name",
         "_status",
+        "_is_force_armed",
         "_sat",
         "_last_updated",
         "_zones",
@@ -55,6 +56,7 @@ class ADTPulseSite(object):
         self._id = site_id
         self._name = name
         self._status = ADT_ALARM_UNKNOWN
+        self._is_force_armed: bool = False
         self._sat = ""
         self._last_updated = datetime(1970, 1, 1)
         self._zones = ADTPulseZones()
@@ -133,6 +135,18 @@ class ADTPulseSite(object):
         return self._status == ADT_ALARM_OFF
 
     @property
+    def is_force_armed(self) -> bool:
+        """Return whether the system is armed in bypass mode.
+
+        Returns:
+            bool: True if system armed in bypass mode
+        """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._is_force_armed
+        return self._is_force_armed
+
+    @property
     def last_updated(self) -> datetime:
         """Return time site last updated.
 
@@ -155,12 +169,12 @@ class ADTPulseSite(object):
         """
         return self._site_lock
 
-    async def _arm(self, mode: str) -> bool:
+    async def _arm(self, mode: str, force_arm: bool) -> bool:
         """Set the alarm arm mode to one of: off, home, away.
 
         :param mode: alarm mode to set
         """
-        LOG.debug(f"Setting ADT alarm '{self._name}' to '{mode}'")
+        LOG.debug(f"Setting ADT alarm '{self._name}' to '{mode}, force = {force_arm}'")
         if self._status == mode:
             LOG.warning(
                 f"Attempting to set alarm status {mode} to "
@@ -176,6 +190,14 @@ class ADTPulseSite(object):
             "arm": mode,  # new state
             "sat": self._sat,
         }
+        if force_arm and mode != ADT_ALARM_OFF:
+            params = {
+                "href": "rest/adt/ui/client/security/setForceArm",
+                "armstate": "forcearm",  # existing state
+                "arm": mode,  # new state
+                "sat": self._sat,
+            }
+
         response = await self._adt_service._async_query(
             ADT_ARM_DISARM_URI,
             method="POST",
@@ -202,35 +224,37 @@ class ADTPulseSite(object):
         self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             with self._site_lock:
+                self._is_force_armed = force_arm
                 self._status = mode
                 return True
+        self._is_force_armed = force_arm
         self._status = mode
         return True
 
-    def _sync_set_alarm_mode(self, mode: str) -> bool:
+    def _sync_set_alarm_mode(self, mode: str, force_arm: bool = False) -> bool:
         loop = self._adt_service.loop
         if loop is None:
             raise RuntimeError(
                 "Attempting to sync change alarm mode from async session"
             )
-        coro = self._arm(mode)
+        coro = self._arm(mode, force_arm)
         return run_coroutine_threadsafe(coro, loop).result()
 
-    def arm_away(self) -> bool:
+    def arm_away(self, force_arm: bool = False) -> bool:
         """Arm the alarm in Away mode.
 
         Returns:
             bool: True if arm succeeded
         """
-        return self._sync_set_alarm_mode(ADT_ALARM_AWAY)
+        return self._sync_set_alarm_mode(ADT_ALARM_AWAY, force_arm)
 
-    def arm_home(self) -> bool:
+    def arm_home(self, force_arm: bool = False) -> bool:
         """Arm the alarm in Home mode.
 
         Returns:
             bool: True if arm succeeded
         """
-        return self._sync_set_alarm_mode(ADT_ALARM_HOME)
+        return self._sync_set_alarm_mode(ADT_ALARM_HOME, force_arm)
 
     def disarm(self) -> bool:
         """Disarm the alarm.
@@ -238,23 +262,23 @@ class ADTPulseSite(object):
         Returns:
             bool: True if disarm succeeded
         """
-        return self._sync_set_alarm_mode(ADT_ALARM_OFF)
+        return self._sync_set_alarm_mode(ADT_ALARM_OFF, False)
 
-    async def async_arm_away(self) -> bool:
+    async def async_arm_away(self, force_arm: bool = False) -> bool:
         """Arm alarm away async.
 
         Returns:
             bool: True if arm succeeded
         """
-        return await self._arm(ADT_ALARM_AWAY)
+        return await self._arm(ADT_ALARM_AWAY, force_arm)
 
-    async def async_arm_home(self) -> bool:
+    async def async_arm_home(self, force_arm: bool = False) -> bool:
         """Arm alarm home async.
 
         Returns:
             bool: True if arm succeeded
         """
-        return await self._arm(ADT_ALARM_HOME)
+        return await self._arm(ADT_ALARM_HOME, force_arm)
 
     async def async_disarm(self) -> bool:
         """Disarm alarm async.
@@ -262,7 +286,7 @@ class ADTPulseSite(object):
         Returns:
             bool: True if disarm succeeded
         """
-        return await self._arm(ADT_ALARM_OFF)
+        return await self._arm(ADT_ALARM_OFF, False)
 
     @property
     def zones(self) -> Optional[List[ADTPulseFlattendZone]]:
