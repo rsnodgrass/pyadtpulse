@@ -172,7 +172,11 @@ class ADTPulseSite(object):
     async def _arm(self, mode: str, force_arm: bool) -> bool:
         """Set the alarm arm mode to one of: off, home, away.
 
-        :param mode: alarm mode to set
+        Args:
+
+            mode (str): alarm mode to set
+            force_arm (bool, Optional): force system to arm
+
         """
         LOG.debug(f"Setting ADT alarm '{self._name}' to '{mode}, force = {force_arm}'")
         if self._status == mode:
@@ -243,6 +247,9 @@ class ADTPulseSite(object):
     def arm_away(self, force_arm: bool = False) -> bool:
         """Arm the alarm in Away mode.
 
+        Args:
+            force_arm (bool, Optional): force system to arm
+
         Returns:
             bool: True if arm succeeded
         """
@@ -250,6 +257,9 @@ class ADTPulseSite(object):
 
     def arm_home(self, force_arm: bool = False) -> bool:
         """Arm the alarm in Home mode.
+
+        Args:
+            force_arm (bool, Optional): force system to arm
 
         Returns:
             bool: True if arm succeeded
@@ -267,6 +277,9 @@ class ADTPulseSite(object):
     async def async_arm_away(self, force_arm: bool = False) -> bool:
         """Arm alarm away async.
 
+        Args:
+            force_arm (bool, Optional): force system to arm
+
         Returns:
             bool: True if arm succeeded
         """
@@ -275,6 +288,8 @@ class ADTPulseSite(object):
     async def async_arm_home(self, force_arm: bool = False) -> bool:
         """Arm alarm home async.
 
+        Args:
+            force_arm (bool, Optional): force system to arm
         Returns:
             bool: True if arm succeeded
         """
@@ -375,7 +390,9 @@ class ADTPulseSite(object):
         self, soup: Optional[BeautifulSoup]
     ) -> Optional[ADTPulseZones]:
         """Fetch zones for a site.
-
+        Args:
+            soup (BeautifulSoup, Optional): a BS4 object with data fetched from
+                                            ADT Pulse web site
         Returns:
             ADTPulseZones
 
