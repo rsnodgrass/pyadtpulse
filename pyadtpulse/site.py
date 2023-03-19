@@ -24,6 +24,9 @@ ADT_ALARM_AWAY = "away"
 ADT_ALARM_HOME = "stay"
 ADT_ALARM_OFF = "off"
 ADT_ALARM_UNKNOWN = "unknown"
+ADT_ALARM_ARMING = "arming"
+ADT_ALARM_DISARMING = "disarming"
+ADT_ARM_DISARM_TIMEOUT = timedelta(seconds=20)
 
 
 LOG = logging.getLogger(__name__)
@@ -40,6 +43,7 @@ class ADTPulseSite(object):
         "_is_force_armed",
         "_sat",
         "_last_updated",
+        "_last_arm_disarm",
         "_zones",
         "_site_lock",
     )
@@ -58,7 +62,7 @@ class ADTPulseSite(object):
         self._status = ADT_ALARM_UNKNOWN
         self._is_force_armed: bool = False
         self._sat = ""
-        self._last_updated = datetime(1970, 1, 1)
+        self._last_updated = self._last_arm_disarm = datetime(1970, 1, 1)
         self._zones = ADTPulseZones()
         self._site_lock: Union[RLock, DebugRLock]
         if isinstance(self._adt_service.attribute_lock, DebugRLock):
@@ -147,6 +151,30 @@ class ADTPulseSite(object):
         return self._is_force_armed
 
     @property
+    def is_arming(self) -> bool:
+        """Return if system is attempting to arm
+
+        Returns:
+            bool: True if system is attempting to arm
+        """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._status == ADT_ALARM_ARMING
+        return self._status == ADT_ALARM_ARMING
+
+    @property
+    def is_disarming(self) -> bool:
+        """Return if system is attempting to disarm
+
+        Returns:
+            bool: True if system is attempting to disarm
+        """
+        if self._adt_service.is_threaded:
+            with self._site_lock:
+                return self._status == ADT_ALARM_DISARMING
+        return self._status == ADT_ALARM_DISARMING
+
+    @property
     def last_updated(self) -> datetime:
         """Return time site last updated.
 
@@ -225,14 +253,21 @@ class ADTPulseSite(object):
                     f"Could not set alarm state to {mode} " f"because {error_text}"
                 )
                 return False
-        self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             with self._site_lock:
                 self._is_force_armed = force_arm
-                self._status = mode
+                if mode == ADT_ALARM_OFF:
+                    self._status = ADT_ALARM_DISARMING
+                else:
+                    self._status = ADT_ALARM_ARMING
+                self._last_arm_disarm = self._last_updated = datetime.now()
                 return True
         self._is_force_armed = force_arm
-        self._status = mode
+        if mode == ADT_ALARM_OFF:
+            self._status = ADT_ALARM_DISARMING
+        else:
+            self._status = ADT_ALARM_ARMING
+        self._last_arm_disarm = self._last_updated = datetime.now()
         return True
 
     def _sync_set_alarm_mode(self, mode: str, force_arm: bool = False) -> bool:
@@ -343,20 +378,34 @@ class ADTPulseSite(object):
             self._site_lock.acquire()
         if value:
             text = value.text
+            last_updated = datetime.now()
             if re.match("Disarmed", text):
-                self._status = ADT_ALARM_OFF
+                if (
+                    self._status != ADT_ALARM_ARMING
+                    or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
+                ):
+                    self._status = ADT_ALARM_OFF
+                    self._last_updated = last_updated
             elif re.match("Armed Away", text):
-                self._status = ADT_ALARM_AWAY
+                if (
+                    self._status != ADT_ALARM_DISARMING
+                    or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
+                ):
+                    self._status = ADT_ALARM_AWAY
+                    self._last_updated = last_updated
             elif re.match("Armed Stay", text):
-                self._status = ADT_ALARM_HOME
+                if (
+                    self._status != ADT_ALARM_DISARMING
+                    or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
+                ):
+                    self._status = ADT_ALARM_HOME
+                    self._last_updated = last_updated
             else:
                 LOG.warning(f"Failed to get alarm status from '{text}'")
                 self._status = ADT_ALARM_UNKNOWN
+                self._last_updated = last_updated
 
             LOG.debug(f"Alarm status = {self._status}")
-
-        self._last_updated = datetime.now()
-
         if self._sat == "":
             sat_button = summary_html_soup.find(
                 "input", {"type": "button", "id": sat_location}
