@@ -430,8 +430,11 @@ class PyADTPulse:
         """Login asynchronously to ADT."""
         if self._session is None:
             self._session = ClientSession()
-            self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
-        self._authenticated = asyncio.locks.Event()
+        self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
+        if self._authenticated is None:
+            self._authenticated = asyncio.locks.Event()
+        else:
+            self._authenticated.clear()
         LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
         await self._async_fetch_version()
 
@@ -453,13 +456,11 @@ class PyADTPulse:
             response, logging.ERROR, "Could not log into ADT Pulse site"
         )
         if soup is None:
-            self._authenticated.clear()
             return
 
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
             LOG.error(f"Invalid ADT Pulse response: ): {error}")
-            self._authenticated.clear()
             return
 
         self._authenticated.set()
