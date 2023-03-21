@@ -110,8 +110,12 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
     """
     if test_alarm:
         while site.is_arming or site.is_disarming:
-            print(f"site is_arming: {site.is_arming}, site is_disarming: {site.is_disarming}")
+            print(
+                f"site is_arming: {site.is_arming}, "
+                f"site is_disarming: {site.is_disarming}"
+            )
             sleep(1)
+    print(f"Gateway online: {adt.gateway_online}")
     if adt.update():
         print("ADT Data updated, at " f"{site.last_updated}, refreshing")
         return True
@@ -209,6 +213,7 @@ def sync_example(
 
     for site in adt.sites:
         site.site_lock.acquire()
+        print(f"Gateway online: {adt.gateway_online}")
         print_site(site)
         if not site.zones:
             print("Error: no zones exist, exiting")
@@ -357,6 +362,7 @@ async def async_example(
     while not done:
         try:
             for site in adt.sites:
+                print(f"Gateway online: {adt.gateway_online}")
                 print_site(site)
                 print("----")
                 if not site.zones:

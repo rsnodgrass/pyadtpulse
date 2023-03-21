@@ -23,6 +23,7 @@ from pyadtpulse.const import (
     ADT_DEFAULT_POLL_INTERVAL,
     ADT_DEFAULT_VERSION,
     ADT_DEVICE_URI,
+    ADT_GATEWAY_OFFLINE_POLL_INTERVAL,
     ADT_HTTP_REFERER_URIS,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
@@ -70,6 +71,7 @@ class PyADTPulse:
         "_password",
         "_fingerprint",
         "_login_complete",
+        "_gateway_online",
     )
 
     def __init__(
@@ -127,6 +129,7 @@ class PyADTPulse:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
+        self._gateway_online: bool = False
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
             self._sites: List[ADTPulseSite]
@@ -240,6 +243,31 @@ class PyADTPulse:
             with self._attribute_lock:
                 return self._api_version
         return self._api_version
+
+    @property
+    def gateway_online(self) -> bool:
+        """Retrieve whether Pulse Gateway is online.
+
+        Returns:
+            bool: True if gateway is online
+        """
+        if self.is_threaded:
+            with self._attribute_lock:
+                return self._gateway_online
+        return self._gateway_online
+
+    def _set_gateway_status(self, status: bool) -> None:
+        """Set gateway status.
+
+        Private method used by site object
+
+        Args:
+            status (bool): True if gateway is online
+        """
+        if self.is_threaded:
+            with self._attribute_lock:
+                self._gateway_online = status
+        self._gateway_online = status
 
     async def _async_fetch_version(self) -> None:
         result = None
@@ -523,8 +551,10 @@ class PyADTPulse:
             )
         while True:
             try:
-                # call property to lock value if necessary
-                pi = self.poll_interval
+                if self.gateway_online:
+                    pi = self.poll_interval
+                else:
+                    pi = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
                 await asyncio.sleep(pi)
                 response = await self._async_query(
                     ADT_SYNC_CHECK_URI,

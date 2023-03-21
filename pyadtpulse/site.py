@@ -152,7 +152,7 @@ class ADTPulseSite(object):
 
     @property
     def is_arming(self) -> bool:
-        """Return if system is attempting to arm
+        """Return if system is attempting to arm.
 
         Returns:
             bool: True if system is attempting to arm
@@ -164,7 +164,7 @@ class ADTPulseSite(object):
 
     @property
     def is_disarming(self) -> bool:
-        """Return if system is attempting to disarm
+        """Return if system is attempting to disarm.
 
         Returns:
             bool: True if system is attempting to disarm
@@ -198,13 +198,14 @@ class ADTPulseSite(object):
         return self._site_lock
 
     async def _arm(self, mode: str, force_arm: bool) -> bool:
-        """Set the alarm arm mode to one of: off, home, away.
+        """Set arm status.
 
         Args:
+            mode (str)
+            force_arm (bool): True if arm force
 
-            mode (str): alarm mode to set
-            force_arm (bool, Optional): force system to arm
-
+        Returns:
+            bool: True if operation successful
         """
         LOG.debug(f"Setting ADT alarm '{self._name}' to '{mode}, force = {force_arm}'")
         if self._status == mode:
@@ -439,6 +440,7 @@ class ADTPulseSite(object):
         self, soup: Optional[BeautifulSoup]
     ) -> Optional[ADTPulseZones]:
         """Fetch zones for a site.
+
         Args:
             soup (BeautifulSoup, Optional): a BS4 object with data fetched from
                                             ADT Pulse web site
@@ -573,6 +575,7 @@ class ADTPulseSite(object):
         # parse ADT's convulated html to get sensor status
         if self._adt_service.is_threaded:
             self._site_lock.acquire()
+        gateway_online = False
         for row in soup.find_all("tr", {"class": "p_listRow"}):
             temp = row.find("span", {"class": "devStatIcon"})
             if temp is None:
@@ -628,11 +631,13 @@ class ADTPulseSite(object):
                 if self._adt_service.is_threaded:
                     self._site_lock.release()
                 return None
+            if state != "Unknown":
+                gateway_online = True
             self._zones.update_state(zone, state)
             self._zones.update_timestamp(zone, last_update)
 
             LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
-
+        self._adt_service._gateway_online = gateway_online
         self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             self._site_lock.release()
