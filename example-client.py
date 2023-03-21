@@ -108,6 +108,10 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
 
         Returns: bool: True if update successful
     """
+    if test_alarm:
+        while site.is_arming or site.is_disarming:
+            print(f"site is_arming: {site.is_arming}, site is_disarming: {site.is_disarming}")
+            sleep(1)
     if adt.update():
         print("ADT Data updated, at " f"{site.last_updated}, refreshing")
         return True
@@ -126,7 +130,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     print("Arming alarm stay")
     if site.arm_home():
         print("Alarm arming home succeeded")
-        #        check_updates(site, adt, True)
+        check_updates(site, adt, True)
         print("Testing invalid alarm state change from armed home to armed away")
         if site.arm_away():
             print("Error, armed away while already armed")
@@ -150,7 +154,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     print("Disarming alarm")
     if site.disarm():
         print("Disarming succeeded")
-        #       check_updates(site, adt, True)
+        check_updates(site, adt, True)
         print("Testing disarming twice")
         if site.disarm():
             print("Test disarm twice failed")
@@ -165,7 +169,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
 
     if site.arm_away():
         print("Arm away succeeded")
-    #      check_updates(site, adt, True)
+        check_updates(site, adt, True)
     else:
         print("Arm away failed")
 
