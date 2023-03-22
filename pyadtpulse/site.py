@@ -403,6 +403,11 @@ class ADTPulseSite(object):
                     self._last_updated = last_updated
             else:
                 LOG.warning(f"Failed to get alarm status from '{text}'")
+                if text.rstrip() == "Status Unavailable.":
+                    LOG.warning(
+                        "Pulse alarm status unavailable: " "assuming gateway offline"
+                    )
+                    self._adt_service._set_gateway_status(False)
                 self._status = ADT_ALARM_UNKNOWN
                 self._last_updated = last_updated
 
@@ -583,20 +588,43 @@ class ADTPulseSite(object):
             t = datetime.today()
             last_update = datetime(1970, 1, 1)
             datestring = remove_prefix(temp.get("title"), "Last Event:").split("\xa0")
-            if datestring[0].lstrip() == "Today":
-                last_update = t
+            if len(datestring) < 3:
+                LOG.warning(
+                    "Warning, could not retrieve last update for zone, "
+                    f"defaulting to {last_update}"
+                )
             else:
-                if datestring[0].lstrip() == "Yesterday":
-                    last_update = t - timedelta(days=1)
+                if datestring[0].lstrip() == "Today":
+                    last_update = t
                 else:
-                    tempdate = ("/".join((datestring[0], str(t.year)))).lstrip()
-                    last_update = datetime.strptime(tempdate, "%m/%d/%Y")
-                    if last_update > t:
-                        last_update = last_update - relativedelta.relativedelta(years=1)
-            update_time = datetime.time(
-                datetime.strptime(datestring[1] + datestring[2], "%I:%M%p")
-            )
-            last_update = datetime.combine(last_update, update_time)
+                    if datestring[0].lstrip() == "Yesterday":
+                        last_update = t - timedelta(days=1)
+                    else:
+                        tempdate = ("/".join((datestring[0], str(t.year)))).lstrip()
+                        try:
+                            last_update = datetime.strptime(tempdate, "%m/%d/%Y")
+                        except ValueError:
+                            LOG.warning(
+                                f"pyadtpulse couldn't convert date {last_update}, "
+                                f"defaulting to {last_update}"
+                            )
+                        if last_update > t:
+                            last_update = last_update - relativedelta.relativedelta(
+                                years=1
+                            )
+                try:
+                    update_time = datetime.time(
+                        datetime.strptime(datestring[1] + datestring[2], "%I:%M%p")
+                    )
+                except ValueError:
+                    update_time = datetime.time(last_update)
+                    LOG.warning(
+                        f"pyadtpulse couldn't convert time "
+                        f"{datestring[1] + datestring[2]}, "
+                        f"defaulting to {update_time}"
+                    )
+                last_update = datetime.combine(last_update, update_time)
+
             # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
             temp = row.find("span", {"class": "p_grayNormalText"})
             if temp is None:
@@ -637,7 +665,9 @@ class ADTPulseSite(object):
             self._zones.update_timestamp(zone, last_update)
 
             LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
-        self._adt_service._gateway_online = gateway_online
+        self._adt_service._set_gateway_status(gateway_online)
+        if not gateway_online:
+            LOG.warning("ADT Pulse gateway appears to be offline")
         self._last_updated = datetime.now()
         if self._adt_service.is_threaded:
             self._site_lock.release()

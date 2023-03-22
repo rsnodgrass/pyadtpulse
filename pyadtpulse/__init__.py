@@ -554,6 +554,10 @@ class PyADTPulse:
                 if self.gateway_online:
                     pi = self.poll_interval
                 else:
+                    LOG.warning(
+                        "Pulse gateway detected offline, polling every "
+                        f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL} seconds"
+                    )
                     pi = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
                 await asyncio.sleep(pi)
                 response = await self._async_query(
