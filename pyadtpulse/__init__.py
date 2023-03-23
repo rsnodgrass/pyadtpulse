@@ -248,6 +248,15 @@ class PyADTPulse:
             status (bool): True if gateway is online
         """
         with self._attribute_lock:
+            if status == self._gateway_online:
+                return
+            if status:
+                LOG.warning("ADT Pulse gateway is online, "
+                            f"setting poll interval to {self._poll_interval}")
+            else:
+                LOG.warning("ADT Pulse gateway is offline, "
+                            "setting poll interval to"
+                            f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL}")
             self._gateway_online = status
 
     async def _async_fetch_version(self) -> None:

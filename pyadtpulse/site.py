@@ -375,15 +375,10 @@ class ADTPulseSite(object):
                         self._last_updated = last_updated
                 else:
                     LOG.warning(f"Failed to get alarm status from '{text}'")
-                    if text.rstrip() == "Status Unavailable.":
-                        LOG.warning(
-                            "Pulse alarm status unavailable: "
-                            "assuming gateway offline"
-                        )
-                        self._adt_service._set_gateway_status(False)
+                    self._adt_service._set_gateway_status(False)
                     self._status = ADT_ALARM_UNKNOWN
                     self._last_updated = last_updated
-
+                    return
                 LOG.debug(f"Alarm status = {self._status}")
             if self._sat == "":
                 sat_button = summary_html_soup.find(
@@ -623,8 +618,6 @@ class ADTPulseSite(object):
 
                 LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
             self._adt_service._set_gateway_status(gateway_online)
-            if not gateway_online:
-                LOG.warning("ADT Pulse gateway appears to be offline")
             self._last_updated = datetime.now()
             return self._zones
 
