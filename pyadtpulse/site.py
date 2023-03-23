@@ -97,10 +97,8 @@ class ADTPulseSite(object):
         Returns:
             str: the alarm status
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._status
-        return self._status
+        with self._site_lock:
+            return self._status
 
     @property
     def is_away(self) -> bool:
@@ -109,10 +107,8 @@ class ADTPulseSite(object):
         Returns:
             bool: True if armed away
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._status == ADT_ALARM_AWAY
-        return self._status == ADT_ALARM_AWAY
+        with self._site_lock:
+            return self._status == ADT_ALARM_AWAY
 
     @property
     def is_home(self) -> bool:
@@ -121,10 +117,8 @@ class ADTPulseSite(object):
         Returns:
             bool: True if system is armed home/stay
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._status == ADT_ALARM_HOME
-        return self._status == ADT_ALARM_HOME
+        with self._site_lock:
+            return self._status == ADT_ALARM_HOME
 
     @property
     def is_disarmed(self) -> bool:
@@ -133,10 +127,8 @@ class ADTPulseSite(object):
         Returns:
             bool: True if the system is disarmed
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._status == ADT_ALARM_OFF
-        return self._status == ADT_ALARM_OFF
+        with self._site_lock:
+            return self._status == ADT_ALARM_OFF
 
     @property
     def is_force_armed(self) -> bool:
@@ -145,10 +137,8 @@ class ADTPulseSite(object):
         Returns:
             bool: True if system armed in bypass mode
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._is_force_armed
-        return self._is_force_armed
+        with self._site_lock:
+            return self._is_force_armed
 
     @property
     def is_arming(self) -> bool:
@@ -157,10 +147,8 @@ class ADTPulseSite(object):
         Returns:
             bool: True if system is attempting to arm
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._status == ADT_ALARM_ARMING
-        return self._status == ADT_ALARM_ARMING
+        with self._site_lock:
+            return self._status == ADT_ALARM_ARMING
 
     @property
     def is_disarming(self) -> bool:
@@ -169,22 +157,18 @@ class ADTPulseSite(object):
         Returns:
             bool: True if system is attempting to disarm
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._status == ADT_ALARM_DISARMING
-        return self._status == ADT_ALARM_DISARMING
+        with self._site_lock:
+            return self._status == ADT_ALARM_DISARMING
 
     @property
     def last_updated(self) -> datetime:
         """Return time site last updated.
 
         Returns:
-            datetime: the time site last updated in UTC
+            datetime: the time site last updated as datetime
         """
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._last_updated
-        return self._last_updated
+        with self._site_lock:
+            return self._last_updated
 
     @property
     def site_lock(self) -> Union[RLock, DebugRLock]:
@@ -254,22 +238,14 @@ class ADTPulseSite(object):
                     f"Could not set alarm state to {mode} " f"because {error_text}"
                 )
                 return False
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                self._is_force_armed = force_arm
-                if mode == ADT_ALARM_OFF:
-                    self._status = ADT_ALARM_DISARMING
-                else:
-                    self._status = ADT_ALARM_ARMING
-                self._last_arm_disarm = self._last_updated = datetime.now()
-                return True
-        self._is_force_armed = force_arm
-        if mode == ADT_ALARM_OFF:
-            self._status = ADT_ALARM_DISARMING
-        else:
-            self._status = ADT_ALARM_ARMING
-        self._last_arm_disarm = self._last_updated = datetime.now()
-        return True
+        with self._site_lock:
+            self._is_force_armed = force_arm
+            if mode == ADT_ALARM_OFF:
+                self._status = ADT_ALARM_DISARMING
+            else:
+                self._status = ADT_ALARM_ARMING
+            self._last_arm_disarm = self._last_updated = datetime.now()
+            return True
 
     def _sync_set_alarm_mode(self, mode: str, force_arm: bool = False) -> bool:
         loop = self._adt_service.loop
@@ -346,12 +322,10 @@ class ADTPulseSite(object):
         (cached copy of last fetch)
         See Also fetch_zones()
         """
-        if not self._zones:
-            raise RuntimeError("No zones exist")
-        if self._adt_service.is_threaded:
-            with self._site_lock:
-                return self._zones.flatten()
-        return self._zones.flatten()
+        with self._site_lock:
+            if not self._zones:
+                raise RuntimeError("No zones exist")
+            return self._zones.flatten()
 
     @property
     def zones_as_dict(self) -> Optional[ADTPulseZones]:
@@ -360,11 +334,10 @@ class ADTPulseSite(object):
         Returns:
             ADTPulseZones: all zone information
         """
-        if not self._zones:
-            raise RuntimeError("No zones exist")
-        if self._adt_service.is_threaded:
+        with self._site_lock:
+            if not self._zones:
+                raise RuntimeError("No zones exist")
             return self._zones
-        return self._zones
 
     @property
     def history(self):
@@ -375,61 +348,60 @@ class ADTPulseSite(object):
         LOG.debug("Updating alarm status")
         value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
         sat_location = "security_button_0"
-        if self._adt_service.is_threaded:
-            self._site_lock.acquire()
-        if value:
-            text = value.text
-            last_updated = datetime.now()
-            if re.match("Disarmed", text):
-                if (
-                    self._status != ADT_ALARM_ARMING
-                    or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                ):
-                    self._status = ADT_ALARM_OFF
+        with self._site_lock:
+            if value:
+                text = value.text
+                last_updated = datetime.now()
+                if re.match("Disarmed", text):
+                    if (
+                        self._status != ADT_ALARM_ARMING
+                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
+                    ):
+                        self._status = ADT_ALARM_OFF
+                        self._last_updated = last_updated
+                elif re.match("Armed Away", text):
+                    if (
+                        self._status != ADT_ALARM_DISARMING
+                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
+                    ):
+                        self._status = ADT_ALARM_AWAY
+                        self._last_updated = last_updated
+                elif re.match("Armed Stay", text):
+                    if (
+                        self._status != ADT_ALARM_DISARMING
+                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
+                    ):
+                        self._status = ADT_ALARM_HOME
+                        self._last_updated = last_updated
+                else:
+                    LOG.warning(f"Failed to get alarm status from '{text}'")
+                    if text.rstrip() == "Status Unavailable.":
+                        LOG.warning(
+                            "Pulse alarm status unavailable: "
+                            "assuming gateway offline"
+                        )
+                        self._adt_service._set_gateway_status(False)
+                    self._status = ADT_ALARM_UNKNOWN
                     self._last_updated = last_updated
-            elif re.match("Armed Away", text):
-                if (
-                    self._status != ADT_ALARM_DISARMING
-                    or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                ):
-                    self._status = ADT_ALARM_AWAY
-                    self._last_updated = last_updated
-            elif re.match("Armed Stay", text):
-                if (
-                    self._status != ADT_ALARM_DISARMING
-                    or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                ):
-                    self._status = ADT_ALARM_HOME
-                    self._last_updated = last_updated
-            else:
-                LOG.warning(f"Failed to get alarm status from '{text}'")
-                if text.rstrip() == "Status Unavailable.":
-                    LOG.warning(
-                        "Pulse alarm status unavailable: " "assuming gateway offline"
-                    )
-                    self._adt_service._set_gateway_status(False)
-                self._status = ADT_ALARM_UNKNOWN
-                self._last_updated = last_updated
 
-            LOG.debug(f"Alarm status = {self._status}")
-        if self._sat == "":
-            sat_button = summary_html_soup.find(
-                "input", {"type": "button", "id": sat_location}
-            )
-            if sat_button and sat_button.has_attr("onclick"):
-                on_click = sat_button["onclick"]
-                match = re.search(r"sat=([a-z0-9\-]+)", on_click)
-                if match:
-                    self._sat = match.group(1)
-            elif len(self._sat) == 0:
-                LOG.warning("No sat recorded and was unable extract sat.")
+                LOG.debug(f"Alarm status = {self._status}")
+            if self._sat == "":
+                sat_button = summary_html_soup.find(
+                    "input", {"type": "button", "id": sat_location}
+                )
+                if sat_button and sat_button.has_attr("onclick"):
+                    on_click = sat_button["onclick"]
+                    match = re.search(r"sat=([a-z0-9\-]+)", on_click)
+                    if match:
+                        self._sat = match.group(1)
+                elif len(self._sat) == 0:
+                    LOG.warning("No sat recorded and was unable extract sat.")
 
-            if len(self._sat) > 0:
-                LOG.debug("Extracted sat = %s", self._sat)
-            else:
-                LOG.warning("Unable to extract sat")
-        if self._adt_service.is_threaded:
-            self._site_lock.release()
+                if len(self._sat) > 0:
+                    LOG.debug("Extracted sat = %s", self._sat)
+                else:
+                    LOG.warning("Unable to extract sat")
+
         #        status_orb = summary_html_soup.find('canvas', {'id': 'ic_orb'})
         #        if status_orb:
         #            self._status = status_orb['orb']
@@ -466,83 +438,75 @@ class ADTPulseSite(object):
 
         temp_zone: ADTPulseZoneData
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
-        if self._adt_service.is_threaded:
-            self._site_lock.acquire()
+        with self._site_lock:
+            for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
+                onClickValueText = row.get("onclick")
+                result = re.findall(regexDevice, onClickValueText)
 
-        for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
-            onClickValueText = row.get("onclick")
-            result = re.findall(regexDevice, onClickValueText)
-
-            # only proceed if regex succeeded, as some users have onClick
-            # links that include gateway.jsp
-            if not result:
-                LOG.debug(
-                    f"Failed regex match #{regexDevice} on #{onClickValueText} "
-                    "from ADT Pulse service, ignoring"
-                )
-                continue
-
-            device_id = result[0]
-            deviceResponse = await self._adt_service._async_query(
-                ADT_DEVICE_URI, extra_params={"id": device_id}
-            )
-            deviceResponseSoup = await make_soup(
-                deviceResponse,
-                logging.DEBUG,
-                "Failed loading zone data from ADT Pulse service",
-            )
-            if deviceResponseSoup is None:
-                return None
-
-            dName = dType = dZone = dStatus = ""
-            # dMan = ""
-            for devInfoRow in deviceResponseSoup.find_all(
-                "td", {"class", "InputFieldDescriptionL"}
-            ):
-                identityText = devInfoRow.get_text().upper()
-
-                sibling = devInfoRow.find_next_sibling()
-                if not sibling:
+                # only proceed if regex succeeded, as some users have onClick
+                # links that include gateway.jsp
+                if not result:
+                    LOG.debug(
+                        f"Failed regex match #{regexDevice} on #{onClickValueText} "
+                        "from ADT Pulse service, ignoring"
+                    )
                     continue
 
-                value = sibling.get_text().strip()
+                device_id = result[0]
+                deviceResponse = await self._adt_service._async_query(
+                    ADT_DEVICE_URI, extra_params={"id": device_id}
+                )
+                deviceResponseSoup = await make_soup(
+                    deviceResponse,
+                    logging.DEBUG,
+                    "Failed loading zone data from ADT Pulse service",
+                )
+                if deviceResponseSoup is None:
+                    return None
 
-                # FIXME: parse last activity
-                if identityText == "NAME:":
-                    dName = value
-                elif identityText == "TYPE/MODEL:":
-                    dType = value
-                elif identityText == "ZONE:":
-                    dZone = value
-                elif identityText == "STATUS:":
-                    dStatus = value
-            #                elif identityText == "MANUFACTURER/PROVIDER:":
-            #                   dMan = value
+                dName = dType = dZone = dStatus = ""
+                # dMan = ""
+                for devInfoRow in deviceResponseSoup.find_all(
+                    "td", {"class", "InputFieldDescriptionL"}
+                ):
+                    identityText = devInfoRow.get_text().upper()
+                    sibling = devInfoRow.find_next_sibling()
+                    if not sibling:
+                        continue
+                    value = sibling.get_text().strip()
+                    if identityText == "NAME:":
+                        dName = value
+                    elif identityText == "TYPE/MODEL:":
+                        dType = value
+                    elif identityText == "ZONE:":
+                        dZone = value
+                    elif identityText == "STATUS:":
+                        dStatus = value
+                #                elif identityText == "MANUFACTURER/PROVIDER:":
+                #                   dMan = value
 
-            # NOTE: if empty string, this is the control panel
-            if dZone != "":
-                tags = None
+                # NOTE: if empty string, this is the control panel
+                if dZone != "":
+                    tags = None
 
-                for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
-                    # convert to uppercase first
-                    if search_term.upper() in dType.upper():
-                        tags = default_tags
-                        break
+                    for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
+                        # convert to uppercase first
+                        if search_term.upper() in dType.upper():
+                            tags = default_tags
+                            break
 
-                if not tags:
-                    LOG.warning(
-                        f"Unknown sensor type for '{dType}', defaulting to doorWindow"
-                    )
-                    tags = ("sensor", "doorWindow")
-                LOG.debug(f"Adding sensor {dName} id: sensor-{dZone}")
-                LOG.debug(f"Status: {dStatus}, tags {tags}")
-                tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
-                self._zones.update({int(dZone): tmpzone})
-        self._last_updated = datetime.now()
-        if self._adt_service.is_threaded:
-            self._site_lock.release()
-        # FIXME: possible concurrency issue
-        return self._zones
+                    if not tags:
+                        LOG.warning(
+                            f"Unknown sensor type for '{dType}', "
+                            "defaulting to doorWindow"
+                        )
+                        tags = ("sensor", "doorWindow")
+                    LOG.debug(f"Adding sensor {dName} id: sensor-{dZone}")
+                    LOG.debug(f"Status: {dStatus}, tags {tags}")
+                    tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
+                    self._zones.update({int(dZone): tmpzone})
+            self._last_updated = datetime.now()
+            return self._zones
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
@@ -555,124 +519,114 @@ class ADTPulseSite(object):
             ADTPulseZones: a dictionary of zones with status
             None if an error occurred
         """
-        if self._adt_service.is_threaded:
-            self._site_lock.acquire()
-        if self._zones is None:
-            self._site_lock.release()
-            raise RuntimeError("No zones exist")
-        LOG.debug(f"fetching zones for site { self._id}")
-        if not soup:
-            # call ADT orb uri
-            soup = await self._adt_service._query_orb(
-                logging.WARNING, "Could not fetch zone status updates"
-            )
-
+        with self._site_lock:
+            if self._zones is None:
+                self._site_lock.release()
+                raise RuntimeError("No zones exist")
+            LOG.debug(f"fetching zones for site { self._id}")
+            if not soup:
+                # call ADT orb uri
+                soup = await self._adt_service._query_orb(
+                    logging.WARNING, "Could not fetch zone status updates"
+                )
             if soup is None:
-                if self._adt_service.is_threaded:
-                    self._site_lock.release()
                 return None
-        retval = self._update_zone_from_soup(soup)
-        if self._adt_service.is_threaded:
-            self._site_lock.release()
-        return retval
+            return self._update_zone_from_soup(soup)
 
     def _update_zone_from_soup(self, soup: BeautifulSoup) -> Optional[ADTPulseZones]:
         # parse ADT's convulated html to get sensor status
-        if self._adt_service.is_threaded:
-            self._site_lock.acquire()
-        gateway_online = False
-        for row in soup.find_all("tr", {"class": "p_listRow"}):
-            temp = row.find("span", {"class": "devStatIcon"})
-            if temp is None:
-                break
-            t = datetime.today()
-            last_update = datetime(1970, 1, 1)
-            datestring = remove_prefix(temp.get("title"), "Last Event:").split("\xa0")
-            if len(datestring) < 3:
-                LOG.warning(
-                    "Warning, could not retrieve last update for zone, "
-                    f"defaulting to {last_update}"
+        with self._site_lock:
+            gateway_online = False
+            for row in soup.find_all("tr", {"class": "p_listRow"}):
+                temp = row.find("span", {"class": "devStatIcon"})
+                if temp is None:
+                    break
+                t = datetime.today()
+                last_update = datetime(1970, 1, 1)
+                datestring = remove_prefix(temp.get("title"), "Last Event:").split(
+                    "\xa0"
                 )
-            else:
-                if datestring[0].lstrip() == "Today":
-                    last_update = t
-                else:
-                    if datestring[0].lstrip() == "Yesterday":
-                        last_update = t - timedelta(days=1)
-                    else:
-                        tempdate = ("/".join((datestring[0], str(t.year)))).lstrip()
-                        try:
-                            last_update = datetime.strptime(tempdate, "%m/%d/%Y")
-                        except ValueError:
-                            LOG.warning(
-                                f"pyadtpulse couldn't convert date {last_update}, "
-                                f"defaulting to {last_update}"
-                            )
-                        if last_update > t:
-                            last_update = last_update - relativedelta.relativedelta(
-                                years=1
-                            )
-                try:
-                    update_time = datetime.time(
-                        datetime.strptime(datestring[1] + datestring[2], "%I:%M%p")
-                    )
-                except ValueError:
-                    update_time = datetime.time(last_update)
+                if len(datestring) < 3:
                     LOG.warning(
-                        f"pyadtpulse couldn't convert time "
-                        f"{datestring[1] + datestring[2]}, "
-                        f"defaulting to {update_time}"
+                        "Warning, could not retrieve last update for zone, "
+                        f"defaulting to {last_update}"
                     )
-                last_update = datetime.combine(last_update, update_time)
+                else:
+                    if datestring[0].lstrip() == "Today":
+                        last_update = t
+                    else:
+                        if datestring[0].lstrip() == "Yesterday":
+                            last_update = t - timedelta(days=1)
+                        else:
+                            tempdate = ("/".join((datestring[0], str(t.year)))).lstrip()
+                            try:
+                                last_update = datetime.strptime(tempdate, "%m/%d/%Y")
+                            except ValueError:
+                                LOG.warning(
+                                    f"pyadtpulse couldn't convert date {last_update}, "
+                                    f"defaulting to {last_update}"
+                                )
+                            if last_update > t:
+                                last_update = last_update - relativedelta.relativedelta(
+                                    years=1
+                                )
+                    try:
+                        update_time = datetime.time(
+                            datetime.strptime(datestring[1] + datestring[2], "%I:%M%p")
+                        )
+                    except ValueError:
+                        update_time = datetime.time(last_update)
+                        LOG.warning(
+                            f"pyadtpulse couldn't convert time "
+                            f"{datestring[1] + datestring[2]}, "
+                            f"defaulting to {update_time}"
+                        )
+                    last_update = datetime.combine(last_update, update_time)
 
-            # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
-            temp = row.find("span", {"class": "p_grayNormalText"})
-            if temp is None:
-                break
-            zone = int(
-                remove_prefix(
-                    temp.get_text(),
-                    "Zone\xa0",
+                # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
+                temp = row.find("span", {"class": "p_grayNormalText"})
+                if temp is None:
+                    break
+                zone = int(
+                    remove_prefix(
+                        temp.get_text(),
+                        "Zone\xa0",
+                    )
                 )
-            )
-            state = remove_prefix(
-                row.find("canvas", {"class": "p_ic_icon_device"}).get("icon"), "devStat"
-            )
+                state = remove_prefix(
+                    row.find("canvas", {"class": "p_ic_icon_device"}).get("icon"),
+                    "devStat",
+                )
 
-            # parse out last activity (required dealing with "Yesterday 1:52 PM")
-            #           last_activity = time.time()
+                # parse out last activity (required dealing with "Yesterday 1:52 PM")
+                #           last_activity = time.time()
 
-            # id:    [integer]
-            # name:  device name
-            # tags:  sensor,[doorWindow,motion,glass,co,fire]
-            # timestamp: timestamp of last activity
-            # state: OK (device okay)
-            #        Open (door/window opened)
-            #        Motion (detected motion)
-            #        Tamper (glass broken or device tamper)
-            #        Alarm (detected CO/Smoke)
-            #        Unknown (device offline)
+                # id:    [integer]
+                # name:  device name
+                # tags:  sensor,[doorWindow,motion,glass,co,fire]
+                # timestamp: timestamp of last activity
+                # state: OK (device okay)
+                #        Open (door/window opened)
+                #        Motion (detected motion)
+                #        Tamper (glass broken or device tamper)
+                #        Alarm (detected CO/Smoke)
+                #        Unknown (device offline)
 
-            # update device state from ORB info
-            if not self._zones:
-                LOG.warning("No zones exist")
-                if self._adt_service.is_threaded:
-                    self._site_lock.release()
-                return None
-            if state != "Unknown":
-                gateway_online = True
-            self._zones.update_state(zone, state)
-            self._zones.update_timestamp(zone, last_update)
+                # update device state from ORB info
+                if not self._zones:
+                    LOG.warning("No zones exist")
+                    return None
+                if state != "Unknown":
+                    gateway_online = True
+                self._zones.update_state(zone, state)
+                self._zones.update_timestamp(zone, last_update)
 
-            LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
-        self._adt_service._set_gateway_status(gateway_online)
-        if not gateway_online:
-            LOG.warning("ADT Pulse gateway appears to be offline")
-        self._last_updated = datetime.now()
-        if self._adt_service.is_threaded:
-            self._site_lock.release()
-        # FIXME: possible concurrency issue
-        return self._zones
+                LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
+            self._adt_service._set_gateway_status(gateway_online)
+            if not gateway_online:
+                LOG.warning("ADT Pulse gateway appears to be offline")
+            self._last_updated = datetime.now()
+            return self._zones
 
     async def async_update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:
         """Update zones asynchronously.
@@ -682,12 +636,13 @@ class ADTPulseSite(object):
 
             None on error
         """
-        if not self._zones:
-            return None
-        zonelist = await self.async_update_zones_as_dict(None)
-        if not zonelist:
-            return None
-        return zonelist.flatten()
+        with self._site_lock:
+            if not self._zones:
+                return None
+            zonelist = await self.async_update_zones_as_dict(None)
+            if not zonelist:
+                return None
+            return zonelist.flatten()
 
     def update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:
         """Update zone status information.

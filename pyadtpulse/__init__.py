@@ -171,14 +171,11 @@ class PyADTPulse:
         Args:
             host (str): name of Pulse endpoint host
         """
-        if self.is_threaded:
-            self._attribute_lock.acquire()
-        self._api_host = f"https://{host}"
-        if self._session is not None:
-            self._session.headers.update({"Host": host})
-            self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
-        if self.is_threaded:
-            self._attribute_lock.release()
+        with self._attribute_lock:
+            self._api_host = f"https://{host}"
+            if self._session is not None:
+                self._session.headers.update({"Host": host})
+                self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
 
     def make_url(self, uri: str) -> str:
         """Create a URL to service host from a URI.
@@ -189,10 +186,8 @@ class PyADTPulse:
         Returns:
             str: the converted string
         """
-        if self.is_threaded:
-            with self._attribute_lock:
-                return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
-        return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
+        with self._attribute_lock:
+            return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
 
     @property
     def poll_interval(self) -> float:
@@ -201,10 +196,8 @@ class PyADTPulse:
         Returns:
             float: interval in seconds to poll for updates
         """
-        if self.is_threaded:
-            with self._attribute_lock:
-                return self._poll_interval
-        return self._poll_interval
+        with self._attribute_lock:
+            return self._poll_interval
 
     @poll_interval.setter
     def poll_interval(self, interval: float) -> None:
@@ -213,11 +206,7 @@ class PyADTPulse:
         Args:
             interval (float): interval in seconds to poll for updates
         """
-        if self.is_threaded:
-            self._attribute_lock.acquire()
-            self._poll_interval = interval
-            self._attribute_lock.release()
-        else:
+        with self._attribute_lock:
             self._poll_interval = interval
 
     @property
@@ -227,10 +216,8 @@ class PyADTPulse:
         Returns:
             str: the username
         """
-        if self.is_threaded:
-            with self._attribute_lock:
-                return self._username
-        return self._username
+        with self._attribute_lock:
+            return self._username
 
     @property
     def version(self) -> str:
@@ -239,10 +226,8 @@ class PyADTPulse:
         Returns:
             str: a string containing the version
         """
-        if self.is_threaded:
-            with self._attribute_lock:
-                return self._api_version
-        return self._api_version
+        with self._attribute_lock:
+            return self._api_version
 
     @property
     def gateway_online(self) -> bool:
@@ -251,10 +236,8 @@ class PyADTPulse:
         Returns:
             bool: True if gateway is online
         """
-        if self.is_threaded:
-            with self._attribute_lock:
-                return self._gateway_online
-        return self._gateway_online
+        with self._attribute_lock:
+            return self._gateway_online
 
     def _set_gateway_status(self, status: bool) -> None:
         """Set gateway status.
@@ -264,10 +247,8 @@ class PyADTPulse:
         Args:
             status (bool): True if gateway is online
         """
-        if self.is_threaded:
-            with self._attribute_lock:
-                self._gateway_online = status
-        self._gateway_online = status
+        with self._attribute_lock:
+            self._gateway_online = status
 
     async def _async_fetch_version(self) -> None:
         result = None
@@ -439,20 +420,8 @@ class PyADTPulse:
             Optional[asyncio.AbstractEventLoop]: the event loop object or
                                                  None if no thread is running
         """
-        if self.is_threaded:
-            with self._attribute_lock:
-                return self._loop
-        return self._loop
-
-    @property
-    def is_threaded(self) -> bool:
-        """Query if ADT Pulse Session is threaded/sync.
-
-        Returns:
-            bool: True if the session is threaded/sync
-        """
         with self._attribute_lock:
-            return self._loop is not None
+            return self._loop
 
     async def async_login(self) -> None:
         """Login asynchronously to ADT."""
@@ -610,20 +579,13 @@ class PyADTPulse:
         Returns:
             bool: True if updated data exists
         """
-        if self.is_threaded:
-            self._attribute_lock.acquire()
-        if self._updates_exist is None:
-            if self.is_threaded:
-                self._attribute_lock.release()
+        with self._attribute_lock:
+            if self._updates_exist is None:
+                return False
+            if self._updates_exist.is_set():
+                self._updates_exist.clear()
+                return True
             return False
-        if self._updates_exist.is_set():
-            self._updates_exist.clear()
-            if self.is_threaded:
-                self._attribute_lock.release()
-            return True
-        if self.is_threaded:
-            self._attribute_lock.release()
-        return False
 
     async def wait_for_update(self) -> None:
         """Wait for update.
@@ -643,15 +605,10 @@ class PyADTPulse:
         Returns:
             bool: True if connected
         """
-        if self.is_threaded:
-            self._attribute_lock.acquire()
-        if self._authenticated is None:
-            if self.is_threaded:
-                self._attribute_lock.release()
-            return False
-        if self.is_threaded:
-            self._attribute_lock.release()
-        return self._authenticated.is_set()
+        with self._attribute_lock:
+            if self._authenticated is None:
+                return False
+            return self._authenticated.is_set()
 
     async def _async_query(
         self,
@@ -834,7 +791,5 @@ class PyADTPulse:
     @property
     def sites(self) -> List[Any]:
         """Return all sites for this ADT Pulse account."""
-        if self.is_threaded:
-            with self._attribute_lock:
-                return self._sites
-        return self._sites
+        with self._attribute_lock:
+            return self._sites
