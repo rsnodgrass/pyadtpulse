@@ -515,10 +515,14 @@ class PyADTPulse:
 
     def logout(self) -> None:
         """Log out of ADT Pulse."""
-        if self._loop is None:
-            raise RuntimeError("Attempting to call sync logout without sync login")
+        with self._attribute_lock:
+            if self._loop is None:
+                raise RuntimeError("Attempting to call sync logout without sync login")
+            sync_thread = self._session_thread
         coro = self.async_logout()
         asyncio.run_coroutine_threadsafe(coro, self._loop)
+        if sync_thread is not None:
+            sync_thread.join()
 
     async def _sync_check_task(self) -> None:
         LOG.debug("creating Pulse sync check task")
