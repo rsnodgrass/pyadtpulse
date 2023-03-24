@@ -5,7 +5,6 @@ import asyncio
 from random import uniform
 import re
 import time
-from threading import Event as tEvent
 from threading import RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
@@ -70,7 +69,7 @@ class PyADTPulse:
         "_username",
         "_password",
         "_fingerprint",
-        "_login_complete",
+        "_login_exception",
         "_gateway_online",
     )
 
@@ -130,6 +129,7 @@ class PyADTPulse:
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
         self._gateway_online: bool = False
+        self._login_exception: Optional[BaseException] = None
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
             self._sites: List[ADTPulseSite]
@@ -138,7 +138,6 @@ class PyADTPulse:
 
         self._api_host = service_host
         self._poll_interval = poll_interval
-        self._login_complete = tEvent()
 
         # authenticate the user
         if do_login and self._session is None:
@@ -264,60 +263,62 @@ class PyADTPulse:
             self._gateway_online = status
 
     async def _async_fetch_version(self) -> None:
-        result = None
-        if self._session:
-            try:
-                async with self._session.get(self._api_host) as response:
-                    result = await response.text()
-                    response.raise_for_status()
-            except (ClientResponseError, ClientConnectionError):
+        with self._attribute_lock:
+            result = None
+            if self._session:
+                try:
+                    async with self._session.get(self._api_host) as response:
+                        result = await response.text()
+                        response.raise_for_status()
+                except (ClientResponseError, ClientConnectionError):
+                    LOG.warning(
+                        "Error occurred during API version fetch, defaulting to"
+                        f"{ADT_DEFAULT_VERSION}"
+                    )
+                    self._api_version = ADT_DEFAULT_VERSION
+                    return
+            if result is None:
                 LOG.warning(
                     "Error occurred during API version fetch, defaulting to"
                     f"{ADT_DEFAULT_VERSION}"
                 )
                 self._api_version = ADT_DEFAULT_VERSION
                 return
-        if result is None:
-            LOG.warning(
-                "Error occurred during API version fetch, defaulting to"
-                f"{ADT_DEFAULT_VERSION}"
-            )
+
+            m = re.search("/myhome/(.+)/[a-z]*/", result)
+            if m is not None:
+                self._api_version = m.group(1)
+                LOG.debug(
+                    "Discovered ADT Pulse version"
+                    f" {self._api_version} at {self._api_host}"
+                )
+                return
+
             self._api_version = ADT_DEFAULT_VERSION
-            return
-
-        m = re.search("/myhome/(.+)/[a-z]*/", result)
-        if m is not None:
-            self._api_version = m.group(1)
-            LOG.debug(
-                "Discovered ADT Pulse version"
-                f" {self._api_version} at {self._api_host}"
+            LOG.warning(
+                "Couldn't auto-detect ADT Pulse version, "
+                f"defaulting to {self._api_version}"
             )
-            return
-
-        self._api_version = ADT_DEFAULT_VERSION
-        LOG.warning(
-            "Couldn't auto-detect ADT Pulse version, "
-            f"defaulting to {self._api_version}"
-        )
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
-        if len(self._sites) == 0:
-            await self._initialize_sites(soup)
-        else:
-            # FIXME: this will have to be fixed once multiple ADT sites
-            # are supported, since the summary_html only represents the
-            # alarm status of the current site!!
-            if len(self._sites) > 1:
-                LOG.error(
-                    (
-                        "pyadtpulse DOES NOT support an ADT account ",
-                        "with multiple sites yet!!!",
+        with self._attribute_lock:
+            if len(self._sites) == 0:
+                await self._initialize_sites(soup)
+            else:
+                # FIXME: this will have to be fixed once multiple ADT sites
+                # are supported, since the summary_html only represents the
+                # alarm status of the current site!!
+                if len(self._sites) > 1:
+                    LOG.error(
+                        (
+                            "pyadtpulse DOES NOT support an ADT account ",
+                            "with multiple sites yet!!!",
+                        )
                     )
-                )
 
-        for site in self._sites:
-            site._update_alarm_from_soup(soup)
-            site._update_zone_from_soup(soup)
+            for site in self._sites:
+                site._update_alarm_from_soup(soup)
+                site._update_zone_from_soup(soup)
 
     async def _initialize_sites(self, soup: BeautifulSoup) -> None:
         # typically, ADT Pulse accounts have only a single site (premise/location)
@@ -343,7 +344,8 @@ class PyADTPulse:
                     await new_site._fetch_zones(None)
                     new_site._update_alarm_from_soup(soup)
                     new_site._update_zone_from_soup(soup)
-                    self._sites.append(new_site)
+                    with self._attribute_lock:
+                        self._sites.append(new_site)
                     return
             else:
                 LOG.warning(
@@ -366,10 +368,11 @@ class PyADTPulse:
     async def _keepalive_task(self) -> None:
         LOG.debug("creating Pulse keepalive task")
         response = None
-        if self._authenticated is None:
-            raise RuntimeError(
-                "Keepalive task is runnng without an authenticated event"
-            )
+        with self._attribute_lock:
+            if self._authenticated is None:
+                raise RuntimeError(
+                    "Keepalive task is runnng without an authenticated event"
+                )
         while self._authenticated.is_set():
             try:
                 await asyncio.sleep(ADT_TIMEOUT_INTERVAL)
@@ -398,23 +401,38 @@ class PyADTPulse:
         self._session_thread = None
 
     async def _sync_loop(self) -> None:
-        await self.async_login()
-        self._attribute_lock.release()
-        self._login_complete.set()
-        if self._sync_task is not None and self._timeout_task is not None:
-            await asyncio.wait((self._sync_task, self._timeout_task))
+        e: Optional[BaseException] = None
+        try:
+            await self.async_login()
+        except BaseException as e:
+            self._login_exception = e
+        finally:
+            self._attribute_lock.release()
+        if e is None:
+            if self._sync_task is not None and self._timeout_task is not None:
+                await asyncio.wait((self._sync_task, self._timeout_task))
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token."""
         self._attribute_lock.acquire()
-        self._session_thread = Thread(
+        self._session_thread = thread = Thread(
             target=self._pulse_session_thread,
             name="PyADTPulse Session",
             daemon=True,
         )
         self._attribute_lock.release()
         self._session_thread.start()
-        self._login_complete.wait()
+        time.sleep(1)
+        # thread will unlock after async_login, so attempt to obtain
+        # lock to block current thread until then
+        # if it's still alive, no exception
+        self._attribute_lock.acquire()
+        self._attribute_lock.release()
+        if not thread.is_alive():
+            if self._login_exception is not None:
+                raise (self._login_exception)
+            else:
+                LOG.error("Unexpected termination of pyadtpulse sync thread")
 
     @property
     def attribute_lock(self) -> Union[RLock, DebugRLock]:
