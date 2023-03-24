@@ -24,7 +24,7 @@ class ADTPulseZoneData:
 
     Fields:
         name (str): the zone name
-        id (str): zone name in ADT Pulse (Note, not id as this is a reserved word)
+        id_ (str): zone name in ADT Pulse (Note, not id as this is a reserved word)
         tags (Tuple): sensor and type(s)
         status (str): sensor status (i.e. Online, Low Battery, etc.)
         state (str): sensor state (i.e. Opened, Closed, etc)
@@ -47,7 +47,7 @@ class ADTPulseFlattendZone(TypedDict):
     Fields:
         zone (int): the zone id
         name (str): the zone name
-        id (str): zone name in ADT Pulse (Note, not id as this is a reserved word)
+        id_ (str): zone name in ADT Pulse (Note, not id as this is a reserved word)
         tags (Tuple): sensor and type(s)
         status (str): sensor status (i.e. Online, Low Battery, etc.)
         state (str): sensor state (i.e. Opened, Closed, etc)
