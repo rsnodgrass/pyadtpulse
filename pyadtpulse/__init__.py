@@ -34,7 +34,12 @@ from pyadtpulse.const import (
     API_PREFIX,
     DEFAULT_API_HOST,
 )
-from pyadtpulse.util import DebugRLock, handle_response, make_soup
+from pyadtpulse.util import (
+    DebugRLock,
+    handle_response,
+    make_soup,
+    AuthenticationException,
+)
 
 # FIXME -- circular reference
 # from pyadtpulse.site import ADTPulseSite
@@ -401,20 +406,23 @@ class PyADTPulse:
         self._session_thread = None
 
     async def _sync_loop(self) -> None:
-        e: Optional[BaseException] = None
-        try:
-            await self.async_login()
-        except BaseException as e:
-            self._login_exception = e
-        finally:
-            self._attribute_lock.release()
-        if e is None:
+        result = await self.async_login()
+        self._attribute_lock.release()
+        if result:
             if self._sync_task is not None and self._timeout_task is not None:
                 await asyncio.wait((self._sync_task, self._timeout_task))
+            else:
+                # we should never get here
+                raise RuntimeError("Background pyadtpulse tasks not created")
 
     def login(self) -> None:
-        """Login to ADT Pulse and generate access token."""
+        """Login to ADT Pulse and generate access token.
+
+        Raises:
+            AuthenticationException if could not login
+        """
         self._attribute_lock.acquire()
+        # probably shouldn't be a daemon thread
         self._session_thread = thread = Thread(
             target=self._pulse_session_thread,
             name="PyADTPulse Session",
@@ -429,10 +437,7 @@ class PyADTPulse:
         self._attribute_lock.acquire()
         self._attribute_lock.release()
         if not thread.is_alive():
-            if self._login_exception is not None:
-                raise (self._login_exception)
-            else:
-                LOG.error("Unexpected termination of pyadtpulse sync thread")
+            raise AuthenticationException(self._username)
 
     @property
     def attribute_lock(self) -> Union[RLock, DebugRLock]:
@@ -454,8 +459,11 @@ class PyADTPulse:
         with self._attribute_lock:
             return self._loop
 
-    async def async_login(self) -> None:
-        """Login asynchronously to ADT."""
+    async def async_login(self) -> bool:
+        """Login asynchronously to ADT.
+
+        Returns: True if login successful
+        """
         if self._session is None:
             self._session = ClientSession()
         self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
@@ -484,12 +492,14 @@ class PyADTPulse:
             response, logging.ERROR, "Could not log into ADT Pulse site"
         )
         if soup is None:
-            return
+            await self._session.close()
+            return False
 
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
-            LOG.error(f"Invalid ADT Pulse response: ): {error}")
-            return
+            LOG.error(f"Invalid ADT Pulse response: {error}")
+            await self._session.close()
+            return False
 
         self._authenticated.set()
         self._last_timeout_reset = time.time()
@@ -510,6 +520,7 @@ class PyADTPulse:
         if self._updates_exist is None:
             self._updates_exist = asyncio.locks.Event()
         await asyncio.sleep(0)
+        return True
 
     async def async_logout(self) -> None:
         """Logout of ADT Pulse async."""

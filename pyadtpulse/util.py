@@ -75,7 +75,7 @@ class DebugRLock:
     """Provides a debug lock logging caller who acquired/released."""
 
     def __init__(self, name: str):
-        """Initlize the lock."""
+        """Create the lock."""
         self._Rlock = RLock()
         self._lock_name = name
 
@@ -150,3 +150,15 @@ class DebugRLock:
         )
 
         self._Rlock.release()
+
+
+class AuthenticationException(RuntimeError):
+    """Raised when a login failed."""
+
+    def __init(self, username: str):
+        """Create the exception.
+
+        Args:
+            username (str): Username used to login
+        """
+        super().__init__(f"Could not log into ADT site with username {username}")

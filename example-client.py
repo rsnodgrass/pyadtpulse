@@ -11,6 +11,7 @@ from typing import Dict, Optional
 
 from pyadtpulse import PyADTPulse
 from pyadtpulse.site import ADTPulseSite
+from pyadtpulse.util import AuthenticationException
 
 USER = "adtpulse_user"
 PASSWD = "adtpulse_password"
@@ -201,7 +202,15 @@ def sync_example(
         sleep_interval (int): how long in seconds to sleep between update checks
         debug_locks: bool: True to enable thread lock debugging
     """
-    adt = PyADTPulse(username, password, fingerprint, debug_locks=debug_locks)
+    try:
+        adt = PyADTPulse(username, password, fingerprint, debug_locks=debug_locks)
+    except AuthenticationException:
+        print("Invalid credentials for ADT Pulse site")
+        sys.exit()
+    except BaseException as e:
+        print("Received exception logging into ADT Pulse site")
+        print(f"{e}")
+        sys.exit()
 
     if not adt.is_connected:
         print("Error: Could not log into ADT Pulse site")
