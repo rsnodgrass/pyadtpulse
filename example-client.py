@@ -350,7 +350,10 @@ async def async_example(
         username, password, fingerprint, do_login=False, debug_locks=debug_locks
     )
 
-    await adt.async_login()
+    if not await adt.async_login():
+        print("ADT Pulse login failed")
+        return
+    
     if not adt.is_connected:
         print("Error: could not log into ADT Pulse site")
         return
