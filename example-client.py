@@ -353,7 +353,7 @@ async def async_example(
     if not await adt.async_login():
         print("ADT Pulse login failed")
         return
-    
+
     if not adt.is_connected:
         print("Error: could not log into ADT Pulse site")
         return

@@ -505,7 +505,7 @@ class ADTPulseSite(object):
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
-    async def async_update_zones_as_dict(
+    async def _async_update_zones_as_dict(
         self, soup: Optional[BeautifulSoup]
     ) -> Optional[ADTPulseZones]:
         """Update zone status information asynchronously.
@@ -621,7 +621,7 @@ class ADTPulseSite(object):
             self._last_updated = datetime.now()
             return self._zones
 
-    async def async_update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:
+    async def _async_update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:
         """Update zones asynchronously.
 
         Returns:
@@ -632,7 +632,7 @@ class ADTPulseSite(object):
         with self._site_lock:
             if not self._zones:
                 return None
-            zonelist = await self.async_update_zones_as_dict(None)
+            zonelist = await self._async_update_zones_as_dict(None)
             if not zonelist:
                 return None
             return zonelist.flatten()
@@ -643,7 +643,7 @@ class ADTPulseSite(object):
         Returns:
             Optional[List[ADTPulseFlattendZone]]: a list of zones with status
         """
-        coro = self.async_update_zones()
+        coro = self._async_update_zones()
         return run_coroutine_threadsafe(coro, get_event_loop()).result()
 
     @property

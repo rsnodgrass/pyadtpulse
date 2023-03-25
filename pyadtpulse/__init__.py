@@ -735,7 +735,7 @@ class PyADTPulse:
                             f"{max_retries}, giving up"
                         )
                         response.raise_for_status()
-                    await asyncio.sleep(0.5 * 2**retry + uniform(0.0, 1.0))
+                    await asyncio.sleep(2**retry + uniform(0.0, 1.0))
                     continue
                 response.raise_for_status()
                 # success, break loop
