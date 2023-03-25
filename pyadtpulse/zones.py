@@ -38,7 +38,7 @@ class ADTPulseZoneData:
     tags: Tuple = ADT_NAME_TO_DEFAULT_TAGS["Window"]
     status: str = "Unknown"
     state: str = "Unknown"
-    timestamp: float = 0.0
+    last_activity_timestamp: float = 0.0
 
 
 class ADTPulseFlattendZone(TypedDict):
@@ -60,7 +60,7 @@ class ADTPulseFlattendZone(TypedDict):
     tags: Tuple
     status: str
     state: str
-    timestamp: float
+    last_activity_timestamp: float
 
 
 class ADTPulseZones(UserDict):
@@ -131,7 +131,7 @@ class ADTPulseZones(UserDict):
         temp.state = state
         self.__setitem__(key, temp)
 
-    def update_timestamp(self, key: int, dt: datetime) -> None:
+    def update_last_activity_timestamp(self, key: int, dt: datetime) -> None:
         """Update timestamp.
 
         Args:
@@ -139,7 +139,7 @@ class ADTPulseZones(UserDict):
             dt (datetime): timestamp to set
         """
         temp = self._get_zonedata(key)
-        temp.timestamp = dt.timestamp()
+        temp.last_activity_timestamp = dt.timestamp()
         self.__setitem__(key, temp)
 
     def flatten(self) -> List[ADTPulseFlattendZone]:
@@ -160,7 +160,7 @@ class ADTPulseZones(UserDict):
                     "tags": i.tags,
                     "status": i.status,
                     "state": i.state,
-                    "timestamp": i.timestamp,
+                    "last_activity_timestamp": i.last_activity_timestamp,
                 }
             )
         return result

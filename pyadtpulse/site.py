@@ -614,7 +614,7 @@ class ADTPulseSite(object):
                 if state != "Unknown":
                     gateway_online = True
                 self._zones.update_state(zone, state)
-                self._zones.update_timestamp(zone, last_update)
+                self._zones.update_last_activity_timestamp(zone, last_update)
 
                 LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
             self._adt_service._set_gateway_status(gateway_online)
