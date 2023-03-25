@@ -1,31 +1,45 @@
 """Base Python Class for pyadtpulse."""
 
 import logging
+import asyncio
+from random import uniform
 import re
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from threading import RLock, Thread
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
+import uvloop
+from aiohttp import (
+    ClientConnectionError,
+    ClientResponse,
+    ClientResponseError,
+    ClientSession,
+)
 from bs4 import BeautifulSoup
-from requests import HTTPError, Response, Session, RequestException
-from requests.adapters import HTTPAdapter
-from urllib3 import Retry
 
 from pyadtpulse.const import (
     ADT_DEFAULT_HTTP_HEADERS,
+    ADT_DEFAULT_POLL_INTERVAL,
     ADT_DEFAULT_VERSION,
     ADT_DEVICE_URI,
+    ADT_GATEWAY_OFFLINE_POLL_INTERVAL,
+    ADT_HTTP_REFERER_URIS,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
-    ADT_SYSTEM_URI,
+    ADT_ORB_URI,
     ADT_SYNC_CHECK_URI,
+    ADT_SYSTEM_URI,
+    ADT_TIMEOUT_INTERVAL,
+    ADT_TIMEOUT_URI,
     API_PREFIX,
     DEFAULT_API_HOST,
-    ADT_TIMEOUT_URI,
-    ADT_TIMEOUT_INTERVAL,
-    ADT_HTTP_REFERER_URIS,
-    ADT_ORB_URI,
 )
-from pyadtpulse.util import handle_response, make_soup
+from pyadtpulse.util import (
+    DebugRLock,
+    handle_response,
+    make_soup,
+    AuthenticationException,
+)
 
 # FIXME -- circular reference
 # from pyadtpulse.site import ADTPulseSite
@@ -41,12 +55,40 @@ RECOVERABLE_ERRORS = [429, 500, 502, 503, 504]
 class PyADTPulse:
     """Base object for ADT Pulse service."""
 
+    __slots__ = (
+        "_session",
+        "_user_agent",
+        "_api_version",
+        "_sync_task",
+        "_timeout_task",
+        "_authenticated",
+        "_updates_exist",
+        "_loop",
+        "_session_thread",
+        "_attribute_lock",
+        "_last_timeout_reset",
+        "_sync_timestamp",
+        "_sites",
+        "_api_host",
+        "_poll_interval",
+        "_username",
+        "_password",
+        "_fingerprint",
+        "_login_exception",
+        "_gateway_online",
+    )
+
     def __init__(
         self,
         username: str,
         password: str,
         fingerprint: str,
+        service_host: str = DEFAULT_API_HOST,
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
+        websession: Optional[ClientSession] = None,
+        do_login: bool = True,
+        poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
+        debug_locks: bool = False,
     ):
         """Create a PyADTPulse object.
 
@@ -54,27 +96,57 @@ class PyADTPulse:
             username (str): Username.
             password (str): Password.
             fingerprint (str): 2FA fingerprint.
+            service_host (str, optional): host prefix to use
+                         i.e. https://portal.adtpulse.com or
+                              https://portal-ca.adtpulse.com
             user_agent (str, optional): User Agent.
                          Defaults to ADT_DEFAULT_HTTP_HEADERS["User-Agent"].
+            websession (ClientSession, optional): an initialized
+                        aiohttp.ClientSession to use, defaults to None
+            do_login (bool, optional): login synchronously when creating object
+                            Should be set to False for asynchronous usage
+                            and async_login() should be called instead
+                            Setting websession will override this
+                            and not login
+                        Defaults to True
+            poll_interval (float, optional): number of seconds between update checks
         """
+        self._session = websession
+        if self._session is not None:
+            self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
         self._init_login_info(username, password, fingerprint)
-        self._init_session()
         self._user_agent = user_agent
-        self._api_version: Optional[str] = None
+        self._api_version: str = ADT_DEFAULT_VERSION
 
+        self._sync_task: Optional[asyncio.Task] = None
+        self._timeout_task: Optional[asyncio.Task] = None
+        # FIXME use thread event/condition, regular condition?
+        # defer initialization to make sure we have an event loop
+        self._authenticated: Optional[asyncio.locks.Event] = None
+        self._updates_exist: Optional[asyncio.locks.Event] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._session_thread: Optional[Thread] = None
+        self._attribute_lock: Union[RLock, DebugRLock]
+        if not debug_locks:
+            self._attribute_lock = RLock()
+        else:
+            self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
+        self._gateway_online: bool = False
+        self._login_exception: Optional[BaseException] = None
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
             self._sites: List[ADTPulseSite]
         else:
             self._sites: List[Any] = []
 
-        self._api_host = DEFAULT_API_HOST
+        self._api_host = service_host
+        self._poll_interval = poll_interval
 
         # authenticate the user
-        self._authenticated = False
-        self.login()
+        if do_login and self._session is None:
+            self.login()
 
     def _init_login_info(self, username: str, password: str, fingerprint: str) -> None:
         if username is None or username == "":
@@ -90,19 +162,6 @@ class PyADTPulse:
             raise ValueError("Fingerprint is required")
         self._fingerprint = fingerprint
 
-    def _init_session(self) -> None:
-        retry_strategy = Retry(
-            total=3,
-            status_forcelist=RECOVERABLE_ERRORS,
-            allowed_methods=["HEAD", "GET", "OPTIONS", "POST"],
-            backoff_factor=0.1,
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self._session = Session()
-        self._session.mount("https://", adapter)
-        self._session.mount("http://", adapter)
-        self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
-
     def __repr__(self) -> str:
         """Object representation."""
         return "<{}: {}>".format(self.__class__.__name__, self._username)
@@ -116,8 +175,11 @@ class PyADTPulse:
         Args:
             host (str): name of Pulse endpoint host
         """
-        self._api_host = f"https://{host}"
-        self._session.headers.update({"Host": host})
+        with self._attribute_lock:
+            self._api_host = f"https://{host}"
+            if self._session is not None:
+                self._session.headers.update({"Host": host})
+                self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
 
     def make_url(self, uri: str) -> str:
         """Create a URL to service host from a URI.
@@ -128,7 +190,28 @@ class PyADTPulse:
         Returns:
             str: the converted string
         """
-        return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
+        with self._attribute_lock:
+            return f"{self._api_host}{API_PREFIX}{self.version}{uri}"
+
+    @property
+    def poll_interval(self) -> float:
+        """Get polling interval.
+
+        Returns:
+            float: interval in seconds to poll for updates
+        """
+        with self._attribute_lock:
+            return self._poll_interval
+
+    @poll_interval.setter
+    def poll_interval(self, interval: float) -> None:
+        """Set polling interval.
+
+        Args:
+            interval (float): interval in seconds to poll for updates
+        """
+        with self._attribute_lock:
+            self._poll_interval = interval
 
     @property
     def username(self) -> str:
@@ -137,7 +220,8 @@ class PyADTPulse:
         Returns:
             str: the username
         """
-        return self._username
+        with self._attribute_lock:
+            return self._username
 
     @property
     def version(self) -> str:
@@ -146,17 +230,74 @@ class PyADTPulse:
         Returns:
             str: a string containing the version
         """
-        if not self._api_version:
-            response = self._session.get(self._api_host)
-            LOG.debug(f"Retrieved {response.url} trying to GET {self._api_host}")
-            m = re.search("/myhome/(.+)/access", response.url)
+        with self._attribute_lock:
+            return self._api_version
+
+    @property
+    def gateway_online(self) -> bool:
+        """Retrieve whether Pulse Gateway is online.
+
+        Returns:
+            bool: True if gateway is online
+        """
+        with self._attribute_lock:
+            return self._gateway_online
+
+    def _set_gateway_status(self, status: bool) -> None:
+        """Set gateway status.
+
+        Private method used by site object
+
+        Args:
+            status (bool): True if gateway is online
+        """
+        with self._attribute_lock:
+            if status == self._gateway_online:
+                return
+            if status:
+                LOG.warning(
+                    "ADT Pulse gateway is online, "
+                    f"setting poll interval to {self._poll_interval}"
+                )
+            else:
+                LOG.warning(
+                    "ADT Pulse gateway is offline, "
+                    "setting poll interval to"
+                    f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL}"
+                )
+            self._gateway_online = status
+
+    async def _async_fetch_version(self) -> None:
+        with self._attribute_lock:
+            result = None
+            if self._session:
+                try:
+                    async with self._session.get(self._api_host) as response:
+                        result = await response.text()
+                        response.raise_for_status()
+                except (ClientResponseError, ClientConnectionError):
+                    LOG.warning(
+                        "Error occurred during API version fetch, defaulting to"
+                        f"{ADT_DEFAULT_VERSION}"
+                    )
+                    self._api_version = ADT_DEFAULT_VERSION
+                    return
+            if result is None:
+                LOG.warning(
+                    "Error occurred during API version fetch, defaulting to"
+                    f"{ADT_DEFAULT_VERSION}"
+                )
+                self._api_version = ADT_DEFAULT_VERSION
+                return
+
+            m = re.search("/myhome/(.+)/[a-z]*/", result)
             if m is not None:
                 self._api_version = m.group(1)
                 LOG.debug(
                     "Discovered ADT Pulse version"
                     f" {self._api_version} at {self._api_host}"
                 )
-                return self._api_version
+                return
 
             self._api_version = ADT_DEFAULT_VERSION
             LOG.warning(
@@ -164,29 +305,27 @@ class PyADTPulse:
                 f"defaulting to {self._api_version}"
             )
 
-        return self._api_version
-
-    def _update_sites(self, soup: BeautifulSoup) -> None:
-
-        if len(self._sites) == 0:
-            self._initialize_sites(soup)
-        else:
-            # FIXME: this will have to be fixed once multiple ADT sites
-            # are supported, since the summary_html only represents the
-            # alarm status of the current site!!
-            if len(self._sites) > 1:
-                LOG.error(
-                    (
-                        "pyadtpulse DOES NOT support an ADT account ",
-                        "with multiple sites yet!!!",
+    async def _update_sites(self, soup: BeautifulSoup) -> None:
+        with self._attribute_lock:
+            if len(self._sites) == 0:
+                await self._initialize_sites(soup)
+            else:
+                # FIXME: this will have to be fixed once multiple ADT sites
+                # are supported, since the summary_html only represents the
+                # alarm status of the current site!!
+                if len(self._sites) > 1:
+                    LOG.error(
+                        (
+                            "pyadtpulse DOES NOT support an ADT account ",
+                            "with multiple sites yet!!!",
+                        )
                     )
-                )
 
-        for site in self._sites:
-            site._update_alarm_status(soup, update_zones=True)
+            for site in self._sites:
+                site._update_alarm_from_soup(soup)
+                site._update_zone_from_soup(soup)
 
-    def _initialize_sites(self, soup: BeautifulSoup) -> None:
-        sites = self._sites
+    async def _initialize_sites(self, soup: BeautifulSoup) -> None:
         # typically, ADT Pulse accounts have only a single site (premise/location)
         singlePremise = soup.find("span", {"id": "p_singlePremise"})
         if singlePremise:
@@ -204,8 +343,14 @@ class PyADTPulse:
                     site_id = m.group(1)
                     LOG.debug(f"Discovered site id {site_id}: {site_name}")
                     # FIXME ADTPulseSite circular reference
-                    sites.append(ADTPulseSite(self, site_id, site_name, soup))
-                    self._sites = sites
+                    new_site = ADTPulseSite(self, site_id, site_name)
+                    # fetch zones first, so that we can have the status
+                    # updated with _update_alarm_status
+                    await new_site._fetch_zones(None)
+                    new_site._update_alarm_from_soup(soup)
+                    new_site._update_zone_from_soup(soup)
+                    with self._attribute_lock:
+                        self._sites.append(new_site)
                     return
             else:
                 LOG.warning(
@@ -221,22 +366,115 @@ class PyADTPulse:
     #
     # ... or perhaps better, just extract all from /system/settings.jsp
 
-    def _reset_timeout(self) -> None:
-        if not self._authenticated:
-            return
-        LOG.debug("Resetting timeout")
-        response = self.query(ADT_TIMEOUT_URI, "POST")
-        if handle_response(
-            response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
-        ):
-            self._last_timeout_reset = time.time()
+    def _close_response(self, response: Optional[ClientResponse]) -> None:
+        if response is not None and not response.closed:
+            response.close()
+
+    async def _keepalive_task(self) -> None:
+        LOG.debug("creating Pulse keepalive task")
+        response = None
+        with self._attribute_lock:
+            if self._authenticated is None:
+                raise RuntimeError(
+                    "Keepalive task is runnng without an authenticated event"
+                )
+        while self._authenticated.is_set():
+            try:
+                await asyncio.sleep(ADT_TIMEOUT_INTERVAL)
+                LOG.debug("Resetting timeout")
+                response = await self._async_query(ADT_TIMEOUT_URI, "POST")
+                if handle_response(
+                    response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
+                ):
+                    self._close_response(response)
+                    continue
+                self._close_response(response)
+            except asyncio.CancelledError:
+                LOG.debug("ADT Pulse timeout task cancelled")
+                self._close_response(response)
+                return
+
+    def _pulse_session_thread(self) -> None:
+        # lock is released in sync_loop()
+        self._attribute_lock.acquire()
+        LOG.debug("creating Pulse background thread")
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        self._loop = asyncio.new_event_loop()
+        self._loop.run_until_complete(self._sync_loop())
+        self._loop.close()
+        self._loop = None
+        self._session_thread = None
+
+    async def _sync_loop(self) -> None:
+        result = await self.async_login()
+        self._attribute_lock.release()
+        if result:
+            if self._sync_task is not None and self._timeout_task is not None:
+                await asyncio.wait((self._sync_task, self._timeout_task))
+            else:
+                # we should never get here
+                raise RuntimeError("Background pyadtpulse tasks not created")
 
     def login(self) -> None:
-        """Login to ADT Pulse and generate access token."""
-        self._authenticated = False
-        LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
+        """Login to ADT Pulse and generate access token.
 
-        response = self.query(
+        Raises:
+            AuthenticationException if could not login
+        """
+        self._attribute_lock.acquire()
+        # probably shouldn't be a daemon thread
+        self._session_thread = thread = Thread(
+            target=self._pulse_session_thread,
+            name="PyADTPulse Session",
+            daemon=True,
+        )
+        self._attribute_lock.release()
+        self._session_thread.start()
+        time.sleep(1)
+        # thread will unlock after async_login, so attempt to obtain
+        # lock to block current thread until then
+        # if it's still alive, no exception
+        self._attribute_lock.acquire()
+        self._attribute_lock.release()
+        if not thread.is_alive():
+            raise AuthenticationException(self._username)
+
+    @property
+    def attribute_lock(self) -> Union[RLock, DebugRLock]:
+        """Get attribute lock for PyADTPulse object.
+
+        Returns:
+            RLock: thread Rlock
+        """
+        return self._attribute_lock
+
+    @property
+    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        """Get event loop.
+
+        Returns:
+            Optional[asyncio.AbstractEventLoop]: the event loop object or
+                                                 None if no thread is running
+        """
+        with self._attribute_lock:
+            return self._loop
+
+    async def async_login(self) -> bool:
+        """Login asynchronously to ADT.
+
+        Returns: True if login successful
+        """
+        if self._session is None:
+            self._session = ClientSession()
+        self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
+        if self._authenticated is None:
+            self._authenticated = asyncio.locks.Event()
+        else:
+            self._authenticated.clear()
+        LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
+        await self._async_fetch_version()
+
+        response = await self._async_query(
             ADT_LOGIN_URI,
             method="POST",
             extra_params={
@@ -250,32 +488,135 @@ class PyADTPulse:
             timeout=10,
         )
 
-        soup = make_soup(response, logging.ERROR, "Could not log into ADT Pulse site")
+        soup = await make_soup(
+            response, logging.ERROR, "Could not log into ADT Pulse site"
+        )
         if soup is None:
-            self._authenticated = False
-            return
+            await self._session.close()
+            return False
 
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
-            LOG.error(f"Invalid ADT Pulse response: ): {error}")
-            self._authenticated = False
-            return
+            LOG.error(f"Invalid ADT Pulse response: {error}")
+            await self._session.close()
+            return False
 
-        self._authenticated = True
+        self._authenticated.set()
         self._last_timeout_reset = time.time()
 
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
 
-        self._update_sites(soup)
+        await self._update_sites(soup)
         self._sync_timestamp = time.time()
+        if self._sync_task is None:
+            self._sync_task = asyncio.create_task(
+                self._sync_check_task(), name="PyADTPulse sync check"
+            )
+        if self._timeout_task is None:
+            self._timeout_task = asyncio.create_task(
+                self._keepalive_task(), name="PyADTPulse timeout"
+            )
+        if self._updates_exist is None:
+            self._updates_exist = asyncio.locks.Event()
+        await asyncio.sleep(0)
+        return True
+
+    async def async_logout(self) -> None:
+        """Logout of ADT Pulse async."""
+        LOG.info(f"Logging {self._username} out of ADT Pulse")
+        if self._timeout_task is not None:
+            try:
+                self._timeout_task.cancel()
+            except asyncio.CancelledError:
+                LOG.debug("Pulse timeout task successfully cancelled")
+                await self._timeout_task
+        if self._sync_task is not None:
+            try:
+                self._sync_task.cancel()
+            except asyncio.CancelledError:
+                LOG.debug("Pulse sync check task successfully cancelled")
+                await self._sync_task
+        self._timeout_task = self._sync_task = None
+        await self._async_query(ADT_LOGOUT_URI, timeout=10)
+        if self._session is not None:
+            if not self._session.closed:
+                await self._session.close()
+        self._last_timeout_reset = time.time()
+        if self._authenticated is not None:
+            self._authenticated.clear()
 
     def logout(self) -> None:
         """Log out of ADT Pulse."""
-        LOG.info(f"Logging {self._username} out of ADT Pulse")
-        self.query(ADT_LOGOUT_URI, timeout=10)
-        self._last_timeout_reset = time.time()
-        self._authenticated = False
+        with self._attribute_lock:
+            if self._loop is None:
+                raise RuntimeError("Attempting to call sync logout without sync login")
+            sync_thread = self._session_thread
+        coro = self.async_logout()
+        asyncio.run_coroutine_threadsafe(coro, self._loop)
+        if sync_thread is not None:
+            sync_thread.join()
+
+    async def _sync_check_task(self) -> None:
+        LOG.debug("creating Pulse sync check task")
+        response = None
+        if self._updates_exist is None:
+            raise RuntimeError(
+                "Sync check task started without update event initialized"
+            )
+        while True:
+            try:
+                if self.gateway_online:
+                    pi = self.poll_interval
+                else:
+                    LOG.warning(
+                        "Pulse gateway detected offline, polling every "
+                        f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL} seconds"
+                    )
+                    pi = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
+                await asyncio.sleep(pi)
+                response = await self._async_query(
+                    ADT_SYNC_CHECK_URI,
+                    extra_params={"ts": int(self._sync_timestamp * 1000)},
+                )
+                if response is None:
+                    continue
+                text = await response.text()
+                if not handle_response(
+                    response, logging.ERROR, "Error querying ADT sync"
+                ):
+                    self._close_response(response)
+                    continue
+
+                pattern = r"\d+[-]\d+[-]\d+"
+                if not re.match(pattern, text):
+                    LOG.warn(
+                        f"Unexpected sync check format ({pattern}), forcing re-auth"
+                    )
+                    LOG.debug(f"Received {text} from ADT Pulse site")
+                    self._close_response(response)
+                    await self.async_login()
+                    continue
+
+                # we can have 0-0-0 followed by 1-0-0 followed by 2-0-0, etc
+                # wait until these settle
+                if text.endswith("-0-0"):
+                    LOG.debug(
+                        f"Sync token {text} indicates updates may exist, requerying"
+                    )
+                    self._close_response(response)
+                    self._sync_timestamp = time.time()
+                    self._updates_exist.set()
+                    if await self.async_update() is False:
+                        LOG.debug("Pulse data update from sync task failed")
+                    continue
+                LOG.debug(f"Sync token {text} indicates no remote updates to process")
+                self._close_response(response)
+                self._sync_timestamp = time.time()
+            except asyncio.CancelledError:
+                LOG.debug("ADT Pulse sync check task cancelled")
+                self._close_response(response)
+                return
 
     @property
     def updates_exist(self) -> bool:
@@ -284,42 +625,24 @@ class PyADTPulse:
         Returns:
             bool: True if updated data exists
         """
-        retval = False
-        while True:
-            LOG.debug(f"Last timeout reset: {time.time() - self._last_timeout_reset}")
-            if (time.time() - self._last_timeout_reset) > ADT_TIMEOUT_INTERVAL:
-                self._reset_timeout()
-            response = self.query(
-                ADT_SYNC_CHECK_URI,
-                extra_params={"ts": int(self._sync_timestamp * 1000)},
-            )
-
-            if not handle_response(response, logging.ERROR, "Error querying ADT sync"):
+        with self._attribute_lock:
+            if self._updates_exist is None:
                 return False
+            if self._updates_exist.is_set():
+                self._updates_exist.clear()
+                return True
+            return False
 
-            # shut up linter
-            if response is None:
-                return False
+    async def wait_for_update(self) -> None:
+        """Wait for update.
 
-            text = response.text
-
-            pattern = r"\d+[-]\d+[-]\d+"
-            if not re.match(pattern, text):
-                LOG.warn(f"Unexpected sync check format ({pattern}), forcing re-auth")
-                LOG.debug(f"Received {text} from ADT Pulse site")
-                self._authenticated = False
-                return False
-
-            # we can have 0-0-0 followed by 1-0-0 followed by 2-0-0, etc
-            # wait until these settle
-            if text.endswith("-0-0"):
-                LOG.debug(f"Sync token {text} indicates updates may exist, requerying")
-                self._sync_timestamp = time.time()
-                retval = True
-                continue
-            LOG.debug(f"Sync token {text} indicates no remote updates to process")
-            self._sync_timestamp = time.time()
-            return retval
+        Blocks current async task until Pulse system
+        signals an update
+        """
+        if self._updates_exist is None:
+            raise RuntimeError("Update event does not exist")
+        await self._updates_exist.wait()
+        self._updates_exist.clear()
 
     @property
     def is_connected(self) -> bool:
@@ -328,42 +651,45 @@ class PyADTPulse:
         Returns:
             bool: True if connected
         """
-        # FIXME: timeout automatically based on ADT default expiry?
-        # self._authenticated_timestamp
-        return self._authenticated
+        with self._attribute_lock:
+            if self._authenticated is None:
+                return False
+            return self._authenticated.is_set()
 
-    def query(
+    async def _async_query(
         self,
         uri: str,
         method: str = "GET",
         extra_params: Optional[Dict] = None,
         extra_headers: Optional[Dict] = None,
         force_login: Optional[bool] = True,
-        version_prefix: Optional[bool] = True,
         timeout=1,
-    ) -> Optional[Response]:
-        """Query ADT Pulse server.
+    ) -> Optional[ClientResponse]:
+        """Query ADT Pulse async.
 
         Args:
             uri (str): URI to query
-            method (str, optional): GET, POST, or PUT. Defaults to "GET".
-            extra_params (Optional[Dict], optional): extra parameters to pass.
-                Defaults to None.
+            method (str, optional): method to use. Defaults to "GET".
+            extra_params (Optional[Dict], optional): query parameters. Defaults to None.
             extra_headers (Optional[Dict], optional): extra HTTP headers.
-                Defaults to None.
-            force_login (Optional[bool], optional): force login. Defaults to True.
-            version_prefix (Optional[bool], optional): _description_. Defaults to True.
-            timeout int: number of seconds to wait for request.  Defaults to .2
+                        Defaults to None.
+            force_login (Optional[bool], optional): login if not connected.
+                        Defaults to True.
+            timeout (int, optional): timeout in seconds. Defaults to 1.
 
         Returns:
-            Optional[Response]: a Response object if successful, None on failure
+            Optional[ClientResponse]: aiohttp.ClientResponse object
+                                      None on failure
+                                      ClientResponse will already be closed.
         """
         response = None
 
         # automatically attempt to login, if not connected
         if force_login and not self.is_connected:
-            self.login()
+            await self.async_login()
 
+        if self._session is None:
+            raise RuntimeError("ClientSession not initialized")
         url = self.make_url(uri)
         if uri in ADT_HTTP_REFERER_URIS:
             new_headers = {"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]}
@@ -380,27 +706,49 @@ class PyADTPulse:
         #  have been signed out due to inactivity."
 
         # define connection method
-        try:
-            if method == "GET":
-                response = self._session.get(
-                    url, headers=extra_headers, params=extra_params, timeout=timeout
+        retry = 0
+        max_retries = 3
+        while retry < max_retries:
+            try:
+                if method == "GET":
+                    async with self._session.get(
+                        url, headers=extra_headers, params=extra_params, timeout=timeout
+                    ) as response:
+                        await response.text()
+                elif method == "POST":
+                    async with self._session.post(
+                        url, headers=extra_headers, data=extra_params, timeout=timeout
+                    ) as response:
+                        await response.text()
+                else:
+                    LOG.error(f"Invalid request method {method}")
+                    return None
+                if response.status in RECOVERABLE_ERRORS:
+                    retry = retry + 1
+                    LOG.warning(
+                        f"pyadtpulse query returned recover error code "
+                        f"{response.status}, retrying (count ={retry})"
+                    )
+                    if retry == max_retries:
+                        LOG.warning(
+                            "pyadtpulse exceeded max retries of "
+                            f"{max_retries}, giving up"
+                        )
+                        response.raise_for_status()
+                    await asyncio.sleep(2**retry + uniform(0.0, 1.0))
+                    continue
+                response.raise_for_status()
+                # success, break loop
+                retry = 4
+            except ClientResponseError as err:
+                code = err.code
+                LOG.exception(
+                    f"Received HTTP error code {code} in request to ADT Pulse"
                 )
-            elif method == "POST":
-                response = self._session.post(
-                    url, headers=extra_headers, data=extra_params, timeout=timeout
-                )
-            else:
-                LOG.error(f"Invalid request method {method}")
                 return None
-            response.raise_for_status()
-
-        except HTTPError as err:
-            code = err.response.status_code
-            LOG.exception(f"Received HTTP error code {code} in request to ADT Pulse")
-            return None
-        except RequestException:
-            LOG.exception("An exception occurred in request to ADT Pulse")
-            return None
+            except ClientConnectionError:
+                LOG.exception("An exception occurred in request to ADT Pulse")
+                return None
 
         # success!
         # FIXME? login uses redirects so final url is wrong
@@ -408,17 +756,70 @@ class PyADTPulse:
             if uri == ADT_DEVICE_URI:
                 referer = self.make_url(ADT_SYSTEM_URI)
             else:
-                referer = response.url
-                LOG.debug(f"Setting Referer to: {referer}")
-            self._session.headers.update({"Referer": referer})
+                if response is not None and response.url is not None:
+                    referer = str(response.url)
+                    LOG.debug(f"Setting Referer to: {referer}")
+                    self._session.headers.update({"Referer": referer})
 
         return response
 
-    # FIXME? might have to move this to site for multiple sites
-    def _query_orb(self, level: int, error_message: str) -> Optional[BeautifulSoup]:
-        response = self.query(ADT_ORB_URI)
+    def query(
+        self,
+        uri: str,
+        method: str = "GET",
+        extra_params: Optional[Dict] = None,
+        extra_headers: Optional[Dict] = None,
+        force_login: Optional[bool] = True,
+        timeout=1,
+    ) -> Optional[ClientResponse]:
+        """Query ADT Pulse async.
 
-        return make_soup(response, level, error_message)
+        Args:
+            uri (str): URI to query
+            method (str, optional): method to use. Defaults to "GET".
+            extra_params (Optional[Dict], optional): query parameters. Defaults to None.
+            extra_headers (Optional[Dict], optional): extra HTTP headers.
+                                                    Defaults to None.
+            force_login (Optional[bool], optional): login if not connected.
+                                                    Defaults to True.
+            timeout (int, optional): timeout in seconds. Defaults to 1.
+        Returns:
+            Optional[ClientResponse]: aiohttp.ClientResponse object
+                                      None on failure
+                                      ClientResponse will already be closed.
+        """
+        if self._loop is None:
+            raise RuntimeError("Attempting to run sync query from async login")
+        coro = self._async_query(
+            uri, method, extra_params, extra_headers, force_login, timeout
+        )
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
+
+    # FIXME? might have to move this to site for multiple sites
+    async def _query_orb(
+        self, level: int, error_message: str
+    ) -> Optional[BeautifulSoup]:
+        response = await self._async_query(ADT_ORB_URI)
+
+        return await make_soup(response, level, error_message)
+
+    async def async_update(self) -> bool:
+        """Update ADT Pulse data.
+
+        Returns:
+            bool: True if update succeeded.
+        """
+        LOG.debug("Checking ADT Pulse cloud service for updates")
+
+        # FIXME will have to query other URIs for camera/zwave/etc
+        soup = await self._query_orb(
+            logging.INFO, "Error returned from ADT Pulse service check"
+        )
+        if soup is not None:
+            await self._update_sites(soup)
+            return True
+
+        return False
 
     def update(self) -> bool:
         """Update ADT Pulse data.
@@ -426,24 +827,15 @@ class PyADTPulse:
         Returns:
             bool: True on success
         """
-        """Refresh any cached state."""
-        LOG.debug("Checking ADT Pulse cloud service for updates")
-        if (time.time() - self._last_timeout_reset) > ADT_TIMEOUT_INTERVAL:
-            self._reset_timeout()
-
-        # FIXME will have to query other URIs for camera/zwave/etc
-        soup = self._query_orb(
-            logging.INFO, "Error returned from ADT Pulse service check"
-        )
-        if soup is not None:
-            self._update_sites(soup)
-            return True
-
-        return False
+        if self._loop is None:
+            raise RuntimeError("Attempting to run sync update from async login")
+        coro = self.async_update()
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
 
     # FIXME circular reference, should be ADTPulseSite
 
     @property
     def sites(self) -> List[Any]:
         """Return all sites for this ADT Pulse account."""
-        return self._sites
+        with self._attribute_lock:
+            return self._sites
