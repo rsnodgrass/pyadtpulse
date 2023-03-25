@@ -17,14 +17,14 @@ with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
 
 setuptools.setup(
     name="pyadtpulse",
-    version="0.3.0",
+    version="1.0.0",
     packages=["pyadtpulse"],
     description="Python interface for ADT Pulse security systems",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/rsnodgrass/pyadtpulse",
-    author="Ryan Snodgrass",
-    author_email="rsnodgrass@gmail.com",
+    author="",
+    author_email="",
     license="Apache Software License",
     install_requires=["requests>=2.0"],
     keywords=["security system", "adt", "home automation", "security alarm"],
