@@ -150,7 +150,7 @@ class PyADTPulse:
 
     def _init_login_info(self, username: str, password: str, fingerprint: str) -> None:
         if username is None or username == "":
-            raise ValueError("Username is madatory")
+            raise ValueError("Username is mandatory")
         pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
         if not re.match(pattern, username):
             raise ValueError("Username must be an email address")
