@@ -143,6 +143,7 @@ class PyADTPulse:
         self._sync_timestamp = 0.0
         self._gateway_online: bool = False
         self._login_exception: Optional[BaseException] = None
+
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
             self._sites: List[ADTPulseSite]
@@ -161,13 +162,16 @@ class PyADTPulse:
     def _init_login_info(self, username: str, password: str, fingerprint: str) -> None:
         if username is None or username == "":
             raise ValueError("Username is mandatory")
+
         pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
         if not re.match(pattern, username):
             raise ValueError("Username must be an email address")
         self._username = username
+
         if password is None or password == "":
             raise ValueError("Password is mandatory")
         self._password = password
+
         if fingerprint is None or fingerprint == "":
             raise ValueError("Fingerprint is required")
         self._fingerprint = fingerprint
@@ -264,17 +268,15 @@ class PyADTPulse:
         with self._attribute_lock:
             if status == self._gateway_online:
                 return
-            if status:
-                LOG.info(
-                    "ADT Pulse gateway is online, "
-                    f"setting poll interval to {self._poll_interval}"
-                )
-            else:
-                LOG.warning(
-                    "ADT Pulse gateway is offline, "
-                    "setting poll interval to"
-                    f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL}"
-                )
+
+            status_text = "ONLINE"
+            if not status:
+                status_text = "OFFLINE"
+                self._poll_interval = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
+
+            LOG.warning(
+                f"ADT Pulse gateway {status_text}, poll interval={self._poll_interval}"
+            )
             self._gateway_online = status
 
     async def _async_fetch_version(self) -> None:
@@ -292,6 +294,7 @@ class PyADTPulse:
                     )
                     self._api_version = ADT_DEFAULT_VERSION
                     return
+
             if result is None:
                 LOG.warning(
                     "Error occurred during API version fetch, defaulting to"
@@ -325,10 +328,7 @@ class PyADTPulse:
                 # alarm status of the current site!!
                 if len(self._sites) > 1:
                     LOG.error(
-                        (
-                            "pyadtpulse DOES NOT support an ADT account ",
-                            "with multiple sites yet!!!",
-                        )
+                        "pyadtpulse lacks support for ADT accounts with multiple sites!!!"
                     )
 
             for site in self._sites:
@@ -352,8 +352,10 @@ class PyADTPulse:
 
                     site_id = m.group(1)
                     LOG.debug(f"Discovered site id {site_id}: {site_name}")
+
                     # FIXME ADTPulseSite circular reference
                     new_site = ADTPulseSite(self, site_id, site_name)
+
                     # fetch zones first, so that we can have the status
                     # updated with _update_alarm_status
                     await new_site._fetch_zones(None)
@@ -577,6 +579,7 @@ class PyADTPulse:
             if self._loop is None:
                 raise RuntimeError("Attempting to call sync logout without sync login")
             sync_thread = self._session_thread
+
         coro = self.async_logout()
         asyncio.run_coroutine_threadsafe(coro, self._loop)
         if sync_thread is not None:
@@ -605,13 +608,16 @@ class PyADTPulse:
                         f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL} seconds"
                     )
                     pi = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
+
                 await asyncio.sleep(pi)
                 response = await self._async_query(
                     ADT_SYNC_CHECK_URI,
                     extra_params={"ts": int(self._sync_timestamp * 1000)},
                 )
+
                 if response is None:
                     continue
+
                 text = await response.text()
                 if not handle_response(
                     response, logging.ERROR, "Error querying ADT sync"
@@ -641,9 +647,11 @@ class PyADTPulse:
                     if await self.async_update() is False:
                         LOG.debug("Pulse data update from sync task failed")
                     continue
+
                 LOG.debug(f"Sync token {text} indicates no remote updates to process")
                 self._close_response(response)
                 self._sync_timestamp = time.time()
+
             except asyncio.CancelledError:
                 LOG.debug(f"{task_name} cancelled")
                 self._close_response(response)
@@ -669,6 +677,7 @@ class PyADTPulse:
                 )
             if self._updates_exist is None:
                 return False
+
             if self._updates_exist.is_set():
                 self._updates_exist.clear()
                 return True
@@ -688,6 +697,7 @@ class PyADTPulse:
                 )
         if self._updates_exist is None:
             raise RuntimeError("Update event does not exist")
+
         await self._updates_exist.wait()
         self._updates_exist.clear()
 
@@ -770,6 +780,7 @@ class PyADTPulse:
                 else:
                     LOG.error(f"Invalid request method {method}")
                     return None
+
                 if response.status in RECOVERABLE_ERRORS:
                     retry = retry + 1
                     LOG.warning(
@@ -784,6 +795,7 @@ class PyADTPulse:
                         response.raise_for_status()
                     await asyncio.sleep(2**retry + uniform(0.0, 1.0))
                     continue
+
                 response.raise_for_status()
                 # success, break loop
                 retry = 4
