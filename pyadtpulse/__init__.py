@@ -365,7 +365,7 @@ class PyADTPulse:
                     f"Couldn't find site id for '{site_name}' in '{signout_link}'"
                 )
         else:
-            LOG.error(("ADT Pulse accounts with MULTIPLE sites not supported!!!"))
+            LOG.error("ADT Pulse accounts with MULTIPLE sites not supported!!!")
 
     # ...and current network id from:
     # <a id="p_signout1" class="p_signoutlink"
