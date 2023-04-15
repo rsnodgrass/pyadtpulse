@@ -33,7 +33,7 @@ ADT_ARM_DISARM_TIMEOUT = timedelta(seconds=20)
 LOG = logging.getLogger(__name__)
 
 
-class ADTPulseSite(object):
+class ADTPulseSite:
     """Represents an individual ADT Pulse site."""
 
     __slots__ = (
