@@ -1,14 +1,16 @@
 """Base Python Class for pyadtpulse."""
 
 import logging
-import asyncio
+
 import re
 import time
+import asyncio
+import uvloop
+
 from random import uniform
 from threading import RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-import uvloop
 from aiohttp import (
     ClientConnectionError,
     ClientResponse,
@@ -119,19 +121,29 @@ class PyADTPulse:
             create_task_cb (callback, optional): callback to use to create async tasks
                         Defaults to asyncio.create_task()
         """
+        self._api_version: str = ADT_DEFAULT_VERSION
+        self._gateway_online: bool = False
+
         self._session = websession
         if self._session is not None:
             self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
+
         self._init_login_info(username, password, fingerprint)
         self._user_agent = user_agent
-        self._api_version: str = ADT_DEFAULT_VERSION
 
         self._sync_task: Optional[asyncio.Task] = None
+        self._sync_timestamp = 0.0
         self._timeout_task: Optional[asyncio.Task] = None
+
         # FIXME use thread event/condition, regular condition?
         # defer initialization to make sure we have an event loop
         self._authenticated: Optional[asyncio.locks.Event] = None
+        self._login_exception: Optional[BaseException] = None
+
         self._updates_exist: Optional[asyncio.locks.Event] = None
+
+        self._last_timeout_reset = time.time()
+
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session_thread: Optional[Thread] = None
         self._attribute_lock: Union[RLock, DebugRLock]
@@ -460,8 +472,10 @@ class PyADTPulse:
             daemon=True,
         )
         self._attribute_lock.release()
+
         self._session_thread.start()
         time.sleep(1)
+
         # thread will unlock after async_login, so attempt to obtain
         # lock to block current thread until then
         # if it's still alive, no exception
@@ -502,6 +516,7 @@ class PyADTPulse:
             self._authenticated = asyncio.locks.Event()
         else:
             self._authenticated.clear()
+
         LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
         await self._async_fetch_version()
 
