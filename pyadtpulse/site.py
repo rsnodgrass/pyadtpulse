@@ -2,7 +2,6 @@
 
 import logging
 import re
-
 from asyncio import get_event_loop, run_coroutine_threadsafe
 from datetime import datetime, timedelta
 from threading import RLock
@@ -231,7 +230,7 @@ class ADTPulseSite(object):
         )
         if soup is None:
             return False
-        
+
         arm_result = soup.find("div", {"class": "p_armDisarmWrapper"})
         if arm_result is not None:
             error_block = arm_result.find("div")
@@ -355,7 +354,7 @@ class ADTPulseSite(object):
             if value:
                 text = value.text
                 last_updated = datetime.now()
-                
+
                 if re.match("Disarmed", text):
                     if (
                         self._status != ADT_ALARM_ARMING
@@ -384,7 +383,7 @@ class ADTPulseSite(object):
                     self._last_updated = last_updated
                     return
                 LOG.debug(f"Alarm status = {self._status}")
-                
+
             if self._sat == "":
                 sat_button = summary_html_soup.find(
                     "input", {"type": "button", "id": sat_location}
@@ -622,7 +621,7 @@ class ADTPulseSite(object):
                 self._zones.update_last_activity_timestamp(zone, last_update)
 
                 LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
-                
+
             self._adt_service._set_gateway_status(gateway_online)
             self._last_updated = datetime.now()
             return self._zones
