@@ -2,7 +2,6 @@
 
 import logging
 import re
-
 from asyncio import get_event_loop, run_coroutine_threadsafe
 from datetime import datetime, timedelta
 from threading import RLock
@@ -631,18 +630,8 @@ class ADTPulseSite(object):
                 if state != "Unknown":
                     gateway_online = True
 
-                if status.startswith("Trouble"):
-                    trouble_code = status.split()
-                    if len(trouble_code) == 2:
-                        status = trouble_code[1]
-                    else:
-                        status = "Unknown trouble code"
+                LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
 
-                self._zones.update_device_info(zone, state, status, last_update)
-                LOG.debug(
-                    f"Set zone {zone} - to {state}, status {status} "
-                    f"with timestamp {last_update}"
-                )
             self._adt_service._set_gateway_status(gateway_online)
             self._last_updated = datetime.now()
             return self._zones

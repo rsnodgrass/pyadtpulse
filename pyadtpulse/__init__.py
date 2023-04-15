@@ -1,16 +1,14 @@
 """Base Python Class for pyadtpulse."""
 
 import logging
-
+import asyncio
 import re
 import time
-import asyncio
-import uvloop
-
 from random import uniform
 from threading import RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
+import uvloop
 from aiohttp import (
     ClientConnectionError,
     ClientResponse,
@@ -37,6 +35,7 @@ from pyadtpulse.const import (
     DEFAULT_API_HOST,
 )
 from pyadtpulse.util import (
+    AuthenticationException,
     AuthenticationException,
     DebugRLock,
     handle_response,
