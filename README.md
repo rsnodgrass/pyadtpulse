@@ -19,6 +19,11 @@ sensors, door sensors, etc) as well as arming and disarming individual sites.
 NOTE: Since this interacts with the unofficial ADT Pulse AJAX web service, the
 behavior is subject to change by ADT without notice.
 
+## Developer Note
+
+NOTE: This package use [pre-commit](https://pre-commit.com/) hooks for maintaining code quality.
+Please install pre-commit and enable it for your local git copy before committing.
+
 ## WARNING
 
 Do not reauthenticate to the ADT service frequently as ADT's service is not designed for high volume requests. E.g. every 5 minutes, not seconds. Keep your authenticated session to avoid logging in repeatedly.
