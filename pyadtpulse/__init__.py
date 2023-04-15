@@ -411,10 +411,12 @@ class PyADTPulse:
     def _pulse_session_thread(self) -> None:
         # lock is released in sync_loop()
         self._attribute_lock.acquire()
-        LOG.debug("creating Pulse background thread")
+
+        LOG.debug("Creating ADT Pulse background thread")
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self._loop = asyncio.new_event_loop()
         self._loop.run_until_complete(self._sync_loop())
+
         self._loop.close()
         self._loop = None
         self._session_thread = None
@@ -425,7 +427,12 @@ class PyADTPulse:
         if result:
             task_list: List[asyncio.Task] = []
             if self._timeout_task is not None:
-                task_list.append(self._timeout_task)
+                try:
+                    task_list.append(self._timeout_task)
+                except Exception as e:
+                    LOG.exception(
+                        f"Received exception while waiting for ADT Pulse service"
+                    )
             else:
                 # we should never get here
                 raise RuntimeError("Background pyadtpulse tasks not created")
