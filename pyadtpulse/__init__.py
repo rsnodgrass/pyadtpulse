@@ -295,9 +295,10 @@ class PyADTPulse:
             if PyADTPulse._api_version != ADT_DEFAULT_VERSION:
                 return
             result = None
+            signin_url = f"{self.service_host}{ADT_LOGIN_URI}"
             if self._session:
                 try:
-                    async with self._session.get(self.service_host) as response:
+                    async with self._session.get(signin_url) as response:
                         result = await response.text()
                         response.raise_for_status()
                 except (ClientResponseError, ClientConnectionError):
