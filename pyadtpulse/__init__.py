@@ -530,7 +530,7 @@ class PyADTPulse:
                 "sun": "yes",
             },
             force_login=False,
-            timeout=10,
+            timeout=30,
         )
 
         soup = await make_soup(
