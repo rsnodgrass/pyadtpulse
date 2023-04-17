@@ -172,6 +172,14 @@ class PyADTPulse:
             raise ValueError("Fingerprint is required")
         self._fingerprint = fingerprint
 
+    def __del__(self) -> None:
+        """Desctructor.
+
+        Closes aiohttp session if one exists
+        """
+        if self._session is not None and not self._session.closed:
+            self._session.detach()
+
     def __repr__(self) -> str:
         """Object representation."""
         return "<{}: {}>".format(self.__class__.__name__, self._username)
@@ -528,20 +536,19 @@ class PyADTPulse:
             response, logging.ERROR, "Could not log into ADT Pulse site"
         )
         if soup is None:
-            await self._session.close()
             return False
 
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
             LOG.error(f"Invalid ADT Pulse response: {error}")
-            await self._session.close()
             return False
+        # need to set authenticated here to prevent login loop
+        self._authenticated.set()
         await self._update_sites(soup)
         if len(self._sites) == 0:
             LOG.error("Could not retrieve any sites, login failed")
-            await self._session.close()
+            self._authenticated.clear()
             return False
-        self._authenticated.set()
         self._last_timeout_reset = time.time()
 
         # since we received fresh data on the status of the alarm, go ahead
@@ -578,9 +585,6 @@ class PyADTPulse:
                 await self._sync_task
         self._timeout_task = self._sync_task = None
         await self._async_query(ADT_LOGOUT_URI, timeout=10)
-        if self._session is not None:
-            if not self._session.closed:
-                await self._session.close()
         self._last_timeout_reset = time.time()
         if self._authenticated is not None:
             self._authenticated.clear()
