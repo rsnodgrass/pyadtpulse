@@ -179,7 +179,18 @@ class PyADTPulse:
     # ADTPulse API endpoint is configurable (besides default US ADT Pulse endpoint) to
     # support testing as well as alternative ADT Pulse endpoints such as
     # portal-ca.adtpulse.com
-    def set_service_host(self, host: str) -> None:
+
+    @property
+    def service_host(self) -> str:
+        """Get the Pulse host.
+
+        Returns: (str): the ADT Pulse endpoint host
+        """
+        with self._attribute_lock:
+            return self._api_host
+
+    @service_host.setter
+    def service_host(self, host: str) -> None:
         """Override the Pulse host (i.e. to use portal-ca.adpulse.com).
 
         Args:
@@ -190,6 +201,10 @@ class PyADTPulse:
             if self._session is not None:
                 self._session.headers.update({"Host": host})
                 self._session.headers.update(ADT_DEFAULT_HTTP_HEADERS)
+
+    def set_service_host(self, host: str) -> None:
+        """Backward compatibility for service host property setter."""
+        self.service_host = host
 
     def make_url(self, uri: str) -> str:
         """Create a URL to service host from a URI.
@@ -241,7 +256,7 @@ class PyADTPulse:
             str: a string containing the version
         """
         with PyADTPulse._class_threadlock:
-            return self._api_version
+            return PyADTPulse._api_version
 
     @property
     def gateway_online(self) -> bool:
@@ -282,7 +297,7 @@ class PyADTPulse:
             result = None
             if self._session:
                 try:
-                    async with self._session.get(self._api_host) as response:
+                    async with self._session.get(self.service_host) as response:
                         result = await response.text()
                         response.raise_for_status()
                 except (ClientResponseError, ClientConnectionError):
@@ -304,7 +319,7 @@ class PyADTPulse:
                 PyADTPulse._api_version = m.group(1)
                 LOG.debug(
                     "Discovered ADT Pulse version"
-                    f" {PyADTPulse._api_version} at {self._api_host}"
+                    f" {PyADTPulse._api_version} at {self.service_host}"
                 )
                 return
 
