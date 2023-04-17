@@ -5,7 +5,7 @@ import asyncio
 import re
 import time
 from random import uniform
-from threading import RLock, Thread
+from threading import RLock, Thread, Lock
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import uvloop
@@ -58,7 +58,6 @@ class PyADTPulse:
     __slots__ = (
         "_session",
         "_user_agent",
-        "_api_version",
         "_sync_task",
         "_timeout_task",
         "_authenticated",
@@ -77,6 +76,8 @@ class PyADTPulse:
         "_login_exception",
         "_gateway_online",
     )
+    _api_version = ADT_DEFAULT_VERSION
+    _class_threadlock = Lock()
 
     def __init__(
         self,
@@ -111,7 +112,6 @@ class PyADTPulse:
                         Defaults to True
             poll_interval (float, optional): number of seconds between update checks
         """
-        self._api_version: str = ADT_DEFAULT_VERSION
         self._gateway_online: bool = False
 
         self._session = websession
@@ -240,7 +240,7 @@ class PyADTPulse:
         Returns:
             str: a string containing the version
         """
-        with self._attribute_lock:
+        with PyADTPulse._class_threadlock:
             return self._api_version
 
     @property
@@ -276,7 +276,9 @@ class PyADTPulse:
             self._gateway_online = status
 
     async def _async_fetch_version(self) -> None:
-        with self._attribute_lock:
+        with PyADTPulse._class_threadlock:
+            if PyADTPulse._api_version != ADT_DEFAULT_VERSION:
+                return
             result = None
             if self._session:
                 try:
@@ -288,7 +290,6 @@ class PyADTPulse:
                         "Error occurred during API version fetch, defaulting to"
                         f"{ADT_DEFAULT_VERSION}"
                     )
-                    self._api_version = ADT_DEFAULT_VERSION
                     return
 
             if result is None:
@@ -296,22 +297,20 @@ class PyADTPulse:
                     "Error occurred during API version fetch, defaulting to"
                     f"{ADT_DEFAULT_VERSION}"
                 )
-                self._api_version = ADT_DEFAULT_VERSION
                 return
 
             m = re.search("/myhome/(.+)/[a-z]*/", result)
             if m is not None:
-                self._api_version = m.group(1)
+                PyADTPulse._api_version = m.group(1)
                 LOG.debug(
                     "Discovered ADT Pulse version"
-                    f" {self._api_version} at {self._api_host}"
+                    f" {PyADTPulse._api_version} at {self._api_host}"
                 )
                 return
 
-            self._api_version = ADT_DEFAULT_VERSION
             LOG.warning(
                 "Couldn't auto-detect ADT Pulse version, "
-                f"defaulting to {self._api_version}"
+                f"defaulting to {ADT_DEFAULT_VERSION}"
             )
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
@@ -324,7 +323,8 @@ class PyADTPulse:
                 # alarm status of the current site!!
                 if len(self._sites) > 1:
                     LOG.error(
-                        "pyadtpulse lacks support for ADT accounts with multiple sites!!!"
+                        "pyadtpulse lacks support for ADT accounts "
+                        "with multiple sites!!!"
                     )
 
             for site in self._sites:
@@ -424,7 +424,7 @@ class PyADTPulse:
                     await asyncio.wait((self._sync_task, self._timeout_task))
                 except Exception as e:
                     LOG.exception(
-                        f"Received exception while waiting for ADT Pulse service"
+                        f"Received exception while waiting for ADT Pulse service {e}"
                     )
             else:
                 # we should never get here
