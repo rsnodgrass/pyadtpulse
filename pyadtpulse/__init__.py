@@ -560,14 +560,17 @@ class PyADTPulse:
             LOG.error(f"Invalid ADT Pulse response: {error}")
             await self._session.close()
             return False
-
+        await self._update_sites(soup)
+        if len(self._sites) == 0:
+            LOG.error("Could not retrieve any sites, login failed")
+            await self._session.close()
+            return False
         self._authenticated.set()
         self._last_timeout_reset = time.time()
 
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
 
-        await self._update_sites(soup)
         self._sync_timestamp = time.time()
         if self._timeout_task is None:
             self._timeout_task = self._create_task_cb(
