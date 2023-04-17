@@ -309,28 +309,30 @@ class PyADTPulse:
         with PyADTPulse._class_threadlock:
             if PyADTPulse._api_version != ADT_DEFAULT_VERSION:
                 return
-            result = None
-            signin_url = f"{self.service_host}{ADT_LOGIN_URI}"
+            response = None
+            signin_url = f"{self.service_host}/myhome{ADT_LOGIN_URI}"
             if self._session:
                 try:
                     async with self._session.get(signin_url) as response:
-                        result = await response.text()
+                        # we only need the headers here, don't parse response
                         response.raise_for_status()
                 except (ClientResponseError, ClientConnectionError):
                     LOG.warning(
                         "Error occurred during API version fetch, defaulting to"
                         f"{ADT_DEFAULT_VERSION}"
                     )
+                    self._close_response(response)
                     return
 
-            if result is None:
+            if response is None:
                 LOG.warning(
                     "Error occurred during API version fetch, defaulting to"
                     f"{ADT_DEFAULT_VERSION}"
                 )
                 return
 
-            m = re.search("/myhome/(.+)/[a-z]*/", result)
+            m = re.search("/myhome/(.+)/[a-z]*/", response.real_url.path)
+            self._close_response(response)
             if m is not None:
                 PyADTPulse._api_version = m.group(1)
                 LOG.debug(
