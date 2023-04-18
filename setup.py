@@ -17,7 +17,7 @@ with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
 
 setuptools.setup(
     name="pyadtpulse",
-    version="1.0.1",
+    version="1.0.2",
     packages=["pyadtpulse"],
     description="Python interface for ADT Pulse security systems",
     long_description=long_description,
