@@ -538,6 +538,7 @@ class PyADTPulse:
         if soup is None:
             return False
 
+        # FIXME: should probably raise exceptions
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
             LOG.error(f"Invalid ADT Pulse username/password: {error}")
