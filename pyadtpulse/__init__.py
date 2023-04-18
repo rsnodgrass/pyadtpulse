@@ -188,7 +188,7 @@ class PyADTPulse:
         self._fingerprint = fingerprint
 
     def __del__(self) -> None:
-        """Desctructor.
+        """Destructor.
 
         Closes aiohttp session if one exists
         """
@@ -550,7 +550,7 @@ class PyADTPulse:
             method="POST",
             extra_params={
                 "partner": "adt",
-                "usernameForm": self._username,
+                "usernameForm": self.username,
                 "passwordForm": self._password,
                 "fingerprint": self._fingerprint,
                 "sun": "yes",
@@ -567,7 +567,14 @@ class PyADTPulse:
 
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
-            LOG.error(f"Invalid ADT Pulse response: {error}")
+            LOG.error(f"Invalid ADT Pulse username/password: {error}")
+            return False
+        error = soup.find("div", "responsiveContainer")
+        if error:
+            LOG.error(
+                f"2FA authentiation required for ADT pulse username {self.username} "
+                f"{error}"
+            )
             return False
         # need to set authenticated here to prevent login loop
         self._authenticated.set()
