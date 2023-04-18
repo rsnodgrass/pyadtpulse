@@ -629,6 +629,17 @@ class ADTPulseSite:
                     return None
                 if state != "Unknown":
                     gateway_online = True
+                # we can stop parsing once we find a zone with the same information
+                # as before, since orb data sorts changed to top
+                old_zonedata = self._zones[zone]
+                if (
+                    not old_zonedata.state.startswith("Tamper")
+                    and old_zonedata.state == state
+                    and old_zonedata.last_activity_timestamp == last_update.timestamp()
+                ):
+                    break
+                self._zones.update_state(zone, state)
+                self._zones.update_last_activity_timestamp(zone, last_update)
 
                 LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
 
