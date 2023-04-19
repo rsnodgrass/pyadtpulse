@@ -5,7 +5,7 @@ import asyncio
 import re
 import time
 from random import uniform
-from threading import RLock, Thread, Lock
+from threading import Lock, RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import uvloop
