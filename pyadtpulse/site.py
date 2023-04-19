@@ -629,10 +629,20 @@ class ADTPulseSite:
                     return None
                 if state != "Unknown":
                     gateway_online = True
-                self._zones.update_last_activity_timestamp(zone, last_update)
+                status = "Online"
+                if state.startswith("Trouble"):
+                    trouble_code = state.split()
+                    if len(trouble_code) == 2:
+                        status = status[1]
+                    else:
+                        status = "Unknown trouble code"
+                    state = "Unknown"
+                self._zones.update_device_info(zone, state, status, last_update)
 
-                LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
-
+                LOG.debug(
+                    f"Set zone {zone} - to {state}, status {status} "
+                    f"with timestamp {last_update}"
+                )
             self._adt_service._set_gateway_status(gateway_online)
             self._last_updated = datetime.now()
             return self._zones
