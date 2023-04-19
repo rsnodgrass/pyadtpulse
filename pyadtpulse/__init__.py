@@ -2,9 +2,9 @@
 
 import logging
 import asyncio
-from random import uniform
 import re
 import time
+from random import uniform
 from threading import RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
@@ -35,10 +35,10 @@ from pyadtpulse.const import (
     DEFAULT_API_HOST,
 )
 from pyadtpulse.util import (
+    AuthenticationException,
     DebugRLock,
     handle_response,
     make_soup,
-    AuthenticationException,
 )
 
 # FIXME -- circular reference
