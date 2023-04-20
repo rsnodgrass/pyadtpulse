@@ -592,6 +592,18 @@ class ADTPulseSite(object):
                     row.find("canvas", {"class": "p_ic_icon_device"}).get("icon"),
                     "devStat",
                 )
+                temp_status = row.find("td", {"class": "p_listRow"}).find_next(
+                    "td", {"class": "p_listRow"}
+                )
+                if temp_status is not None:
+                    temp_status = temp_status.get_text()
+                    if temp_status is not None:
+                        temp_status = temp_status.replace("\xa0", "")
+
+                if temp_status is not None:
+                    status = temp_status
+                else:
+                    status = "Online"
 
                 # parse out last activity (required dealing with "Yesterday 1:52 PM")
                 #           last_activity = time.time()
@@ -613,14 +625,14 @@ class ADTPulseSite(object):
                     return None
                 if state != "Unknown":
                     gateway_online = True
-                status = "Online"
-                if state.startswith("Trouble"):
-                    trouble_code = state.split()
+
+                if status.startswith("Trouble"):
+                    trouble_code = status.split()
                     if len(trouble_code) == 2:
-                        status = status[1]
+                        status = trouble_code[1]
                     else:
                         status = "Unknown trouble code"
-                    state = "Unknown"
+
                 self._zones.update_device_info(zone, state, status, last_update)
                 LOG.debug(
                     f"Set zone {zone} - to {state}, status {status} "
