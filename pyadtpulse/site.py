@@ -629,14 +629,14 @@ class ADTPulseSite:
                     return None
                 if state != "Unknown":
                     gateway_online = True
-                status = "Online"
-                if state.startswith("Trouble"):
-                    trouble_code = state.split()
+
+                if status.startswith("Trouble"):
+                    trouble_code = status.split()
                     if len(trouble_code) == 2:
-                        status = status[1]
+                        status = trouble_code[1]
                     else:
                         status = "Unknown trouble code"
-                    state = "Unknown"
+
                 self._zones.update_device_info(zone, state, status, last_update)
 
                 LOG.debug(
