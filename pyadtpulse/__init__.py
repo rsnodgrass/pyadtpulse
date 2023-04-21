@@ -589,9 +589,13 @@ class PyADTPulse:
         # and update the sites with the alarm status.
 
         self._sync_timestamp = time.time()
+        if self._sync_task is None:
+            self._sync_task = asyncio.create_task(
+                self._sync_check_task(), name="PyADTPulse sync check"
+            )
         if self._timeout_task is None:
-            self._timeout_task = self._create_task_cb(
-                self._keepalive_task(), name=f"{KEEPALIVE_TASK_NAME}"
+            self._timeout_task = asyncio.create_task(
+                self._keepalive_task(), name="PyADTPulse timeout"
             )
         if self._updates_exist is None:
             self._updates_exist = asyncio.locks.Event()
