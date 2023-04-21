@@ -76,6 +76,7 @@ class PyADTPulse:
         "_fingerprint",
         "_login_exception",
         "_gateway_online",
+        "_create_task_cb",
     )
 
     def __init__(
@@ -89,6 +90,7 @@ class PyADTPulse:
         do_login: bool = True,
         poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
         debug_locks: bool = False,
+        create_task_cb=asyncio.create_task,
     ):
         """Create a PyADTPulse object.
 
@@ -110,6 +112,10 @@ class PyADTPulse:
                             and not login
                         Defaults to True
             poll_interval (float, optional): number of seconds between update checks
+            debug_locks: (bool, optional): use debugging locks
+                        Defaults to False
+            create_task_cb (callback, optional): callback to use to create async tasks
+                        Defaults to asyncio.create_task()
         """
         self._session = websession
         if self._session is not None:
@@ -143,6 +149,8 @@ class PyADTPulse:
 
         self._api_host = service_host
         self._poll_interval = poll_interval
+        # FIXME: I have no idea how to type hint this
+        self._create_task_cb = create_task_cb
 
         # authenticate the user
         if do_login and self._session is None:
@@ -510,11 +518,11 @@ class PyADTPulse:
         await self._update_sites(soup)
         self._sync_timestamp = time.time()
         if self._sync_task is None:
-            self._sync_task = asyncio.create_task(
+            self._sync_task = self._create_task_cb(
                 self._sync_check_task(), name="PyADTPulse sync check"
             )
         if self._timeout_task is None:
-            self._timeout_task = asyncio.create_task(
+            self._timeout_task = self._create_task_cb(
                 self._keepalive_task(), name="PyADTPulse timeout"
             )
         if self._updates_exist is None:
