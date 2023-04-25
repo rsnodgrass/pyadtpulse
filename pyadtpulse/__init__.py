@@ -638,11 +638,10 @@ class PyADTPulse:
     async def _sync_check_task(self) -> None:
         # this should never be true
         if self._sync_task is not None:
-            task_name = self._sync_task.get_name()
+            LOG.debug(f"creating {self._sync_task.get_name()}")
         else:
-            task_name = f"{SYNC_CHECK_TASK_NAME} - possible internal error"
-
-        LOG.debug(f"creating {task_name}")
+            # this should never be true
+            LOG.debug("creating ADT Pulse Sync Check Task - possible concurrency issue")
         response = None
         if self._updates_exist is None:
             raise RuntimeError(
