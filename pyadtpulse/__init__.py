@@ -589,9 +589,9 @@ class PyADTPulse:
         # and update the sites with the alarm status.
 
         self._sync_timestamp = time.time()
-        if self._sync_task is None:
-            self._sync_task = asyncio.create_task(
-                self._sync_check_task(), name="PyADTPulse sync check"
+        if self._timeout_task is None:
+            self._timeout_task = self._create_task_cb(
+                self._keepalive_task(), name=f"{KEEPALIVE_TASK_NAME}"
             )
         if self._timeout_task is None:
             self._timeout_task = asyncio.create_task(
@@ -638,10 +638,11 @@ class PyADTPulse:
     async def _sync_check_task(self) -> None:
         # this should never be true
         if self._sync_task is not None:
-            LOG.debug(f"creating {self._sync_task.get_name()}")
+            task_name = self._sync_task.get_name()
         else:
-            # this should never be true
-            LOG.debug("creating ADT Pulse Sync Check Task - possible concurrency issue")
+            task_name = f"{SYNC_CHECK_TASK_NAME} - possible internal error"
+
+        LOG.debug(f"creating {task_name}")
         response = None
         if self._updates_exist is None:
             raise RuntimeError(
