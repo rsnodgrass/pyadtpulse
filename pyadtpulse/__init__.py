@@ -307,7 +307,7 @@ class PyADTPulse:
                 status_text = "OFFLINE"
                 self._poll_interval = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
 
-            LOG.warning(
+            LOG.info(
                 f"ADT Pulse gateway {status_text}, poll interval={self._poll_interval}"
             )
             self._gateway_online = status
