@@ -780,6 +780,12 @@ class PyADTPulse:
                 response.raise_for_status()
                 # success, break loop
                 retry = 4
+            except asyncio.TimeoutError:
+                LOG.warning(
+                    f"Timeout occurred making {method} request to {url}, retrying"
+                )
+                await asyncio.sleep(2**retry + uniform(0.0, 1.0))
+                continue
             except ClientResponseError as err:
                 code = err.code
                 LOG.exception(
