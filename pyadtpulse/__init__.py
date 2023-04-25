@@ -265,7 +265,7 @@ class PyADTPulse:
             if status == self._gateway_online:
                 return
             if status:
-                LOG.warning(
+                LOG.info(
                     "ADT Pulse gateway is online, "
                     f"setting poll interval to {self._poll_interval}"
                 )
@@ -593,7 +593,7 @@ class PyADTPulse:
                 if self.gateway_online:
                     pi = self.poll_interval
                 else:
-                    LOG.warning(
+                    LOG.info(
                         "Pulse gateway detected offline, polling every "
                         f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL} seconds"
                     )
