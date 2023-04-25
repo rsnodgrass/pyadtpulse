@@ -432,6 +432,10 @@ class PyADTPulse:
             if self._sync_task is not None:
                 task_list.append(self._sync_task)
             await asyncio.wait(task_list)
+        if self._authenticated is not None:
+            while self._authenticated.is_set():
+                # busy wait until logout is done
+                await asyncio.sleep(0.5)
 
     def login(self) -> None:
         """Login to ADT Pulse and generate access token.
