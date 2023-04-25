@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 LOG = logging.getLogger(__name__)
 
 RECOVERABLE_ERRORS = [429, 500, 502, 503, 504]
+SYNC_CHECK_TASK_NAME = "ADT Pulse Sync Check Task"
 
 
 class PyADTPulse:
@@ -365,7 +366,7 @@ class PyADTPulse:
                     f"Couldn't find site id for '{site_name}' in '{signout_link}'"
                 )
         else:
-            LOG.error(("ADT Pulse accounts with MULTIPLE sites not supported!!!"))
+            LOG.error("ADT Pulse accounts with MULTIPLE sites not supported!!!")
 
     # ...and current network id from:
     # <a id="p_signout1" class="p_signoutlink"
@@ -521,10 +522,6 @@ class PyADTPulse:
             self._sync_task = self._create_task_cb(
                 self._sync_check_task(), name="PyADTPulse sync check"
             )
-        if self._timeout_task is None:
-            self._timeout_task = self._create_task_cb(
-                self._keepalive_task(), name="PyADTPulse timeout"
-            )
         if self._updates_exist is None:
             self._updates_exist = asyncio.locks.Event()
         await asyncio.sleep(0)
@@ -566,7 +563,12 @@ class PyADTPulse:
             sync_thread.join()
 
     async def _sync_check_task(self) -> None:
-        LOG.debug("creating Pulse sync check task")
+        # this should never be true
+        if self._sync_task is not None:
+            LOG.debug(f"creating {self._sync_task.get_name()}")
+        else:
+            # this should never be true
+            LOG.debug("creating ADT Pulse Sync Check Task - possible concurrency issue")
         response = None
         if self._updates_exist is None:
             raise RuntimeError(
@@ -634,6 +636,16 @@ class PyADTPulse:
             bool: True if updated data exists
         """
         with self._attribute_lock:
+            if self._sync_task is None:
+                if self._loop is None:
+                    raise RuntimeError(
+                        "ADT pulse sync function updates_exist() "
+                        "called from async session"
+                    )
+                coro = self._sync_check_task()
+                self._sync_task = self._loop.create_task(
+                    coro, name=f"{SYNC_CHECK_TASK_NAME}- Sync session"
+                )
             if self._updates_exist is None:
                 return False
             if self._updates_exist.is_set():
@@ -647,6 +659,12 @@ class PyADTPulse:
         Blocks current async task until Pulse system
         signals an update
         """
+        with self._attribute_lock:
+            if self._sync_task is None:
+                coro = self._sync_check_task()
+                self._sync_task = self._create_task_cb(
+                    coro, name=f"{SYNC_CHECK_TASK_NAME}- Async session"
+                )
         if self._updates_exist is None:
             raise RuntimeError("Update event does not exist")
         await self._updates_exist.wait()
