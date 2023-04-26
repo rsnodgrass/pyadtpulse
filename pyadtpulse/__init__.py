@@ -27,6 +27,7 @@ from pyadtpulse.const import (
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
     ADT_ORB_URI,
+    ADT_SUMMARY_URI,
     ADT_SYNC_CHECK_URI,
     ADT_SYSTEM_URI,
     ADT_TIMEOUT_INTERVAL,
@@ -554,6 +555,21 @@ class PyADTPulse:
             force_login=False,
             timeout=30,
         )
+
+        if not handle_response(
+            response,
+            logging.ERROR,
+            "Error encountered communicating with Pulse site on login",
+        ):
+            response.close()  # type: ignore
+            return False
+        if str(response.url) != self.make_url(ADT_SUMMARY_URI):  # type: ignore
+            # more specifically:
+            # redirect to signin.jsp = username/password error
+            # redirect to mfaSignin.jsp = fingerprint error
+            LOG.error("Authentication error encountered logging into ADT Pulse")
+            response.close()  # type: ignore
+            return False
 
         soup = await make_soup(
             response, logging.ERROR, "Could not log into ADT Pulse site"
