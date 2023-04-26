@@ -461,10 +461,12 @@ class PyADTPulse:
         result = await self.async_login()
         self._attribute_lock.release()
         if result:
-            task_list: List[asyncio.Task] = []
             if self._timeout_task is not None:
+                task_list = (self._timeout_task,)
                 try:
-                    task_list.append(self._timeout_task)
+                    await asyncio.wait(task_list)
+                except asyncio.CancelledError:
+                    pass
                 except Exception as e:
                     LOG.exception(
                         f"Received exception while waiting for ADT Pulse service {e}"
