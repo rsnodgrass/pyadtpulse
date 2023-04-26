@@ -4,6 +4,7 @@ import logging
 import asyncio
 import re
 import time
+from random import uniform
 from threading import Lock, RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
@@ -34,7 +35,6 @@ from pyadtpulse.const import (
     DEFAULT_API_HOST,
 )
 from pyadtpulse.util import (
-    AuthenticationException,
     AuthenticationException,
     DebugRLock,
     handle_response,
@@ -151,8 +151,6 @@ class PyADTPulse:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
         self._last_timeout_reset = time.time()
         self._sync_timestamp = 0.0
-        self._gateway_online: bool = False
-        self._login_exception: Optional[BaseException] = None
 
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
@@ -474,9 +472,6 @@ class PyADTPulse:
             else:
                 # we should never get here
                 raise RuntimeError("Background pyadtpulse tasks not created")
-            if self._sync_task is not None:
-                task_list.append(self._sync_task)
-            await asyncio.wait(task_list)
         if self._authenticated is not None:
             while self._authenticated.is_set():
                 # busy wait until logout is done
@@ -592,10 +587,6 @@ class PyADTPulse:
         if self._timeout_task is None:
             self._timeout_task = self._create_task_cb(
                 self._keepalive_task(), name=f"{KEEPALIVE_TASK_NAME}"
-            )
-        if self._timeout_task is None:
-            self._timeout_task = asyncio.create_task(
-                self._keepalive_task(), name="PyADTPulse timeout"
             )
         if self._updates_exist is None:
             self._updates_exist = asyncio.locks.Event()
