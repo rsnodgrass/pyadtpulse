@@ -151,8 +151,7 @@ class PyADTPulse:
             self._attribute_lock = RLock()
         else:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
-        self._last_timeout_reset = time.time()
-        self._sync_timestamp = 0.0
+        self._sync_timestamp = self._last_timeout_reset = time.time()
 
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
