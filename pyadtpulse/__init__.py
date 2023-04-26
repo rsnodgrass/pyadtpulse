@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import uvloop
 from aiohttp import (
     ClientConnectionError,
+    ClientConnectorError,
     ClientResponse,
     ClientResponseError,
     ClientSession,
@@ -858,9 +859,13 @@ class PyADTPulse:
                 response.raise_for_status()
                 # success, break loop
                 retry = 4
-            except asyncio.TimeoutError:
+            except (
+                asyncio.TimeoutError,
+                ClientConnectionError,
+                ClientConnectorError,
+            ) as ex:
                 LOG.warning(
-                    f"Timeout occurred making {method} request to {url}, retrying"
+                    f"Error {ex} occurred making {method} request to {url}, retrying"
                 )
                 await asyncio.sleep(2**retry + uniform(0.0, 1.0))
                 continue
@@ -869,9 +874,6 @@ class PyADTPulse:
                 LOG.exception(
                     f"Received HTTP error code {code} in request to ADT Pulse"
                 )
-                return None
-            except ClientConnectionError:
-                LOG.exception("An exception occurred in request to ADT Pulse")
                 return None
 
         # success!
