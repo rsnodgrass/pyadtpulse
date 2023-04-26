@@ -562,14 +562,14 @@ class PyADTPulse:
             logging.ERROR,
             "Error encountered communicating with Pulse site on login",
         ):
-            response.close()  # type: ignore
+            self._close_response(response)
             return False
         if str(response.url) != self.make_url(ADT_SUMMARY_URI):  # type: ignore
             # more specifically:
             # redirect to signin.jsp = username/password error
             # redirect to mfaSignin.jsp = fingerprint error
             LOG.error("Authentication error encountered logging into ADT Pulse")
-            response.close()  # type: ignore
+            self._close_response(response)
             return False
 
         soup = await make_soup(
