@@ -634,7 +634,7 @@ class ADTPulseSite:
                     return None
                 if state != "Unknown":
                     gateway_online = True
-
+                    
                 self._zones.update_device_info(zone, state, status, last_update)
 
                 LOG.debug(

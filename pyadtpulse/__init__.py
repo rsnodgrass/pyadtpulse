@@ -142,8 +142,6 @@ class PyADTPulse:
 
         self._updates_exist: Optional[asyncio.locks.Event] = None
 
-        self._last_timeout_reset = time.time()
-
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._session_thread: Optional[Thread] = None
         self._attribute_lock: Union[RLock, DebugRLock]
