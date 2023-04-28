@@ -632,6 +632,7 @@ class ADTPulseSite:
                 if not self._zones:
                     LOG.warning("No zones exist")
                     return None
+                
                 if state != "Unknown":
                     gateway_online = True
                     
