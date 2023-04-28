@@ -632,12 +632,9 @@ class ADTPulseSite:
                 if not self._zones:
                     LOG.warning("No zones exist")
                     return None
-                
                 if state != "Unknown":
                     gateway_online = True
-                    
                 self._zones.update_device_info(zone, state, status, last_update)
-
                 LOG.debug(
                     f"Set zone {zone} - to {state}, status {status} "
                     f"with timestamp {last_update}"
