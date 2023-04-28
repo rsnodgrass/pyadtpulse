@@ -599,15 +599,20 @@ class ADTPulseSite:
                 temp_status = row.find("td", {"class": "p_listRow"}).find_next(
                     "td", {"class": "p_listRow"}
                 )
+
+                status = "Unknown"
                 if temp_status is not None:
                     temp_status = temp_status.get_text()
                     if temp_status is not None:
-                        temp_status = temp_status.replace("\xa0", "")
-
-                if temp_status is not None:
-                    status = temp_status
-                else:
-                    status = "Online"
+                        temp_status = str(temp_status.replace("\xa0", ""))
+                        if temp_status.startswith("Trouble"):
+                            trouble_code = str(temp_status).split()
+                            if len(trouble_code) > 1:
+                                status = " ".join(trouble_code[1:])
+                            else:
+                                status = "Unknown trouble code"
+                        else:
+                            status = "Online"
 
                 # parse out last activity (required dealing with "Yesterday 1:52 PM")
                 #           last_activity = time.time()
@@ -629,13 +634,6 @@ class ADTPulseSite:
                     return None
                 if state != "Unknown":
                     gateway_online = True
-
-                if status.startswith("Trouble"):
-                    trouble_code = status.split()
-                    if len(trouble_code) == 2:
-                        status = trouble_code[1]
-                    else:
-                        status = "Unknown trouble code"
 
                 self._zones.update_device_info(zone, state, status, last_update)
 
