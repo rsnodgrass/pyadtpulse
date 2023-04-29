@@ -142,6 +142,31 @@ class ADTPulseZones(UserDict):
         temp.last_activity_timestamp = dt.timestamp()
         self.__setitem__(key, temp)
 
+    def update_device_info(
+        self,
+        key: int,
+        state: str,
+        status: str = "Online",
+        last_activity: datetime = datetime.now(),
+    ) -> None:
+        """Update the device info.
+
+        Convenience method to update all common device info
+        at once.
+
+        Args:
+            key (int): zone id
+            state (str): state
+            status (str, optional): status. Defaults to "Online".
+            last_activity (datetime, optional): last_activity_datetime.
+                Defaults to datetime.now().
+        """
+        temp = self._get_zonedata(key)
+        temp.state = state
+        temp.status = status
+        temp.last_activity_timestamp = last_activity.timestamp()
+        self.__setitem__(key, temp)
+
     def flatten(self) -> List[ADTPulseFlattendZone]:
         """Flattens ADTPulseZones into a list of ADTPulseFlattenedZones.
 

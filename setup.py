@@ -2,6 +2,8 @@
 
 import os
 import sys
+from pathlib import Path
+
 import setuptools
 
 if sys.argv[-1] == "publish":
@@ -12,12 +14,13 @@ if sys.argv[-1] == "publish":
 from os import path
 
 this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
-    long_description = f.read()
+long_description = Path(
+    path.join(this_directory, "README.md"), encoding="utf-8"
+).read_text()
 
 setuptools.setup(
     name="pyadtpulse",
-    version="1.0.2",
+    version="1.0.3",
     packages=["pyadtpulse"],
     description="Python interface for ADT Pulse security systems",
     long_description=long_description,
@@ -26,7 +29,7 @@ setuptools.setup(
     author="",
     author_email="",
     license="Apache Software License",
-    install_requires=["requests>=2.0"],
+    install_requires=["aiohttp>=3.8.1", "uvloop==0.16.0"],
     keywords=["security system", "adt", "home automation", "security alarm"],
     zip_safe=True,
     classifiers=[

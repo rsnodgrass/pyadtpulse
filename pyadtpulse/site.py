@@ -596,6 +596,23 @@ class ADTPulseSite:
                     row.find("canvas", {"class": "p_ic_icon_device"}).get("icon"),
                     "devStat",
                 )
+                temp_status = row.find("td", {"class": "p_listRow"}).find_next(
+                    "td", {"class": "p_listRow"}
+                )
+
+                status = "Unknown"
+                if temp_status is not None:
+                    temp_status = temp_status.get_text()
+                    if temp_status is not None:
+                        temp_status = str(temp_status.replace("\xa0", ""))
+                        if temp_status.startswith("Trouble"):
+                            trouble_code = str(temp_status).split()
+                            if len(trouble_code) > 1:
+                                status = " ".join(trouble_code[1:])
+                            else:
+                                status = "Unknown trouble code"
+                        else:
+                            status = "Online"
 
                 # parse out last activity (required dealing with "Yesterday 1:52 PM")
                 #           last_activity = time.time()
@@ -617,10 +634,11 @@ class ADTPulseSite:
                     return None
                 if state != "Unknown":
                     gateway_online = True
-                self._zones.update_last_activity_timestamp(zone, last_update)
-
-                LOG.debug(f"Set zone {zone} - to {state} with timestamp {last_update}")
-
+                self._zones.update_device_info(zone, state, status, last_update)
+                LOG.debug(
+                    f"Set zone {zone} - to {state}, status {status} "
+                    f"with timestamp {last_update}"
+                )
             self._adt_service._set_gateway_status(gateway_online)
             self._last_updated = datetime.now()
             return self._zones
