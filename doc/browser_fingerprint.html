@@ -1,0 +1,31 @@
+<html>
+    <head>
+        <script type="text/javascript" src="https://auth.pulse-api.io/v2/sso/US/devicefingerprint"></script>
+        <script type="text/javascript">
+            function setFingerprint() {
+                const e = document.getElementById("fingerprint");
+                if (e && window.secureAuth && window.secureAuth.fingerprint) {
+                    const r = window.secureAuth.fingerprint.getAllResults()
+                    , t = JSON.stringify(r)
+                    , n = btoa(t);
+                e.value = n
+                }
+            };
+            function copyFingerprintToClipboard() {
+                const e = document.getElementById("fingerprint");
+                if(e) {
+                    e.select();
+                    e.setSelectionRange(0, 99999);
+                    navigator.clipboard.writeText(e.value);
+                }
+            };
+        </script>
+    <title>ADT Pulse Fingerprint</title>
+    </head>
+<body onload="setFingerprint()">
+    <h1><img src="./adtpulse.png" width="40" height="40"> Pulse Browser Fingerprint Detector</h1>
+    <p>Your browser fingerprint is:</p>
+    <p><textarea id="fingerprint" name="fingerprint" rows="30" cols="80"></textarea></p>
+    <p><button onclick="copyFingerprintToClipboard()">Copy Text</button></p>
+</body>
+    </html>
