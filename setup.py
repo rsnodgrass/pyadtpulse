@@ -20,7 +20,7 @@ long_description = Path(
 
 setuptools.setup(
     name="pyadtpulse",
-    version="1.0.4",
+    version="1.0.5",
     packages=["pyadtpulse"],
     description="Python interface for ADT Pulse security systems",
     long_description=long_description,

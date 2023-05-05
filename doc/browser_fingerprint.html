@@ -1,0 +1,38 @@
+<html>
+    <head>
+        <script type="text/javascript" src="https://auth.pulse-api.io/v2/sso/US/devicefingerprint"></script>
+        <script type="text/javascript">
+            function setFingerprint() {
+                const e = document.getElementById("fingerprint");
+                if (e && window.secureAuth && window.secureAuth.fingerprint) {
+                    const r = window.secureAuth.fingerprint.getAllResults()
+                    , t = JSON.stringify(r)
+                    , n = btoa(t);
+                e.value = n
+                }
+            };
+            function copyFingerprintToClipboard() {
+                const e = document.getElementById("fingerprint");
+                if(e) {
+                    e.select();
+                    e.setSelectionRange(0, 99999);
+                    navigator.clipboard.writeText(e.value);
+                }
+            };
+        </script>
+    <title>ADT Pulse Fingerprint</title>
+    </head>
+<body onload="setFingerprint()">
+    <h1><img src="./adtpulse.png" width="40" height="40"> Pulse Browser Fingerprint Detector</h1>
+    <h2>For use with:
+        <p><a href="https://github.com/rsnodgrass/pyadtpulse">pyadtpulse</a></p>
+        <p><a href="https://github.com/rsnodgrass/hass-adtpulse">ADT Pulse for Home Assistant</a></p>
+        <p><a href="https://github.com/adt-pulse-mqtt/adt-pulse-mqtt">ADT Pulse for Home Assistant with MQTT</a></p>
+        <p><a href="https://github.com/mrjackyliang/homebridge-adt-pulse">ADT Pulse for Homebridge</a></p>
+        <p>Others?</p>
+    </h2>
+    <p>Your browser fingerprint is:</p>
+    <p><textarea id="fingerprint" name="fingerprint" rows="30" cols="80"></textarea></p>
+    <p><button onclick="copyFingerprintToClipboard()">Copy Text</button></p>
+</body>
+    </html>
