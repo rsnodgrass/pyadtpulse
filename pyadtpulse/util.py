@@ -1,6 +1,10 @@
 """Utility functions for pyadtpulse."""
 import logging
+import string
 import sys
+from base64 import urlsafe_b64encode
+from pathlib import Path
+from random import randint
 from threading import RLock, current_thread
 from typing import Optional
 
@@ -69,6 +73,40 @@ async def make_soup(
     body_text = await response.text()
     response.close()
     return BeautifulSoup(body_text, "html.parser")
+
+
+FINGERPRINT_LENGTH = 2292
+ALLOWABLE_CHARACTERS = list(string.ascii_letters + string.digits)
+FINGERPRINT_RANGE_LEN = len(ALLOWABLE_CHARACTERS)
+
+
+def generate_random_fingerprint() -> str:
+    """Generate a random browser fingerprint string.
+
+    Returns:
+        str: a fingerprint string
+    """
+    fingerprint = [
+        ALLOWABLE_CHARACTERS[(randint(0, FINGERPRINT_RANGE_LEN - 1))]
+        for i in range(FINGERPRINT_LENGTH)
+    ]
+    return "".join(fingerprint)
+
+
+def generate_fingerprint_from_browser_json(filename: str) -> str:
+    """Generate a browser fingerprint from a JSON file.
+
+    Args:
+        filename (str): JSON file containing fingerprint information
+
+    Returns:
+        str: the fingerprint
+    """
+    data = Path(filename).read_text()
+    # Pulse just calls JSON.Stringify() and btoa() in javascript, so we need to
+    # do this to emulate that
+    data2 = "".join(data.split())
+    return str(urlsafe_b64encode(data2.encode("utf-8")), "utf-8")
 
 
 class DebugRLock:
