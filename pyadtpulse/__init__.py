@@ -524,6 +524,24 @@ class PyADTPulse:
         with self._attribute_lock:
             return self._loop
 
+    async def _do_login_query(
+        self, force_login: bool = False, timeout: int = 30
+    ) -> ClientResponse | None:
+        return await self._async_query(
+            ADT_LOGIN_URI,
+            method="POST",
+            extra_params={
+                "partner": "adt",
+                "e": "ns",
+                "usernameForm": self.username,
+                "passwordForm": self._password,
+                "fingerprint": self._fingerprint,
+                "sun": "yes",
+            },
+            force_login=force_login,
+            timeout=timeout,
+        )
+
     async def async_login(self) -> bool:
         """Login asynchronously to ADT.
 
@@ -540,20 +558,7 @@ class PyADTPulse:
         LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
         await self._async_fetch_version()
 
-        response = await self._async_query(
-            ADT_LOGIN_URI,
-            method="POST",
-            extra_params={
-                "partner": "adt",
-                "usernameForm": self.username,
-                "passwordForm": self._password,
-                "fingerprint": self._fingerprint,
-                "sun": "yes",
-            },
-            force_login=False,
-            timeout=30,
-        )
-
+        response = await self._do_login_query()
         if not handle_response(
             response,
             logging.ERROR,
