@@ -435,7 +435,6 @@ class ADTPulseSite:
             if not soup:
                 return None
 
-        temp_zone: ADTPulseZoneData
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
         with self._site_lock:
             for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):

@@ -2,8 +2,9 @@
 
 import logging
 import asyncio
-import re
 import time
+import re
+import datetime
 from random import uniform
 from threading import Lock, RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
@@ -415,7 +416,36 @@ class PyADTPulse:
         if response is not None and not response.closed:
             response.close()
 
+    def _check_retry_after(
+        self, response: Optional[ClientResponse], task_name: str
+    ) -> int:
+        if response is None:
+            return 0
+        header_value = response.headers.get("Retry-After")
+        if header_value is None:
+            return 0
+        if header_value.isnumeric():
+            retval = int(header_value)
+        else:
+            try:
+                retval = (
+                    datetime.datetime.strptime(header_value, "%a, %d %b %G %T %Z")
+                    - datetime.datetime.now()
+                ).seconds
+            except ValueError:
+                return 0
+        reason = "Unknown"
+        if response.status == 429:
+            reason = "Too many requests"
+        elif response.status == 503:
+            reason = "Service unavailable"
+        LOG.warning(f"Task {task_name} received Retry-After {retval} due to {reason}")
+        return retval
+
+        return retval
+
     async def _keepalive_task(self) -> None:
+        retry_after = 0
         if self._timeout_task is not None:
             task_name = self._timeout_task.get_name()
         else:
@@ -429,12 +459,13 @@ class PyADTPulse:
                 )
         while self._authenticated.is_set():
             try:
-                await asyncio.sleep(ADT_TIMEOUT_INTERVAL)
+                await asyncio.sleep(ADT_TIMEOUT_INTERVAL + retry_after)
                 LOG.debug("Resetting timeout")
                 response = await self._async_query(ADT_TIMEOUT_URI, "POST")
                 if handle_response(
                     response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
                 ):
+                    retry_after = self._check_retry_after(response, "Keepalive task")
                     self._close_response(response)
                     continue
                 self._close_response(response)
@@ -656,10 +687,9 @@ class PyADTPulse:
 
         LOG.debug(f"creating {task_name}")
         response = None
+        retry_after = 0
         if self._updates_exist is None:
-            raise RuntimeError(
-                "Sync check task started without update event initialized"
-            )
+            raise RuntimeError(f"{task_name} started without update event initialized")
         while True:
             try:
                 if self.gateway_online:
@@ -671,7 +701,10 @@ class PyADTPulse:
                     )
                     pi = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
 
-                await asyncio.sleep(pi)
+                if retry_after == 0:
+                    await asyncio.sleep(pi)
+                else:
+                    await asyncio.sleep(retry_after)
                 response = await self._async_query(
                     ADT_SYNC_CHECK_URI,
                     extra_params={"ts": int(self._sync_timestamp * 1000)},
@@ -679,7 +712,10 @@ class PyADTPulse:
 
                 if response is None:
                     continue
-
+                retry_after = self._check_retry_after(response, f"{task_name}")
+                if retry_after != 0:
+                    self._close_response(response)
+                    continue
                 text = await response.text()
                 if not handle_response(
                     response, logging.ERROR, "Error querying ADT sync"
@@ -707,7 +743,7 @@ class PyADTPulse:
                     self._sync_timestamp = time.time()
                     self._updates_exist.set()
                     if await self.async_update() is False:
-                        LOG.debug("Pulse data update from sync task failed")
+                        LOG.debug(f"Pulse data update from {task_name} failed")
                     continue
 
                 LOG.debug(f"Sync token {text} indicates no remote updates to process")
