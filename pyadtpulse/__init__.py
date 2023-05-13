@@ -1,10 +1,11 @@
 """Base Python Class for pyadtpulse."""
 
-import logging
 import asyncio
-import time
-import re
 import datetime
+import logging
+import re
+import time
+from contextlib import suppress
 from random import uniform
 from threading import Lock, RLock, Thread
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
@@ -29,6 +30,7 @@ from pyadtpulse.const import (
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
     ADT_ORB_URI,
+    ADT_RELOGIN_INTERVAL,
     ADT_SUMMARY_URI,
     ADT_SYNC_CHECK_URI,
     ADT_SYSTEM_URI,
@@ -457,7 +459,30 @@ class PyADTPulse:
                 raise RuntimeError(
                     "Keepalive task is running without an authenticated event"
                 )
+        last_login = time.time()
         while self._authenticated.is_set():
+            if time.time() - last_login > ADT_RELOGIN_INTERVAL:
+                with self._attribute_lock:
+                    if self._sync_task is not None:
+                        self._sync_task.cancel()
+                        with suppress(Exception):
+                            await self._sync_task
+                    await self._async_query(ADT_LOGOUT_URI)
+                    try:
+                        response = await self._do_login_query()
+                    except Exception as e:
+                        LOG.error(
+                            f"{task_name} could not re-login to ADT Pulse due to"
+                            f" exception {e}, exiting"
+                        )
+                        self._close_response(response)
+                        return
+                    self._close_response(response)
+                    if self._sync_task is not None:
+                        coro = self._sync_check_task()
+                        self._sync_task = self._create_task_cb(
+                            coro, name=f"{SYNC_CHECK_TASK_NAME}: Async session"
+                        )
             try:
                 await asyncio.sleep(ADT_TIMEOUT_INTERVAL + retry_after)
                 LOG.debug("Resetting timeout")
