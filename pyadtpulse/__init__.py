@@ -316,7 +316,7 @@ class PyADTPulse:
         if interval > 0 and interval < 10:
             raise ValueError("Cannot set relogin interval to less than 10 minutes")
         with self._attribute_lock:
-            self._relogin_interval = interval
+            self._relogin_interval = interval * 60
 
     def _set_gateway_status(self, status: bool) -> None:
         """Set gateway status.
