@@ -499,7 +499,7 @@ class PyADTPulse:
                         self._sync_task.cancel()
                         with suppress(Exception):
                             await self._sync_task
-                    await self._async_query(ADT_LOGOUT_URI)
+                    await self._do_logout_query()
                     try:
                         response = await self._do_login_query()
                     except Exception as e:
