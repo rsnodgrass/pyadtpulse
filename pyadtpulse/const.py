@@ -18,7 +18,7 @@ ADT_SYNC_CHECK_URI = "/Ajax/SyncCheckServ"
 ADT_TIMEOUT_URI = "/KeepAlive"
 # Intervals are all in seconds
 ADT_TIMEOUT_INTERVAL = 300.0
-ADT_RELOGIN_INTERVAL = 7200.0
+ADT_RELOGIN_INTERVAL = 7200
 
 # ADT sets their keepalive to 1 second, so poll a little more often
 # than that
