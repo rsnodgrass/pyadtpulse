@@ -73,7 +73,6 @@ class PyADTPulse:
         "_session_thread",
         "_attribute_lock",
         "_last_timeout_reset",
-        "_sync_timestamp",
         "_sites",
         "_api_host",
         "_poll_interval",
@@ -135,7 +134,6 @@ class PyADTPulse:
         self._user_agent = user_agent
 
         self._sync_task: Optional[asyncio.Task] = None
-        self._sync_timestamp = 0.0
         self._timeout_task: Optional[asyncio.Task] = None
 
         # FIXME use thread event/condition, regular condition?
@@ -152,7 +150,7 @@ class PyADTPulse:
             self._attribute_lock = RLock()
         else:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
-        self._sync_timestamp = self._last_timeout_reset = time.time()
+        self._last_timeout_reset = time.time()
 
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
@@ -668,7 +666,6 @@ class PyADTPulse:
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
 
-        self._sync_timestamp = time.time()
         if self._timeout_task is None:
             self._timeout_task = self._create_task_cb(
                 self._keepalive_task(), name=f"{KEEPALIVE_TASK_NAME}"
@@ -740,7 +737,7 @@ class PyADTPulse:
                     await asyncio.sleep(retry_after)
                 response = await self._async_query(
                     ADT_SYNC_CHECK_URI,
-                    extra_params={"ts": int(self._sync_timestamp * 1000)},
+                    extra_params={"ts": int(time.time() * 1000)},
                 )
 
                 if response is None:
@@ -774,7 +771,6 @@ class PyADTPulse:
                         f"Sync token {text} indicates updates may exist, requerying"
                     )
                     self._close_response(response)
-                    self._sync_timestamp = time.time()
                     self._updates_exist.set()
                     if await self.async_update() is False:
                         LOG.debug(f"Pulse data update from {task_name} failed")
@@ -782,7 +778,6 @@ class PyADTPulse:
 
                 LOG.debug(f"Sync token {text} indicates no remote updates to process")
                 self._close_response(response)
-                self._sync_timestamp = time.time()
 
             except asyncio.CancelledError:
                 LOG.debug(f"{task_name} cancelled")
