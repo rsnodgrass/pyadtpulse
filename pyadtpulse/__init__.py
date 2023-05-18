@@ -907,7 +907,7 @@ class PyADTPulse:
         LOG.debug(f"Updating HTTP headers: {new_headers}")
         self._session.headers.update(new_headers)
 
-        LOG.debug(f"Attempting {method} {url}")
+        LOG.debug(f"Attempting {method} {url} params={extra_params} timeout={timeout}")
 
         # FIXME: reauthenticate if received:
         # "You have not yet signed in or you
