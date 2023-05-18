@@ -598,6 +598,14 @@ class PyADTPulse:
             timeout=timeout,
         )
 
+    async def _do_logout_query(self) -> None:
+        params = {}
+        network: ADTPulseSite = self.sites[0]
+        if network is not None:
+            params.update({"network": str(network.id)})
+        params.update({"partner": "adt"})
+        await self._async_query(ADT_LOGOUT_URI, extra_params=params, timeout=10)
+
     async def async_login(self) -> bool:
         """Login asynchronously to ADT.
 
@@ -686,7 +694,7 @@ class PyADTPulse:
                 LOG.debug(f"{SYNC_CHECK_TASK_NAME} successfully cancelled")
                 await self._sync_task
         self._timeout_task = self._sync_task = None
-        await self._async_query(ADT_LOGOUT_URI, timeout=10)
+        await self._do_logout_query()
         self._last_timeout_reset = time.time()
         if self._authenticated is not None:
             self._authenticated.clear()
@@ -755,6 +763,7 @@ class PyADTPulse:
                     )
                     LOG.debug(f"Received {text} from ADT Pulse site")
                     self._close_response(response)
+                    await self._do_logout_query()
                     await self.async_login()
                     continue
 
