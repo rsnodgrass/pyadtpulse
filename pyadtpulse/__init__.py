@@ -82,6 +82,7 @@ class PyADTPulse:
         "_login_exception",
         "_gateway_online",
         "_create_task_cb",
+        "_relogin_interval",
     )
     _api_version = ADT_DEFAULT_VERSION
     _class_threadlock = Lock()
@@ -162,6 +163,7 @@ class PyADTPulse:
         self._poll_interval = poll_interval
         # FIXME: I have no idea how to type hint this
         self._create_task_cb = create_task_cb
+        self._relogin_interval = ADT_RELOGIN_INTERVAL
 
         # authenticate the user
         if do_login and self._session is None:
@@ -287,6 +289,34 @@ class PyADTPulse:
         """
         with self._attribute_lock:
             return self._gateway_online
+
+    @property
+    def relogin_interval(self) -> int:
+        """Get re-login interval.
+
+        Returns:
+            int: number of minutes to re-login to Pulse
+                 0 means disabled
+        """
+        with self._attribute_lock:
+            return self._relogin_interval
+
+    @relogin_interval.setter
+    def relogin_interval(self, interval: int) -> None:
+        """Set re-login interval.
+
+        Args:
+            interval (int): The number of minutes between logins.
+                            0 means disable
+
+        Raises:
+            ValueError: if a relogin interval of less than 10 minutes
+                        is specified
+        """
+        if interval > 0 and interval < 10:
+            raise ValueError("Cannot set relogin interval to less than 10 minutes")
+        with self._attribute_lock:
+            self._relogin_interval = interval
 
     def _set_gateway_status(self, status: bool) -> None:
         """Set gateway status.
@@ -459,7 +489,8 @@ class PyADTPulse:
                 )
         last_login = time.time()
         while self._authenticated.is_set():
-            if time.time() - last_login > ADT_RELOGIN_INTERVAL:
+            relogin_interval = self.relogin_interval
+            if relogin_interval != 0 and time.time() - last_login > relogin_interval:
                 with self._attribute_lock:
                     if self._sync_task is not None:
                         self._sync_task.cancel()
