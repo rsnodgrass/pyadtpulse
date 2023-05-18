@@ -610,9 +610,7 @@ class PyADTPulse:
         with self._attribute_lock:
             return self._loop
 
-    async def _do_login_query(
-        self, force_login: bool = False, timeout: int = 30
-    ) -> ClientResponse | None:
+    async def _do_login_query(self, timeout: int = 30) -> ClientResponse | None:
         return await self._async_query(
             ADT_LOGIN_URI,
             method="POST",
@@ -624,7 +622,6 @@ class PyADTPulse:
                 "fingerprint": self._fingerprint,
                 "sun": "yes",
             },
-            force_login=force_login,
             timeout=timeout,
         )
 
@@ -878,7 +875,6 @@ class PyADTPulse:
         method: str = "GET",
         extra_params: Optional[Dict] = None,
         extra_headers: Optional[Dict] = None,
-        force_login: Optional[bool] = True,
         timeout=1,
     ) -> Optional[ClientResponse]:
         """Query ADT Pulse async.
@@ -889,8 +885,6 @@ class PyADTPulse:
             extra_params (Optional[Dict], optional): query parameters. Defaults to None.
             extra_headers (Optional[Dict], optional): extra HTTP headers.
                         Defaults to None.
-            force_login (Optional[bool], optional): login if not connected.
-                        Defaults to True.
             timeout (int, optional): timeout in seconds. Defaults to 1.
 
         Returns:
@@ -899,11 +893,6 @@ class PyADTPulse:
                                       ClientResponse will already be closed.
         """
         response = None
-
-        # automatically attempt to login, if not connected
-        if force_login and not self.is_connected:
-            await self.async_login()
-
         if self._session is None:
             raise RuntimeError("ClientSession not initialized")
         url = self.make_url(uri)
@@ -994,7 +983,6 @@ class PyADTPulse:
         method: str = "GET",
         extra_params: Optional[Dict] = None,
         extra_headers: Optional[Dict] = None,
-        force_login: Optional[bool] = True,
         timeout=1,
     ) -> Optional[ClientResponse]:
         """Query ADT Pulse async.
@@ -1005,8 +993,6 @@ class PyADTPulse:
             extra_params (Optional[Dict], optional): query parameters. Defaults to None.
             extra_headers (Optional[Dict], optional): extra HTTP headers.
                                                     Defaults to None.
-            force_login (Optional[bool], optional): login if not connected.
-                                                    Defaults to True.
             timeout (int, optional): timeout in seconds. Defaults to 1.
         Returns:
             Optional[ClientResponse]: aiohttp.ClientResponse object
@@ -1015,9 +1001,7 @@ class PyADTPulse:
         """
         if self._loop is None:
             raise RuntimeError("Attempting to run sync query from async login")
-        coro = self._async_query(
-            uri, method, extra_params, extra_headers, force_login, timeout
-        )
+        coro = self._async_query(uri, method, extra_params, extra_headers, timeout)
         return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
 
     # FIXME? might have to move this to site for multiple sites
