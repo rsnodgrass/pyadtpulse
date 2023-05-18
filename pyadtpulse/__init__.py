@@ -151,7 +151,7 @@ class PyADTPulse:
             self._attribute_lock = RLock()
         else:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
-        self._last_timeout_reset = time.time()
+        self._last_timeout_reset = 0.0
 
         # fixme circular import, should be an ADTPulseSite
         if TYPE_CHECKING:
@@ -487,10 +487,12 @@ class PyADTPulse:
                 raise RuntimeError(
                     "Keepalive task is running without an authenticated event"
                 )
-        last_login = time.time()
         while self._authenticated.is_set():
             relogin_interval = self.relogin_interval
-            if relogin_interval != 0 and time.time() - last_login > relogin_interval:
+            if (
+                relogin_interval != 0
+                and time.time() - self._last_timeout_reset > relogin_interval
+            ):
                 LOG.info("Login timeout reached, re-logging in")
                 with self._attribute_lock:
                     if self._sync_task is not None:
@@ -645,6 +647,7 @@ class PyADTPulse:
             self._authenticated = asyncio.locks.Event()
         else:
             self._authenticated.clear()
+        self._last_timeout_reset = time.time()
 
         LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
         await self._async_fetch_version()
