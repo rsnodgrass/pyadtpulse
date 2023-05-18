@@ -491,6 +491,7 @@ class PyADTPulse:
         while self._authenticated.is_set():
             relogin_interval = self.relogin_interval
             if relogin_interval != 0 and time.time() - last_login > relogin_interval:
+                LOG.info("Login timeout reached, re-logging in")
                 with self._attribute_lock:
                     if self._sync_task is not None:
                         self._sync_task.cancel()
@@ -941,8 +942,8 @@ class PyADTPulse:
 
                 if response.status in RECOVERABLE_ERRORS:
                     retry = retry + 1
-                    LOG.warning(
-                        f"pyadtpulse query returned recover error code "
+                    LOG.info(
+                        f"pyadtpulse query returned recoverable error code "
                         f"{response.status}, retrying (count ={retry})"
                     )
                     if retry == max_retries:
@@ -962,7 +963,7 @@ class PyADTPulse:
                 ClientConnectionError,
                 ClientConnectorError,
             ) as ex:
-                LOG.warning(
+                LOG.info(
                     f"Error {ex} occurred making {method} request to {url}, retrying"
                 )
                 await asyncio.sleep(2**retry + uniform(0.0, 1.0))
