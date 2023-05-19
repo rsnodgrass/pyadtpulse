@@ -472,8 +472,6 @@ class PyADTPulse:
         LOG.warning(f"Task {task_name} received Retry-After {retval} due to {reason}")
         return retval
 
-        return retval
-
     async def _keepalive_task(self) -> None:
         retry_after = 0
         if self._timeout_task is not None:
