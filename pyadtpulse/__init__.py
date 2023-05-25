@@ -127,7 +127,7 @@ class PyADTPulse:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
         self._last_timeout_reset = 0.0
 
-        self._site: ADTPulseSite
+        self._site: Optional[ADTPulseSite] = None
         self._poll_interval = poll_interval
         # FIXME: I have no idea how to type hint this
         self._relogin_interval = ADT_RELOGIN_INTERVAL
@@ -287,6 +287,7 @@ class PyADTPulse:
             if self._site is not None:
                 await self._initialize_sites(soup)
             else:
+                # FIXME: wrong error?
                 LOG.error("pyadtpulse returned no sites")
                 return
 
@@ -804,10 +805,18 @@ class PyADTPulse:
             stacklevel=2,
         )
         with self._attribute_lock:
+            if self._site is None:
+                raise RuntimeError(
+                    "No sites have been retrieved, have you logged in yet?"
+                )
             return [self._site]
 
     @property
     def site(self) -> ADTPulseSite:
         """Return the site associated with the Pulse login."""
         with self._attribute_lock:
+            if self._site is None:
+                raise RuntimeError(
+                    "No sites have been retrieved, have you logged in yet?"
+                )
             return self._site
