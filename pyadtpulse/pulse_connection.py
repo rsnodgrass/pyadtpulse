@@ -37,6 +37,14 @@ class ADTPulseConnection:
     _api_version = ADT_DEFAULT_VERSION
     _class_threadlock = Lock()
 
+    __slots__ = (
+        "_api_host",
+        "_allocated_session",
+        "_session",
+        "_attribute_lock",
+        "_loop",
+    )
+
     def __init__(
         self,
         host: str,
@@ -48,7 +56,7 @@ class ADTPulseConnection:
         self._api_host = host
         self._allocated_session = False
         if session is None:
-            self._allocate_session = True
+            self._allocated_session = True
             self._session = ClientSession()
         else:
             self._session = session
