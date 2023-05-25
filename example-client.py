@@ -69,14 +69,14 @@ def usage() -> None:
     print(f"Usage {sys.argv[0]}: [json-file]")
     print(f"  {USER.upper()}, {PASSWD.upper()}, and {FINGERPRINT.upper()}")
     print("  must be set either through the json file, or environment variables.")
-    print("")
+    print()
     print(f"  Set {PULSE_DEBUG} to True to enable debugging")
     print(f"  Set {TEST_ALARM} to True to test alarm arming/disarming")
     print(f"  Set {SLEEP_INTERVAL} to the number of seconds to sleep between each call")
     print("     Default: 10 seconds")
     print(f"  Set {USE_ASYNC} to true to use asyncio (default: false)")
     print(f"  Set {DEBUG_LOCKS} to true to debug thread locks")
-    print("")
+    print()
     print("  values can be passed on the command line i.e.")
     print(f"  {USER}=someone@example.com")
 
@@ -153,7 +153,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
         else:
             print("Force arm failed")
 
-    print("")
+    print()
     print_site(site)
 
     print("Disarming alarm")
@@ -168,7 +168,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     else:
         print("Disarming failed")
 
-    print("")
+    print()
     print_site(site)
     print("Arming alarm away")
 
@@ -178,7 +178,7 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None
     else:
         print("Arm away failed")
 
-    print("")
+    print()
     print_site(site)
     site.disarm()
     print("Disarmed")
@@ -299,7 +299,7 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
         else:
             print("Force arm failed")
 
-    print("")
+    print()
     print_site(site)
 
     print("Disarming alarm")
@@ -314,7 +314,7 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
     else:
         print("Disarming failed")
 
-    print("")
+    print()
     print_site(site)
     print("Arming alarm away")
 
@@ -324,7 +324,7 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
     else:
         print("Arm away failed")
 
-    print("")
+    print()
     print_site(site)
     await site.async_disarm()
     print("Disarmed")
