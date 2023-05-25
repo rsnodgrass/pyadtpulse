@@ -62,7 +62,6 @@ class PyADTPulse:
         "_fingerprint",
         "_login_exception",
         "_gateway_online",
-        "_create_task_cb",
         "_relogin_interval",
     )
 
@@ -77,7 +76,6 @@ class PyADTPulse:
         do_login: bool = True,
         poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
         debug_locks: bool = False,
-        create_task_cb=asyncio.create_task,
     ):
         """Create a PyADTPulse object.
 
@@ -101,8 +99,6 @@ class PyADTPulse:
             poll_interval (float, optional): number of seconds between update checks
             debug_locks: (bool, optional): use debugging locks
                         Defaults to False
-            create_task_cb (callback, optional): callback to use to create async tasks
-                        Defaults to asyncio.create_task()
         """
         self._gateway_online: bool = False
 
@@ -133,11 +129,9 @@ class PyADTPulse:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
         self._last_timeout_reset = 0.0
 
-        # fixme circular import, should be an ADTPulseSite
         self._site: ADTPulseSite
         self._poll_interval = poll_interval
         # FIXME: I have no idea how to type hint this
-        self._create_task_cb = create_task_cb
         self._relogin_interval = ADT_RELOGIN_INTERVAL
 
         # authenticate the user
@@ -404,7 +398,7 @@ class PyADTPulse:
                     close_response(response)
                     if self._sync_task is not None:
                         coro = self._sync_check_task()
-                        self._sync_task = self._create_task_cb(
+                        self._sync_task = asyncio.create_task(
                             coro, name=f"{SYNC_CHECK_TASK_NAME}: Async session"
                         )
             try:
@@ -592,7 +586,7 @@ class PyADTPulse:
         # and update the sites with the alarm status.
 
         if self._timeout_task is None:
-            self._timeout_task = self._create_task_cb(
+            self._timeout_task = asyncio.create_task(
                 self._keepalive_task(), name=f"{KEEPALIVE_TASK_NAME}"
             )
         if self._updates_exist is None:
@@ -748,7 +742,7 @@ class PyADTPulse:
         with self._attribute_lock:
             if self._sync_task is None:
                 coro = self._sync_check_task()
-                self._sync_task = self._create_task_cb(
+                self._sync_task = asyncio.create_task(
                     coro, name=f"{SYNC_CHECK_TASK_NAME}: Async session"
                 )
         if self._updates_exist is None:
