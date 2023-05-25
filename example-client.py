@@ -220,47 +220,44 @@ def sync_example(
         adt.logout()
         return
 
-    for site in adt.sites:
-        site.site_lock.acquire()
-        print(f"Gateway online: {adt.gateway_online}")
-        print_site(site)
-        if not site.zones:
-            print("Error: no zones exist, exiting")
-            site.site_lock.release()
-            adt.logout()
-            return
-        for zone in site.zones:
-            print(zone)
-        site.site_lock.release()
-        if run_alarm_test:
-            test_alarm(site, adt, sleep_interval)
+    adt.site.site_lock.acquire()
+    print(f"Gateway online: {adt.gateway_online}")
+    print_site(adt.site)
+    if not adt.site.zones:
+        print("Error: no zones exist, exiting")
+        adt.site.site_lock.release()
+        adt.logout()
+        return
+    for zone in adt.site.zones:
+        print(zone)
+    adt.site.site_lock.release()
+    if run_alarm_test:
+        test_alarm(adt.site, adt, sleep_interval)
 
     done = False
     while not done:
         try:
-            for site in adt.sites:
-                with site.site_lock:
-                    print_site(site)
-                print("----")
-                if not site.zones:
-                    print("Error, no zones exist, exiting...")
+            print_site(adt.site)
+            print("----")
+            if not adt.site.zones:
+                print("Error, no zones exist, exiting...")
+                done = True
+                break
+            if adt.updates_exist:
+                print("Updates exist, refreshing")
+                # Don't need to explicitly call update() anymore
+                # Background thread will already have updated
+                if not adt.update():
+                    print("Error occurred fetching updates, exiting..")
                     done = True
                     break
-                if site.updates_may_exist:
-                    print("Updates exist, refreshing")
-                    # Don't need to explicitly call update() anymore
-                    # Background thread will already have updated
-                    if not adt.update():
-                        print("Error occurred fetching updates, exiting..")
-                        done = True
-                        break
-                    print("\nZones:")
-                    with site.site_lock:
-                        for zone in site.zones:
-                            print(zone)
-                        print(f"{site.zones_as_dict}")
-                else:
-                    print("No updates exist")
+                print("\nZones:")
+                with adt.site.site_lock:
+                    for zone in adt.site.zones:
+                        print(zone)
+                    print(f"{adt.site.zones_as_dict}")
+            else:
+                print("No updates exist")
             sleep(sleep_interval)
         except KeyboardInterrupt:
             print("exiting...")
@@ -270,7 +267,7 @@ def sync_example(
     adt.logout()
 
 
-async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
+async def async_test_alarm(adt: PyADTPulse) -> None:
     """Test alarm functions.
 
     Args:
@@ -278,36 +275,36 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
         adt (PyADTPulse): ADT Pulse connection objecct
     """
     print("Arming alarm stay")
-    if await site.async_arm_home():
+    if await adt.site.async_arm_home():
         print("Alarm arming home succeeded")
         #        check_updates(site, adt, False)
         print("Testing invalid alarm state change from armed home to armed away")
-        if await site.async_arm_away():
+        if await adt.site.async_arm_away():
             print("Error, armed away while already armed")
         else:
             print("Test succeeded")
             print("Testing changing alarm status to same value")
-            if await site.async_arm_home():
+            if await adt.site.async_arm_home():
                 print("Error, allowed arming to same state")
             else:
                 print("Test succeeded")
 
     else:
         print("Alarm arming home failed, attempting force arm")
-        if await site.async_arm_home(True):
+        if await adt.site.async_arm_home(True):
             print("Force arm succeeded")
         else:
             print("Force arm failed")
 
     print()
-    print_site(site)
+    print_site(adt.site)
 
     print("Disarming alarm")
-    if await site.async_disarm():
+    if await adt.site.async_disarm():
         print("Disarming succeeded")
         #        check_updates(site, adt, False)
         print("Testing disarming twice")
-        if await site.async_disarm():
+        if await adt.site.async_disarm():
             print("Test failed")
         else:
             print("Test succeeded")
@@ -315,18 +312,18 @@ async def async_test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
         print("Disarming failed")
 
     print()
-    print_site(site)
+    print_site(adt.site)
     print("Arming alarm away")
 
-    if await site.async_arm_away():
+    if await adt.site.async_arm_away():
         print("Arm away succeeded")
     #        check_updates(site, adt, False)
     else:
         print("Arm away failed")
 
     print()
-    print_site(site)
-    await site.async_disarm()
+    print_site(adt.site)
+    await adt.site.async_disarm()
     print("Disarmed")
 
 
@@ -358,37 +355,40 @@ async def async_example(
         print("Error: could not log into ADT Pulse site")
         return
 
-    if len(adt.sites) == 0:
+    if adt.site is None:
         print("Error: could not retrieve sites")
         await adt.async_logout()
         return
 
-    for site in adt.sites:
-        print_site(site)
-        for zone in site.zones:
-            print(zone)
-        if run_alarm_test:
-            await async_test_alarm(site, adt)
+    print_site(adt.site)
+    if adt.site.zones is None:
+        print("Error: no zones exist")
+        await adt.async_logout()
+        return
+
+    for zone in adt.site.zones:
+        print(zone)
+    if run_alarm_test:
+        await async_test_alarm(adt)
 
     done = False
     while not done:
         try:
-            for site in adt.sites:
-                print(f"Gateway online: {adt.gateway_online}")
-                print_site(site)
-                print("----")
-                if not site.zones:
-                    print("No zones exist, exiting...")
-                    done = True
-                    break
-                print("\nZones:")
-                for zone in site.zones:
-                    print(zone)
+            print(f"Gateway online: {adt.gateway_online}")
+            print_site(adt.site)
+            print("----")
+            if not adt.site.zones:
+                print("No zones exist, exiting...")
+                done = True
+                break
+            print("\nZones:")
+            for zone in adt.site.zones:
+                print(zone)
                 #               print(f"{site.zones_as_dict}")
 
-                await adt.wait_for_update()
-                print("Updates exist, refreshing")
-                # no need to call an update method
+            await adt.wait_for_update()
+            print("Updates exist, refreshing")
+            # no need to call an update method
         except KeyboardInterrupt:
             print("exiting...")
             done = True

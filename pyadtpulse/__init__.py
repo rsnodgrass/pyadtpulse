@@ -8,6 +8,7 @@ import time
 from contextlib import suppress
 from threading import RLock, Thread
 from typing import List, Optional, Union
+from warnings import warn
 
 import uvloop
 from aiohttp import ClientResponse, ClientSession
@@ -54,7 +55,7 @@ class PyADTPulse:
         "_session_thread",
         "_attribute_lock",
         "_last_timeout_reset",
-        "_sites",
+        "_site",
         "_poll_interval",
         "_username",
         "_password",
@@ -133,7 +134,7 @@ class PyADTPulse:
         self._last_timeout_reset = 0.0
 
         # fixme circular import, should be an ADTPulseSite
-        self._sites: List[ADTPulseSite]
+        self._site: ADTPulseSite
         self._poll_interval = poll_interval
         # FIXME: I have no idea how to type hint this
         self._create_task_cb = create_task_cb
@@ -291,21 +292,14 @@ class PyADTPulse:
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
-            if len(self._sites) == 0:
+            if self._site is not None:
                 await self._initialize_sites(soup)
             else:
-                # FIXME: this will have to be fixed once multiple ADT sites
-                # are supported, since the summary_html only represents the
-                # alarm status of the current site!!
-                if len(self._sites) > 1:
-                    LOG.error(
-                        "pyadtpulse lacks support for ADT accounts "
-                        "with multiple sites!!!"
-                    )
+                LOG.error("pyadtpulse returned no sites")
+                return
 
-            for site in self._sites:
-                site._update_alarm_from_soup(soup)
-                site._update_zone_from_soup(soup)
+            self._site._update_alarm_from_soup(soup)
+            self._site._update_zone_from_soup(soup)
 
     async def _initialize_sites(self, soup: BeautifulSoup) -> None:
         # typically, ADT Pulse accounts have only a single site (premise/location)
@@ -322,8 +316,6 @@ class PyADTPulse:
                 if m and m.group(1) and m.group(1):
                     site_id = m.group(1)
                     LOG.debug(f"Discovered site id {site_id}: {site_name}")
-
-                    # FIXME ADTPulseSite circular reference
                     new_site = ADTPulseSite(self._pulse_connection, site_id, site_name)
 
                     # fetch zones first, so that we can have the status
@@ -332,7 +324,7 @@ class PyADTPulse:
                     new_site._update_alarm_from_soup(soup)
                     new_site._update_zone_from_soup(soup)
                     with self._attribute_lock:
-                        self._sites.append(new_site)
+                        self._site = new_site
                     return
             else:
                 LOG.warning(
@@ -590,7 +582,7 @@ class PyADTPulse:
         # need to set authenticated here to prevent login loop
         self._authenticated.set()
         await self._update_sites(soup)
-        if len(self._sites) == 0:
+        if self._site is None:
             LOG.error("Could not retrieve any sites, login failed")
             self._authenticated.clear()
             return False
@@ -814,5 +806,16 @@ class PyADTPulse:
     @property
     def sites(self) -> List[ADTPulseSite]:
         """Return all sites for this ADT Pulse account."""
+        warn(
+            "multiple sites being removed, use pyADTPulse.site instead",
+            PendingDeprecationWarning,
+            stacklevel=2,
+        )
         with self._attribute_lock:
-            return self._sites
+            return [self._site]
+
+    @property
+    def site(self) -> ADTPulseSite:
+        """Return the site associated with the Pulse login."""
+        with self._attribute_lock:
+            return self._site
