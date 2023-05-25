@@ -1,5 +1,7 @@
 """Constants for pyadtpulse."""
+from logging import getLogger
 
+LOG = getLogger(__name__)
 DEFAULT_API_HOST = "https://portal.adtpulse.com"
 API_HOST_CA = "https://portal-ca.adtpulse.com"  # Canada
 

@@ -6,15 +6,16 @@ from asyncio import get_event_loop, run_coroutine_threadsafe
 from datetime import datetime, timedelta
 from threading import RLock
 from typing import List, Optional, Union
+from warnings import warn
 
 # import dateparser
 from bs4 import BeautifulSoup
 from dateutil import relativedelta
 
-from pyadtpulse import PyADTPulse
-from pyadtpulse.const import ADT_ARM_DISARM_URI, ADT_DEVICE_URI, ADT_SYSTEM_URI
-from pyadtpulse.util import DebugRLock, make_soup, remove_prefix
-from pyadtpulse.zones import (
+from .const import ADT_ARM_DISARM_URI, ADT_DEVICE_URI, ADT_SYSTEM_URI, LOG
+from .pulse_connection import ADTPulseConnection
+from .util import DebugRLock, make_soup, remove_prefix
+from .zones import (
     ADT_NAME_TO_DEFAULT_TAGS,
     ADTPulseFlattendZone,
     ADTPulseZoneData,
@@ -28,9 +29,6 @@ ADT_ALARM_UNKNOWN = "unknown"
 ADT_ALARM_ARMING = "arming"
 ADT_ALARM_DISARMING = "disarming"
 ADT_ARM_DISARM_TIMEOUT = timedelta(seconds=20)
-
-
-LOG = logging.getLogger(__name__)
 
 
 class ADTPulseSite:
@@ -49,7 +47,7 @@ class ADTPulseSite:
         "_site_lock",
     )
 
-    def __init__(self, adt_service: PyADTPulse, site_id: str, name: str):
+    def __init__(self, adt_service: ADTPulseConnection, site_id: str, name: str):
         """Initialize.
 
         Args:
@@ -66,7 +64,7 @@ class ADTPulseSite:
         self._last_updated = self._last_arm_disarm = datetime(1970, 1, 1)
         self._zones = ADTPulseZones()
         self._site_lock: Union[RLock, DebugRLock]
-        if isinstance(self._adt_service.attribute_lock, DebugRLock):
+        if isinstance(self._adt_service._attribute_lock, DebugRLock):
             self._site_lock = DebugRLock("ADTPulseSite._site_lock")
         else:
             self._site_lock = RLock()
@@ -377,8 +375,9 @@ class ADTPulseSite:
                         self._status = ADT_ALARM_HOME
                         self._last_updated = last_updated
                 else:
+                    # FIXME: fix when have gateway device
                     LOG.warning(f"Failed to get alarm status from '{text}'")
-                    self._adt_service._set_gateway_status(False)
+                    # self._adt_service._set_gateway_status(False)
                     self._status = ADT_ALARM_UNKNOWN
                     self._last_updated = last_updated
                     return
@@ -638,7 +637,8 @@ class ADTPulseSite:
                     f"Set zone {zone} - to {state}, status {status} "
                     f"with timestamp {last_update}"
                 )
-            self._adt_service._set_gateway_status(gateway_online)
+            # FIXME: fix when have gateway device
+            # self._adt_service._set_gateway_status(gateway_online)
             self._last_updated = datetime.now()
             return self._zones
 
@@ -671,33 +671,42 @@ class ADTPulseSite:
     def updates_may_exist(self) -> bool:
         """Query whether updated sensor data exists.
 
-        Returns:
-            bool: True if updated data exists
+        Deprecated, use method on pyADTPulse object instead
         """
         # FIXME: this should actually capture the latest version
         # and compare if different!!!
         # ...this doesn't actually work if other components are also checking
         #  if updates exist
-        return self._adt_service.updates_exist
+        warn(
+            "updates_may_exist on site object is deprecated, "
+            "use method on pyADTPulse object instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return False
 
     async def async_update(self) -> bool:
         """Force update site/zone data async with current data.
 
-        Returns:
-            bool: True if update succeeded
+        Deprecated, use method on pyADTPulse object instead
         """
-        retval = await self._adt_service.async_update()
-        if retval:
-            self._last_updated = datetime.now()
-        return retval
+        warn(
+            "updating zones from site object is deprecated, "
+            "use method on pyADTPulse object instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return False
 
     def update(self) -> bool:
         """Force update site/zones with current data.
 
-        Returns:
-            bool: True if update succeeded
+        Deprecated, use method on pyADTPulse object instead
         """
-        retval = self._adt_service.update()
-        if retval:
-            self._last_updated = datetime.now()
-        return retval
+        warn(
+            "updating zones from site object is deprecated, "
+            "use method on pyADTPulse object instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return False

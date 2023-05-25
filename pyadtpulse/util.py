@@ -39,6 +39,16 @@ def handle_response(
     return False
 
 
+def close_response(response: Optional[ClientResponse]) -> None:
+    """Close a response object, handles None.
+
+    Args:
+        response (Optional[ClientResponse]): ClientResponse object to close
+    """
+    if response is not None and not response.closed:
+        response.close()
+
+
 def remove_prefix(text: str, prefix: str) -> str:
     """Remove prefix from a string.
 
