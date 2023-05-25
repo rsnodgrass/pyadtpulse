@@ -1,32 +1,32 @@
 """ADT Pulse connection."""
 
 import asyncio
-from bs4 import BeautifulSoup
-from random import uniform
 import re
+from random import uniform
+from threading import Lock, RLock
 from typing import Dict, Optional, Union
-from threading import RLock, Lock
 
 from aiohttp import (
-    ClientResponse,
-    ClientSession,
     ClientConnectionError,
     ClientConnectorError,
+    ClientResponse,
     ClientResponseError,
+    ClientSession,
 )
+from bs4 import BeautifulSoup
 
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
-    ADT_HTTP_REFERER_URIS,
-    LOG,
+    ADT_DEFAULT_VERSION,
     ADT_DEVICE_URI,
+    ADT_HTTP_REFERER_URIS,
+    ADT_LOGIN_URI,
+    ADT_ORB_URI,
     ADT_SYSTEM_URI,
     API_PREFIX,
-    ADT_ORB_URI,
-    ADT_DEFAULT_VERSION,
-    ADT_LOGIN_URI,
+    LOG,
 )
-from .util import DebugRLock, make_soup, close_response
+from .util import DebugRLock, close_response, make_soup
 
 RECOVERABLE_ERRORS = [429, 500, 502, 503, 504]
 

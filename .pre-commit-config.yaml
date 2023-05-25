@@ -14,12 +14,12 @@ repos:
     hooks:
     -   id: pycln
         args: [--config=pyproject.toml]
-#-   repo: https://github.com/pycqa/isort
-#    rev: 5.12.0
-#    hooks:
-#    -   id: isort
-#        files: "\\.(py)$"
-#        args: [--settings-path=pyproject.toml]
+-   repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+    -   id: isort
+        files: "\\.(py)$"
+        args: [--settings-path=pyproject.toml]
 -   repo: https://github.com/dosisod/refurb
     rev: v1.15.0
     hooks:

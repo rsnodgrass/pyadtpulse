@@ -1,24 +1,19 @@
 """Base Python Class for pyadtpulse."""
 
+import logging
 import asyncio
 import datetime
-import logging
 import re
 import time
 from contextlib import suppress
-
 from threading import RLock, Thread
 from typing import List, Optional, Union
 
 import uvloop
-from aiohttp import (
-    ClientResponse,
-    ClientSession,
-)
+from aiohttp import ClientResponse, ClientSession
 from bs4 import BeautifulSoup
 
 from .const import (
-    LOG,
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_POLL_INTERVAL,
     ADT_DEFAULT_VERSION,
@@ -31,18 +26,17 @@ from .const import (
     ADT_TIMEOUT_INTERVAL,
     ADT_TIMEOUT_URI,
     DEFAULT_API_HOST,
+    LOG,
 )
 from .pulse_connection import ADTPulseConnection
+from .site import ADTPulseSite
 from .util import (
     AuthenticationException,
     DebugRLock,
-    handle_response,
     close_response,
+    handle_response,
     make_soup,
 )
-
-from .site import ADTPulseSite
-
 
 SYNC_CHECK_TASK_NAME = "ADT Pulse Sync Check Task"
 KEEPALIVE_TASK_NAME = "ADT Pulse Keepalive Task"
