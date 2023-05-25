@@ -40,14 +40,12 @@ class ADTPulseConnection:
     def __init__(
         self,
         host: str,
-        version: str,
         session: Optional[ClientSession] = None,
         user_agent: str = ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
         debug_locks: bool = False,
     ):
         """Initialize ADT Pulse connection."""
         self._api_host = host
-        self._version = version
         self._allocated_session = False
         if session is None:
             self._allocate_session = True
@@ -116,8 +114,9 @@ class ADTPulseConnection:
                                       ClientResponse will already be closed.
         """
         response = None
-        if self._session is None:
-            raise RuntimeError("ClientSession not initialized")
+        with ADTPulseConnection._class_threadlock:
+            if ADTPulseConnection._api_version == ADT_DEFAULT_VERSION:
+                await self._async_fetch_version()
         url = self.make_url(uri)
         if uri in ADT_HTTP_REFERER_URIS:
             new_headers = {"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]}
@@ -244,7 +243,7 @@ class ADTPulseConnection:
             str: the converted string
         """
         with self._attribute_lock:
-            return f"{self._api_host}{API_PREFIX}{self._version}{uri}"
+            return f"{self._api_host}{API_PREFIX}{ADTPulseConnection._api_version}{uri}"
 
     async def _async_fetch_version(self) -> None:
         with ADTPulseConnection._class_threadlock:

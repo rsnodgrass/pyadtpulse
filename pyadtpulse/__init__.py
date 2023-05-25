@@ -17,7 +17,6 @@ from bs4 import BeautifulSoup
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_POLL_INTERVAL,
-    ADT_DEFAULT_VERSION,
     ADT_GATEWAY_OFFLINE_POLL_INTERVAL,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
@@ -105,7 +104,6 @@ class PyADTPulse:
         self._init_login_info(username, password, fingerprint)
         self._pulse_connection = ADTPulseConnection(
             service_host,
-            ADT_DEFAULT_VERSION,
             session=websession,
             user_agent=user_agent,
             debug_locks=debug_locks,
