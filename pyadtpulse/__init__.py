@@ -284,8 +284,10 @@ class PyADTPulse:
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
-            if self._site is not None:
+            if self._site is None:
                 await self._initialize_sites(soup)
+                if self._site is None:
+                    raise RuntimeError("pyadtpulse could not retrieve site")
             else:
                 # FIXME: wrong error?
                 LOG.error("pyadtpulse returned no sites")
