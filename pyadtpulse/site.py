@@ -29,7 +29,7 @@ class ADTPulseSite:
     """Represents an individual ADT Pulse site."""
 
     __slots__ = (
-        "_adt_service",
+        "_pulse_connection",
         "_id",
         "_name",
         "_last_updated",
@@ -39,7 +39,7 @@ class ADTPulseSite:
         "_gateway",
     )
 
-    def __init__(self, adt_service: ADTPulseConnection, site_id: str, name: str):
+    def __init__(self, pulse_connection: ADTPulseConnection, site_id: str, name: str):
         """Initialize.
 
         Args:
@@ -47,13 +47,13 @@ class ADTPulseSite:
             site_id (str): site ID
             name (str): site name
         """
-        self._adt_service = adt_service
+        self._pulse_connection = pulse_connection
         self._id = site_id
         self._name = name
         self._last_updated = datetime(1970, 1, 1)
         self._zones = ADTPulseZones()
         self._site_lock: Union[RLock, DebugRLock]
-        if isinstance(self._adt_service._attribute_lock, DebugRLock):
+        if isinstance(self._pulse_connection._attribute_lock, DebugRLock):
             self._site_lock = DebugRLock("ADTPulseSite._site_lock")
         else:
             self._site_lock = RLock()
@@ -106,26 +106,30 @@ class ADTPulseSite:
         """Arm system home."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system home, no control panels exist")
-        return self.alarm_control_panel.arm_home(self._adt_service, force_arm=force_arm)
+        return self.alarm_control_panel.arm_home(
+            self._pulse_connection, force_arm=force_arm
+        )
 
     def arm_away(self, force_arm: bool) -> bool:
         """Arm system away."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system away, no control panels exist")
-        return self.alarm_control_panel.arm_away(self._adt_service, force_arm=force_arm)
+        return self.alarm_control_panel.arm_away(
+            self._pulse_connection, force_arm=force_arm
+        )
 
     def disarm(self) -> bool:
         """Disarm system."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot disarm system, no control panels exist")
-        return self.alarm_control_panel.disarm(self._adt_service)
+        return self.alarm_control_panel.disarm(self._pulse_connection)
 
     async def async_arm_home(self, force_arm: bool) -> bool:
         """Arm system home async."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system home, no control panels exist")
         return await self.alarm_control_panel.async_arm_home(
-            self._adt_service, force_arm=force_arm
+            self._pulse_connection, force_arm=force_arm
         )
 
     async def async_arm_away(self, force_arm: bool) -> bool:
@@ -133,14 +137,14 @@ class ADTPulseSite:
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system away, no control panels exist")
         return await self.alarm_control_panel.async_arm_away(
-            self._adt_service, force_arm=force_arm
+            self._pulse_connection, force_arm=force_arm
         )
 
     async def async_disarm(self) -> bool:
         """Disarm system async."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot disarm system, no control panels exist")
-        return await self.alarm_control_panel.async_disarm(self._adt_service)
+        return await self.alarm_control_panel.async_disarm(self._pulse_connection)
 
     @property
     def zones(self) -> Optional[List[ADTPulseFlattendZone]]:
@@ -214,7 +218,7 @@ class ADTPulseSite:
             None if an error occurred
         """
         if not soup:
-            response = await self._adt_service._async_query(ADT_SYSTEM_URI)
+            response = await self._pulse_connection._async_query(ADT_SYSTEM_URI)
             soup = await make_soup(
                 response,
                 logging.WARNING,
@@ -239,7 +243,7 @@ class ADTPulseSite:
                     continue
 
                 device_id = result[0]
-                deviceResponse = await self._adt_service._async_query(
+                deviceResponse = await self._pulse_connection._async_query(
                     ADT_DEVICE_URI, extra_params={"id": device_id}
                 )
                 deviceResponseSoup = await make_soup(
@@ -312,7 +316,7 @@ class ADTPulseSite:
             LOG.debug(f"fetching zones for site { self._id}")
             if not soup:
                 # call ADT orb uri
-                soup = await self._adt_service._query_orb(
+                soup = await self._pulse_connection._query_orb(
                     logging.WARNING, "Could not fetch zone status updates"
                 )
             if soup is None:
