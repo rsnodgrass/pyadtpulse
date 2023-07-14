@@ -50,6 +50,8 @@ class ADTPulseGateway:
 
         Args:
             status (bool): True if gateway is online
+
+        Also changes the polling intervals
         """
         with self._attribute_lock:
             if status == self._is_online:

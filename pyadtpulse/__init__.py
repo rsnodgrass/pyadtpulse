@@ -264,7 +264,9 @@ class PyADTPulse:
                     # updated with _update_alarm_status
                     await new_site._fetch_zones(None)
                     if new_site.alarm_control_panel is not None:
-                        new_site.alarm_control_panel._update_alarm_from_soup(soup)
+                        new_site.alarm_control_panel._update_alarm_from_soup(
+                            soup, new_site
+                        )
                     else:
                         LOG.error("Could not fetch control panel information")
                     new_site._update_zone_from_soup(soup)
