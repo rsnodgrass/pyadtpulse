@@ -222,7 +222,7 @@ class ADTPulseSite:
             identityText = str(devInfoRow.get_text())
             sibling = devInfoRow.find_next_sibling()
             if not sibling:
-                value = ""
+                value = "Unknown"
             else:
                 value = str(sibling.get_text()).strip()
             result.update({identityText: value})
@@ -269,33 +269,30 @@ class ADTPulseSite:
                 dev_attr = await self._get_device_attributes(result[0])
                 if dev_attr is None:
                     continue
-                dName = dev_attr.get("Name:")
-                dType = dev_attr.get("Type/Model:")
-                dZone = dev_attr.get("Zone:")
-                dStatus = dev_attr.get("Status:")
+                dName = dev_attr.get("Name:", "Unknown")
+                dType = dev_attr.get("Type/Model:", "Unknown")
+                dZone = dev_attr.get("Zone:", "Unknown")
+                dStatus = dev_attr.get("Status:", "Unknown")
 
                 # NOTE: if empty string, this is the control panel
-                if dZone is not None and dZone != "":
+                if dZone != "Unknown":
                     tags = None
-
-                    if dType is not None:
-                        for (
-                            search_term,
-                            default_tags,
-                        ) in ADT_NAME_TO_DEFAULT_TAGS.items():
-                            # convert to uppercase first
-                            if search_term.upper() in dType.upper():
-                                tags = default_tags
-                                break
+                    for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
+                        # convert to uppercase first
+                        if search_term.upper() in dType.upper():
+                            tags = default_tags
+                            break
                     if not tags:
                         LOG.warning(
                             f"Unknown sensor type for '{dType}', "
                             "defaulting to doorWindow"
                         )
                         tags = ("sensor", "doorWindow")
-                    LOG.debug(f"Retrieved sensor {dName} id: sensor-{dZone}")
-                    LOG.debug(f"Status: {dStatus}, tags {tags}")
-                    if dName is None or dStatus is None or dZone is None:
+                    LOG.debug(
+                        f"Retrieved sensor {dName} id: sensor-{dZone} "
+                        f"Status: {dStatus}, tags {tags}"
+                    )
+                    if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
                         LOG.debug("Zone data incomplete, skipping...")
                     else:
                         tmpzone = ADTPulseZoneData(
@@ -304,8 +301,8 @@ class ADTPulseSite:
                         self._zones.update({int(dZone): tmpzone})
                 else:
                     LOG.debug(
-                        f"Skipping incomplete zone name: {dName}, zone: {dZone} ",
-                        f"status: {dStatus}, tags: {dType}",
+                        f"Skipping incomplete zone name: {dName}, zone: {dZone} "
+                        f"status: {dStatus}"
                     )
             self._last_updated = datetime.now()
             return self._zones
