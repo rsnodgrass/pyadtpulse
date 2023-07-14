@@ -11,7 +11,6 @@ from bs4 import BeautifulSoup
 
 from .const import ADT_ARM_DISARM_URI, LOG
 from .pulse_connection import ADTPulseConnection
-from .site import ADTPulseSite
 from .util import make_soup
 
 ADT_ALARM_AWAY = "away"
@@ -255,9 +254,7 @@ class ADTPulseAlarmPanel:
         """
         return await self._arm(connection, ADT_ALARM_OFF, False)
 
-    def _update_alarm_from_soup(
-        self, summary_html_soup: BeautifulSoup, site: ADTPulseSite
-    ) -> None:
+    def _update_alarm_from_soup(self, summary_html_soup: BeautifulSoup) -> None:
         LOG.debug("Updating alarm status")
         value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
         sat_location = "security_button_0"
@@ -289,7 +286,6 @@ class ADTPulseAlarmPanel:
                         self._last_arm_disarm = last_updated
                 else:
                     LOG.warning(f"Failed to get alarm status from '{text}'")
-                    site.gateway.is_online = False
                     self._status = ADT_ALARM_UNKNOWN
                     self._last_arm_disarm = last_updated
                     return

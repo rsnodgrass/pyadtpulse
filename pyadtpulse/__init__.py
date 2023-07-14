@@ -14,6 +14,7 @@ import uvloop
 from aiohttp import ClientResponse, ClientSession
 from bs4 import BeautifulSoup
 
+from .alarm_panel import ADT_ALARM_UNKNOWN
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_POLL_INTERVAL,
@@ -128,7 +129,6 @@ class PyADTPulse:
 
         self._site: Optional[ADTPulseSite] = None
         self._poll_interval = poll_interval
-        # FIXME: I have no idea how to type hint this
         self._relogin_interval = ADT_RELOGIN_INTERVAL
 
         # authenticate the user
@@ -263,12 +263,9 @@ class PyADTPulse:
                     # fetch zones first, so that we can have the status
                     # updated with _update_alarm_status
                     await new_site._fetch_zones(None)
-                    if new_site.alarm_control_panel is not None:
-                        new_site.alarm_control_panel._update_alarm_from_soup(
-                            soup, new_site
-                        )
-                    else:
-                        LOG.error("Could not fetch control panel information")
+                    new_site.alarm_control_panel._update_alarm_from_soup(soup)
+                    if new_site.alarm_control_panel.status == ADT_ALARM_UNKNOWN:
+                        new_site.gateway.is_online = False
                     new_site._update_zone_from_soup(soup)
                     with self._attribute_lock:
                         self._site = new_site
