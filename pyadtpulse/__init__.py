@@ -60,7 +60,6 @@ class PyADTPulse:
         "_password",
         "_fingerprint",
         "_login_exception",
-        "_gateway_online",
         "_relogin_interval",
     )
 
@@ -99,8 +98,6 @@ class PyADTPulse:
             debug_locks: (bool, optional): use debugging locks
                         Defaults to False
         """
-        self._gateway_online: bool = False
-
         self._init_login_info(username, password, fingerprint)
         self._pulse_connection = ADTPulseConnection(
             service_host,
@@ -240,7 +237,7 @@ class PyADTPulse:
                 LOG.error("pyadtpulse returned no sites")
                 return
 
-            self._site._update_alarm_from_soup(soup)
+            self._site.alarm_control_panel._update_alarm_from_soup(soup)
             self._site._update_zone_from_soup(soup)
 
     async def _initialize_sites(self, soup: BeautifulSoup) -> None:

@@ -102,7 +102,7 @@ class ADTPulseSite:
         """
         return self._site_lock
 
-    def arm_home(self, force_arm: bool) -> bool:
+    def arm_home(self, force_arm: bool = False) -> bool:
         """Arm system home."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system home, no control panels exist")
@@ -110,7 +110,7 @@ class ADTPulseSite:
             self._pulse_connection, force_arm=force_arm
         )
 
-    def arm_away(self, force_arm: bool) -> bool:
+    def arm_away(self, force_arm: bool = False) -> bool:
         """Arm system away."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system away, no control panels exist")
@@ -124,7 +124,7 @@ class ADTPulseSite:
             raise RuntimeError("Cannot disarm system, no control panels exist")
         return self.alarm_control_panel.disarm(self._pulse_connection)
 
-    async def async_arm_home(self, force_arm: bool) -> bool:
+    async def async_arm_home(self, force_arm: bool = False) -> bool:
         """Arm system home async."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system home, no control panels exist")
@@ -132,7 +132,7 @@ class ADTPulseSite:
             self._pulse_connection, force_arm=force_arm
         )
 
-    async def async_arm_away(self, force_arm: bool) -> bool:
+    async def async_arm_away(self, force_arm: bool = False) -> bool:
         """Arm system away async."""
         if self.alarm_control_panel is None:
             raise RuntimeError("Cannot arm system away, no control panels exist")

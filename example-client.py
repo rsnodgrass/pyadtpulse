@@ -88,11 +88,11 @@ def print_site(site: ADTPulseSite) -> None:
         site (ADTPulseSite): The site to display
     """
     print(f"Site: {site.name} (id={site.id})")
-    print(f"Alarm Status = {site.status}")
-    print(f"Disarmed? = {site.is_disarmed}")
-    print(f"Armed Away? = {site.is_away}")
-    print(f"Armed Home? = {site.is_home}")
-    print(f"Force armed? = {site.is_force_armed}")
+    print(f"Alarm Status = {site.alarm_control_panel.status}")
+    print(f"Disarmed? = {site.alarm_control_panel.is_disarmed}")
+    print(f"Armed Away? = {site.alarm_control_panel.is_away}")
+    print(f"Armed Home? = {site.alarm_control_panel.is_home}")
+    print(f"Force armed? = {site.alarm_control_panel.is_force_armed}")
     print(f"Last updated: {site.last_updated}")
 
 
@@ -110,13 +110,15 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
         Returns: bool: True if update successful
     """
     if test_alarm:
-        while site.is_arming or site.is_disarming:
+        while (
+            site.alarm_control_panel.is_arming or site.alarm_control_panel.is_disarming
+        ):
             print(
-                f"site is_arming: {site.is_arming}, "
-                f"site is_disarming: {site.is_disarming}"
+                f"site is_arming: {site.alarm_control_panel.is_arming}, "
+                f"site is_disarming: {site.alarm_control_panel.is_disarming}"
             )
             sleep(1)
-    print(f"Gateway online: {adt.gateway_online}")
+    print(f"Gateway online: {adt.site.gateway.is_online}")
     if adt.update():
         print("ADT Data updated, at " f"{site.last_updated}, refreshing")
         return True
@@ -221,7 +223,7 @@ def sync_example(
         return
 
     adt.site.site_lock.acquire()
-    print(f"Gateway online: {adt.gateway_online}")
+    print(f"Gateway online: {adt.site.gateway.is_online}")
     print_site(adt.site)
     if not adt.site.zones:
         print("Error: no zones exist, exiting")
@@ -374,7 +376,7 @@ async def async_example(
     done = False
     while not done:
         try:
-            print(f"Gateway online: {adt.gateway_online}")
+            print(f"Gateway online: {adt.site.gateway.is_online}")
             print_site(adt.site)
             print("----")
             if not adt.site.zones:
