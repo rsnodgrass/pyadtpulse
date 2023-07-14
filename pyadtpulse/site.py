@@ -14,6 +14,7 @@ from dateutil import relativedelta
 
 from .alarm_panel import ADTPulseAlarmPanel
 from .const import ADT_DEVICE_URI, ADT_SYSTEM_URI, LOG
+from .gateway import ADTPulseGateway
 from .pulse_connection import ADTPulseConnection
 from .util import DebugRLock, make_soup, remove_prefix
 from .zones import (
@@ -35,6 +36,7 @@ class ADTPulseSite:
         "_alarm_panel",
         "_zones",
         "_site_lock",
+        "_gateway",
     )
 
     def __init__(self, adt_service: ADTPulseConnection, site_id: str, name: str):
@@ -55,7 +57,8 @@ class ADTPulseSite:
             self._site_lock = DebugRLock("ADTPulseSite._site_lock")
         else:
             self._site_lock = RLock()
-        self._alarm_panel: Optional[ADTPulseAlarmPanel] = None
+        self._alarm_panel = ADTPulseAlarmPanel()
+        self._gateway = ADTPulseGateway()
 
     @property
     def id(self) -> str:
@@ -164,13 +167,22 @@ class ADTPulseSite:
             return self._zones
 
     @property
-    def alarm_control_panel(self) -> Optional[ADTPulseAlarmPanel]:
+    def alarm_control_panel(self) -> ADTPulseAlarmPanel:
         """Return the alarm panel object for the site.
 
         Returns:
             Optional[ADTPulseAlarmPanel]: the alarm panel object
         """
         return self._alarm_panel
+
+    @property
+    def gateway(self) -> ADTPulseGateway:
+        """Get gateway device object.
+
+        Returns:
+            ADTPulseGateway: Gateway device
+        """
+        return self._gateway
 
     @property
     def history(self):
@@ -414,8 +426,7 @@ class ADTPulseSite:
                     f"Set zone {zone} - to {state}, status {status} "
                     f"with timestamp {last_update}"
                 )
-            # FIXME: fix when have gateway device
-            # self._adt_service._set_gateway_status(gateway_online)
+            self._gateway.is_online = gateway_online
             self._last_updated = datetime.now()
             return self._zones
 

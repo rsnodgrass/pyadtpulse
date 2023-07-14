@@ -27,7 +27,7 @@ ADT_ARM_DISARM_TIMEOUT: float = 20
 class ADTPulseAlarmPanel:
     """ADT Alarm Panel information."""
 
-    model: str
+    model: str = "Unknown"
     _sat: str = ""
     _status: str = "Unknown"
     manufacturer: str = "ADT"

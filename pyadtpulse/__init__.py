@@ -17,7 +17,6 @@ from bs4 import BeautifulSoup
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_POLL_INTERVAL,
-    ADT_GATEWAY_OFFLINE_POLL_INTERVAL,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
     ADT_RELOGIN_INTERVAL,
@@ -183,26 +182,6 @@ class PyADTPulse:
         self.service_host = host
 
     @property
-    def poll_interval(self) -> float:
-        """Get polling interval.
-
-        Returns:
-            float: interval in seconds to poll for updates
-        """
-        with self._attribute_lock:
-            return self._poll_interval
-
-    @poll_interval.setter
-    def poll_interval(self, interval: float) -> None:
-        """Set polling interval.
-
-        Args:
-            interval (float): interval in seconds to poll for updates
-        """
-        with self._attribute_lock:
-            self._poll_interval = interval
-
-    @property
     def username(self) -> str:
         """Get username.
 
@@ -221,16 +200,6 @@ class PyADTPulse:
         """
         with ADTPulseConnection._class_threadlock:
             return ADTPulseConnection._api_version
-
-    @property
-    def gateway_online(self) -> bool:
-        """Retrieve whether Pulse Gateway is online.
-
-        Returns:
-            bool: True if gateway is online
-        """
-        with self._attribute_lock:
-            return self._gateway_online
 
     @property
     def relogin_interval(self) -> int:
@@ -259,28 +228,6 @@ class PyADTPulse:
             raise ValueError("Cannot set relogin interval to less than 10 minutes")
         with self._attribute_lock:
             self._relogin_interval = interval * 60
-
-    def _set_gateway_status(self, status: bool) -> None:
-        """Set gateway status.
-
-        Private method used by site object
-
-        Args:
-            status (bool): True if gateway is online
-        """
-        with self._attribute_lock:
-            if status == self._gateway_online:
-                return
-
-            status_text = "ONLINE"
-            if not status:
-                status_text = "OFFLINE"
-                self._poll_interval = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
-
-            LOG.info(
-                f"ADT Pulse gateway {status_text}, poll interval={self._poll_interval}"
-            )
-            self._gateway_online = status
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
@@ -645,15 +592,7 @@ class PyADTPulse:
             raise RuntimeError(f"{task_name} started without update event initialized")
         while True:
             try:
-                if self.gateway_online:
-                    pi = self.poll_interval
-                else:
-                    LOG.info(
-                        "Pulse gateway detected offline, polling every "
-                        f"{ADT_GATEWAY_OFFLINE_POLL_INTERVAL} seconds"
-                    )
-                    pi = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
-
+                pi = self.site.gateway.poll_interval
                 if retry_after == 0:
                     await asyncio.sleep(pi)
                 else:
