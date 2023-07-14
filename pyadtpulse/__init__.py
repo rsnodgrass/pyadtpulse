@@ -259,7 +259,8 @@ class PyADTPulse:
 
                     # fetch zones first, so that we can have the status
                     # updated with _update_alarm_status
-                    await new_site._fetch_zones(None)
+                    if not await new_site._fetch_zones(None):
+                        LOG.error("Could not fetch zones from ADT site")
                     new_site.alarm_control_panel._update_alarm_from_soup(soup)
                     if new_site.alarm_control_panel.status == ADT_ALARM_UNKNOWN:
                         new_site.gateway.is_online = False

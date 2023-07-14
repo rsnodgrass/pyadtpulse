@@ -228,9 +228,7 @@ class ADTPulseSite:
             result.update({identityText: value})
         return result
 
-    async def _fetch_zones(
-        self, soup: Optional[BeautifulSoup]
-    ) -> Optional[ADTPulseZones]:
+    async def _fetch_zones(self, soup: Optional[BeautifulSoup]) -> bool:
         """Fetch zones for a site.
 
         Args:
@@ -249,7 +247,7 @@ class ADTPulseSite:
                 "Failed loading zone status from ADT Pulse service",
             )
             if not soup:
-                return None
+                return False
 
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
         with self._site_lock:
@@ -305,7 +303,7 @@ class ADTPulseSite:
                         f"status: {dStatus}"
                     )
             self._last_updated = datetime.now()
-            return self._zones
+            return True
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
 
