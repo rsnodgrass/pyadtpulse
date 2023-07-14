@@ -204,6 +204,30 @@ class ADTPulseSite:
         # if we should also update the zone details, force a fresh fetch
         # of data from ADT Pulse
 
+    async def _get_device_attributes(self, device_id: str) -> Optional[dict[str, str]]:
+        result: dict[str, str] = {}
+        deviceResponse = await self._pulse_connection._async_query(
+            ADT_DEVICE_URI, extra_params={"id": device_id}
+        )
+        deviceResponseSoup = await make_soup(
+            deviceResponse,
+            logging.DEBUG,
+            "Failed loading zone data from ADT Pulse service",
+        )
+        if deviceResponseSoup is None:
+            return None
+        for devInfoRow in deviceResponseSoup.find_all(
+            "td", {"class", "InputFieldDescriptionL"}
+        ):
+            identityText = str(devInfoRow.get_text())
+            sibling = devInfoRow.find_next_sibling()
+            if not sibling:
+                value = ""
+            else:
+                value = str(sibling.get_text()).strip()
+            result.update({identityText: value})
+        return result
+
     async def _fetch_zones(
         self, soup: Optional[BeautifulSoup]
     ) -> Optional[ADTPulseZones]:
@@ -242,59 +266,47 @@ class ADTPulseSite:
                     )
                     continue
 
-                device_id = result[0]
-                deviceResponse = await self._pulse_connection._async_query(
-                    ADT_DEVICE_URI, extra_params={"id": device_id}
-                )
-                deviceResponseSoup = await make_soup(
-                    deviceResponse,
-                    logging.DEBUG,
-                    "Failed loading zone data from ADT Pulse service",
-                )
-                if deviceResponseSoup is None:
-                    return None
-
-                dName = dType = dZone = dStatus = ""
-                # dMan = ""
-                for devInfoRow in deviceResponseSoup.find_all(
-                    "td", {"class", "InputFieldDescriptionL"}
-                ):
-                    identityText = devInfoRow.get_text().upper()
-                    sibling = devInfoRow.find_next_sibling()
-                    if not sibling:
-                        continue
-                    value = sibling.get_text().strip()
-                    if identityText == "NAME:":
-                        dName = value
-                    elif identityText == "TYPE/MODEL:":
-                        dType = value
-                    elif identityText == "ZONE:":
-                        dZone = value
-                    elif identityText == "STATUS:":
-                        dStatus = value
-                #                elif identityText == "MANUFACTURER/PROVIDER:":
-                #                   dMan = value
+                dev_attr = await self._get_device_attributes(result[0])
+                if dev_attr is None:
+                    continue
+                dName = dev_attr.get("Name:")
+                dType = dev_attr.get("Type:")
+                dZone = dev_attr.get("Zone:")
+                dStatus = dev_attr.get("Status:")
 
                 # NOTE: if empty string, this is the control panel
-                if dZone != "":
+                if dZone is not None and dZone != "":
                     tags = None
 
-                    for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
-                        # convert to uppercase first
-                        if search_term.upper() in dType.upper():
-                            tags = default_tags
-                            break
-
+                    if dType is not None:
+                        for (
+                            search_term,
+                            default_tags,
+                        ) in ADT_NAME_TO_DEFAULT_TAGS.items():
+                            # convert to uppercase first
+                            if search_term.upper() in dType.upper():
+                                tags = default_tags
+                                break
                     if not tags:
                         LOG.warning(
                             f"Unknown sensor type for '{dType}', "
                             "defaulting to doorWindow"
                         )
                         tags = ("sensor", "doorWindow")
-                    LOG.debug(f"Adding sensor {dName} id: sensor-{dZone}")
+                    LOG.debug(f"Retrieved sensor {dName} id: sensor-{dZone}")
                     LOG.debug(f"Status: {dStatus}, tags {tags}")
-                    tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
-                    self._zones.update({int(dZone): tmpzone})
+                    if dName is None or dStatus is None or dZone is None:
+                        LOG.debug("Zone data incomplete, skipping...")
+                    else:
+                        tmpzone = ADTPulseZoneData(
+                            dName, f"sensor-{dZone}", tags, dStatus
+                        )
+                        self._zones.update({int(dZone): tmpzone})
+                else:
+                    LOG.debug(
+                        f"Skipping incomplete zone name: {dName}, zone: {dZone} ",
+                        f"status: {dStatus}, tags: {dType}",
+                    )
             self._last_updated = datetime.now()
             return self._zones
 
