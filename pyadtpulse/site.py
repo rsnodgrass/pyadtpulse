@@ -2,7 +2,7 @@
 
 import logging
 import re
-from asyncio import get_event_loop, run_coroutine_threadsafe
+from asyncio import Task, create_task, gather, get_event_loop, run_coroutine_threadsafe
 from datetime import datetime, timedelta
 from threading import RLock
 from typing import List, Optional, Union
@@ -228,6 +228,43 @@ class ADTPulseSite:
             result.update({identityText: value})
         return result
 
+    async def _create_zone(self, device_id: str) -> None:
+        dev_attr = await self._get_device_attributes(device_id)
+        if dev_attr is None:
+            return
+        dName = dev_attr.get("Name:", "Unknown")
+        dType = dev_attr.get("Type/Model:", "Unknown")
+        dZone = dev_attr.get("Zone:", "Unknown")
+        dStatus = dev_attr.get("Status:", "Unknown")
+
+        # NOTE: if empty string, this is the control panel
+        if dZone != "Unknown":
+            tags = None
+            for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
+                # convert to uppercase first
+                if search_term.upper() in dType.upper():
+                    tags = default_tags
+                    break
+            if not tags:
+                LOG.warning(
+                    f"Unknown sensor type for '{dType}', " "defaulting to doorWindow"
+                )
+                tags = ("sensor", "doorWindow")
+            LOG.debug(
+                f"Retrieved sensor {dName} id: sensor-{dZone} "
+                f"Status: {dStatus}, tags {tags}"
+            )
+            if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
+                LOG.debug("Zone data incomplete, skipping...")
+            else:
+                tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
+                self._zones.update({int(dZone): tmpzone})
+        else:
+            LOG.debug(
+                f"Skipping incomplete zone name: {dName}, zone: {dZone} "
+                f"status: {dStatus}"
+            )
+
     async def _fetch_zones(self, soup: Optional[BeautifulSoup]) -> bool:
         """Fetch zones for a site.
 
@@ -239,6 +276,7 @@ class ADTPulseSite:
 
             None if an error occurred
         """
+        task_list: list[Task] = []
         if not soup:
             response = await self._pulse_connection._async_query(ADT_SYSTEM_URI)
             soup = await make_soup(
@@ -263,45 +301,9 @@ class ADTPulseSite:
                         "from ADT Pulse service, ignoring"
                     )
                     continue
+                task_list.append(create_task(self._create_zone(result[0])))
 
-                dev_attr = await self._get_device_attributes(result[0])
-                if dev_attr is None:
-                    continue
-                dName = dev_attr.get("Name:", "Unknown")
-                dType = dev_attr.get("Type/Model:", "Unknown")
-                dZone = dev_attr.get("Zone:", "Unknown")
-                dStatus = dev_attr.get("Status:", "Unknown")
-
-                # NOTE: if empty string, this is the control panel
-                if dZone != "Unknown":
-                    tags = None
-                    for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
-                        # convert to uppercase first
-                        if search_term.upper() in dType.upper():
-                            tags = default_tags
-                            break
-                    if not tags:
-                        LOG.warning(
-                            f"Unknown sensor type for '{dType}', "
-                            "defaulting to doorWindow"
-                        )
-                        tags = ("sensor", "doorWindow")
-                    LOG.debug(
-                        f"Retrieved sensor {dName} id: sensor-{dZone} "
-                        f"Status: {dStatus}, tags {tags}"
-                    )
-                    if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
-                        LOG.debug("Zone data incomplete, skipping...")
-                    else:
-                        tmpzone = ADTPulseZoneData(
-                            dName, f"sensor-{dZone}", tags, dStatus
-                        )
-                        self._zones.update({int(dZone): tmpzone})
-                else:
-                    LOG.debug(
-                        f"Skipping incomplete zone name: {dName}, zone: {dZone} "
-                        f"status: {dStatus}"
-                    )
+            await gather(*task_list)
             self._last_updated = datetime.now()
             return True
 
