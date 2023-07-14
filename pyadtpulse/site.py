@@ -270,7 +270,7 @@ class ADTPulseSite:
                 if dev_attr is None:
                     continue
                 dName = dev_attr.get("Name:")
-                dType = dev_attr.get("Type:")
+                dType = dev_attr.get("Type/Model:")
                 dZone = dev_attr.get("Zone:")
                 dStatus = dev_attr.get("Status:")
 
