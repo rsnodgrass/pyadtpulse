@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from ipaddress import IPv4Address
 from threading import RLock
+from typing import Optional
 
 from .const import ADT_DEFAULT_POLL_INTERVAL, ADT_GATEWAY_OFFLINE_POLL_INTERVAL, LOG
 
@@ -12,27 +13,26 @@ class ADTPulseGateway:
     """ADT Pulse Gateway information."""
 
     manufacturer: str = "Unknown"
-    _is_online: bool = False
     _status_text: str = "OFFLINE"
     _current_poll_interval: float = ADT_DEFAULT_POLL_INTERVAL
     _initial_poll_interval: float = ADT_DEFAULT_POLL_INTERVAL
     _attribute_lock = RLock()
-    model: str = "Unknown"
-    serial_number: str = "Unknown"
+    model: Optional[str] = None
+    serial_number: Optional[str] = None
     next_update: float = 0.0
     last_update: float = 0.0
-    firmware_version: str = "Unknown"
-    hardware_version: str = "Unknown"
-    primary_connection_type: str = "Unknown"
-    broadband_connection_status: str = "Unknown"
-    cellular_connection_status: str = "Unknown"
+    firmware_version: Optional[str] = None
+    hardware_version: Optional[str] = None
+    primary_connection_type: Optional[str] = None
+    broadband_connection_status: Optional[str] = None
+    cellular_connection_status: Optional[str] = None
     cellular_connection_signal_strength: float = 0.0
-    broadband_lan_ip_address: IPv4Address = IPv4Address("0.0.0.0")
-    broadband_lan_mac_address: str = "Unknown"
-    device_lan_ip_address: IPv4Address = IPv4Address("0.0.0.0")
-    device_lan_mac_address: str = "Unknown"
-    router_lan_ip_address: IPv4Address = IPv4Address("0.0.0.0")
-    router_wan_ip_address: IPv4Address = IPv4Address("0.0.0.0")
+    broadband_lan_ip_address: Optional[IPv4Address] = None
+    broadband_lan_mac_address: Optional[str] = None
+    device_lan_ip_address: Optional[IPv4Address] = None
+    device_lan_mac_address: Optional[str] = None
+    router_lan_ip_address: Optional[IPv4Address] = None
+    router_wan_ip_address: Optional[IPv4Address] = None
 
     @property
     def is_online(self) -> bool:
@@ -42,7 +42,7 @@ class ADTPulseGateway:
             bool: True if gateway is online
         """
         with self._attribute_lock:
-            return self._is_online
+            return self._status_text == "ONLINE"
 
     @is_online.setter
     def is_online(self, status: bool) -> None:
@@ -54,7 +54,7 @@ class ADTPulseGateway:
         Also changes the polling intervals
         """
         with self._attribute_lock:
-            if status == self._is_online:
+            if status == self.is_online:
                 return
 
             self._status_text = "ONLINE"
@@ -68,7 +68,6 @@ class ADTPulseGateway:
                 f"ADT Pulse gateway {self._status_text}, "
                 "poll interval={self._current_poll_interval}"
             )
-            self._is_online = status
 
     @property
     def poll_interval(self) -> float:
