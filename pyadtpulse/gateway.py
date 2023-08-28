@@ -1,11 +1,34 @@
 """ADT Pulse Gateway Dataclass."""
 
 from dataclasses import dataclass
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, IPv6Address, ip_address
 from threading import RLock
 from typing import Optional
 
 from .const import ADT_DEFAULT_POLL_INTERVAL, ADT_GATEWAY_OFFLINE_POLL_INTERVAL, LOG
+
+STRING_UPDATEABLE_FIELDS = (
+    "manufacturer",
+    "model",
+    "serial_number",
+    "firmware_version",
+    "hardware_version",
+    "primary_connection_type",
+    "broadband_connection_status",
+    "cellular_connection_status",
+    "cellular_connection_signal_strength",
+    "broadband_lan_mac_address",
+    "device_lan_mac_address",
+)
+
+DATE_UPDATEABLE_FIELDS = ("next_update", "last_update")
+
+IPADDR_UPDATEABLE_FIELDS = (
+    "broadband_lan_ip_address",
+    "device_lan_ip_address",
+    "router_lan_ip_address",
+    "router_wan_ip_address",
+)
 
 
 @dataclass(slots=True)
@@ -27,12 +50,12 @@ class ADTPulseGateway:
     broadband_connection_status: Optional[str] = None
     cellular_connection_status: Optional[str] = None
     cellular_connection_signal_strength: float = 0.0
-    broadband_lan_ip_address: Optional[IPv4Address] = None
+    broadband_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
     broadband_lan_mac_address: Optional[str] = None
-    device_lan_ip_address: Optional[IPv4Address] = None
+    device_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
     device_lan_mac_address: Optional[str] = None
-    router_lan_ip_address: Optional[IPv4Address] = None
-    router_wan_ip_address: Optional[IPv4Address] = None
+    router_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
+    router_wan_ip_address: Optional[IPv4Address | IPv6Address] = None
 
     @property
     def is_online(self) -> bool:
@@ -96,3 +119,34 @@ class ADTPulseGateway:
             if self._current_poll_interval != ADT_GATEWAY_OFFLINE_POLL_INTERVAL:
                 self._current_poll_interval = new_interval
             LOG.debug(f"Set poll interval to {self._initial_poll_interval}")
+
+    def set_gateway_attributes(self, gateway_attributes: dict[str, str]) -> None:
+        """Set gateway attributes from dictionary.
+
+        Args:
+            gateway_attributes (dict[str,str]): dictionary of gateway attributes
+        """ """"""
+        for i in STRING_UPDATEABLE_FIELDS + IPADDR_UPDATEABLE_FIELDS:
+            temp = gateway_attributes.get(i)
+            if temp == "":
+                temp = None
+            if i in IPADDR_UPDATEABLE_FIELDS:
+                temp2 = None
+                if temp is not None:
+                    try:
+                        temp2 = ip_address(temp)
+                    except ValueError:
+                        temp2 = None
+                setattr(self, i, temp2)
+            else:
+                setattr(self, i, temp)
+        """
+        for i in DATE_UPDATEABLE_FIELDS:
+            temp = gateway_attributes.get(i)
+            if temp is not None:
+                try:
+                    temp = datetime.strftime(temp,"DD/MM/YY HH:MI:SS")
+                except ValueError:
+                    temp = None
+            setattr(self,i,temp)
+        """
