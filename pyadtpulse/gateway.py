@@ -3,9 +3,10 @@
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from threading import RLock
-from typing import Optional
+from typing import Any, Optional
 
 from .const import ADT_DEFAULT_POLL_INTERVAL, ADT_GATEWAY_OFFLINE_POLL_INTERVAL, LOG
+from .util import parse_pulse_datetime
 
 STRING_UPDATEABLE_FIELDS = (
     "manufacturer",
@@ -21,7 +22,7 @@ STRING_UPDATEABLE_FIELDS = (
     "device_lan_mac_address",
 )
 
-DATE_UPDATEABLE_FIELDS = ("next_update", "last_update")
+DATETIME_UPDATEABLE_FIELDS = ("next_update", "last_update")
 
 IPADDR_UPDATEABLE_FIELDS = (
     "broadband_lan_ip_address",
@@ -126,27 +127,25 @@ class ADTPulseGateway:
         Args:
             gateway_attributes (dict[str,str]): dictionary of gateway attributes
         """ """"""
-        for i in STRING_UPDATEABLE_FIELDS + IPADDR_UPDATEABLE_FIELDS:
-            temp = gateway_attributes.get(i)
+        for i in (
+            STRING_UPDATEABLE_FIELDS
+            + IPADDR_UPDATEABLE_FIELDS
+            + DATETIME_UPDATEABLE_FIELDS
+        ):
+            temp: Any = gateway_attributes.get(i)
             if temp == "":
                 temp = None
+            if temp is None:
+                setattr(self, i, None)
+                continue
             if i in IPADDR_UPDATEABLE_FIELDS:
-                temp2 = None
-                if temp is not None:
-                    try:
-                        temp2 = ip_address(temp)
-                    except ValueError:
-                        temp2 = None
-                setattr(self, i, temp2)
-            else:
-                setattr(self, i, temp)
-        """
-        for i in DATE_UPDATEABLE_FIELDS:
-            temp = gateway_attributes.get(i)
-            if temp is not None:
                 try:
-                    temp = datetime.strftime(temp,"DD/MM/YY HH:MI:SS")
+                    temp = ip_address(temp)
                 except ValueError:
                     temp = None
-            setattr(self,i,temp)
-        """
+            elif i in DATETIME_UPDATEABLE_FIELDS:
+                try:
+                    temp = parse_pulse_datetime(temp).timestamp()
+                except ValueError:
+                    temp = None
+            setattr(self, i, temp)
