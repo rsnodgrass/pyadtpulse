@@ -3,20 +3,19 @@
 import logging
 import re
 from asyncio import Task, create_task, gather, get_event_loop, run_coroutine_threadsafe
-from datetime import datetime, timedelta
+from datetime import datetime
 from threading import RLock
 from typing import List, Optional, Union
 from warnings import warn
 
 # import dateparser
 from bs4 import BeautifulSoup
-from dateutil import relativedelta
 
 from .alarm_panel import ADTPulseAlarmPanel
 from .const import ADT_DEVICE_URI, ADT_SYSTEM_URI, LOG
 from .gateway import ADTPulseGateway
 from .pulse_connection import ADTPulseConnection
-from .util import DebugRLock, make_soup, remove_prefix
+from .util import DebugRLock, make_soup, parse_pulse_datetime, remove_prefix
 from .zones import (
     ADT_NAME_TO_DEFAULT_TAGS,
     ADTPulseFlattendZone,
@@ -340,48 +339,13 @@ class ADTPulseSite:
                 temp = row.find("span", {"class": "devStatIcon"})
                 if temp is None:
                     break
-                t = datetime.today()
                 last_update = datetime(1970, 1, 1)
-                datestring = remove_prefix(temp.get("title"), "Last Event:").split(
-                    "\xa0"
-                )
-                if len(datestring) < 3:
-                    LOG.warning(
-                        "Warning, could not retrieve last update for zone, "
-                        f"defaulting to {last_update}"
+                try:
+                    last_update = parse_pulse_datetime(
+                        remove_prefix(temp.get("title"), "Last Event:")
                     )
-                else:
-                    if datestring[0].lstrip() == "Today":
-                        last_update = t
-                    else:
-                        if datestring[0].lstrip() == "Yesterday":
-                            last_update = t - timedelta(days=1)
-                        else:
-                            tempdate = ("/".join((datestring[0], str(t.year)))).lstrip()
-                            try:
-                                last_update = datetime.strptime(tempdate, "%m/%d/%Y")
-                            except ValueError:
-                                LOG.warning(
-                                    f"pyadtpulse couldn't convert date {last_update}, "
-                                    f"defaulting to {last_update}"
-                                )
-                            if last_update > t:
-                                last_update = last_update - relativedelta.relativedelta(
-                                    years=1
-                                )
-                    try:
-                        update_time = datetime.time(
-                            datetime.strptime(datestring[1] + datestring[2], "%I:%M%p")
-                        )
-                    except ValueError:
-                        update_time = datetime.time(last_update)
-                        LOG.warning(
-                            f"pyadtpulse couldn't convert time "
-                            f"{datestring[1] + datestring[2]}, "
-                            f"defaulting to {update_time}"
-                        )
-                    last_update = datetime.combine(last_update, update_time)
-
+                except ValueError:
+                    last_update = datetime(1970, 1, 1)
                 # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
                 temp = row.find("span", {"class": "p_grayNormalText"})
                 if temp is None:
