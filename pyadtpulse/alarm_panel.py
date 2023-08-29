@@ -307,3 +307,6 @@ class ADTPulseAlarmPanel:
                     LOG.debug("Extracted sat = %s", self._sat)
                 else:
                     LOG.warning("Unable to extract sat")
+
+    def set_alarm_attributes(self, alarm_attributes: dict[str, str]) -> None:
+        setattr(self, "model", alarm_attributes.get("Type/Model:", "Unknown"))
