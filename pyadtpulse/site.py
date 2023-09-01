@@ -218,7 +218,14 @@ class ADTPulseSite:
         for devInfoRow in deviceResponseSoup.find_all(
             "td", {"class", "InputFieldDescriptionL"}
         ):
-            identityText = str(devInfoRow.get_text())
+            identityText = (
+                str(devInfoRow.get_text())
+                .lower()
+                .strip()
+                .rstrip(":")
+                .replace(" ", "_")
+                .replace("/", "_")
+            )
             sibling = devInfoRow.find_next_sibling()
             if not sibling:
                 value = "Unknown"
@@ -231,10 +238,10 @@ class ADTPulseSite:
         dev_attr = await self._get_device_attributes(device_id)
         if dev_attr is None:
             return
-        dName = dev_attr.get("Name:", "Unknown")
-        dType = dev_attr.get("Type/Model:", "Unknown")
-        dZone = dev_attr.get("Zone:", "Unknown")
-        dStatus = dev_attr.get("Status:", "Unknown")
+        dName = dev_attr.get("name", "Unknown")
+        dType = dev_attr.get("type_model", "Unknown")
+        dZone = dev_attr.get("zone", "Unknown")
+        dStatus = dev_attr.get("status", "Unknown")
 
         # NOTE: if empty string, this is the control panel
         if dZone != "Unknown":
