@@ -90,7 +90,7 @@ class ADTPulseGateway:
 
             LOG.info(
                 f"ADT Pulse gateway {self._status_text}, "
-                "poll interval={self._current_poll_interval}"
+                f"poll interval={self._current_poll_interval}"
             )
 
     @property

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Tuple, TypedDict
 
+from .const import LOG
+
 ADT_NAME_TO_DEFAULT_TAGS = {
     "Door": ("sensor", "doorWindow"),
     "Window": ("sensor", "doorWindow"),
@@ -189,3 +191,37 @@ class ADTPulseZones(UserDict):
                 }
             )
         return result
+
+    def update_zone_attributes(self, key: int, dev_attr: dict[str, str]) -> None:
+        """Update zone attributes."""
+        dName = dev_attr.get("name", "Unknown")
+        dType = dev_attr.get("type_model", "Unknown")
+        dZone = dev_attr.get("zone", "Unknown")
+        dStatus = dev_attr.get("status", "Unknown")
+
+        if dZone != "Unknown":
+            tags = None
+            for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
+                # convert to uppercase first
+                if search_term.upper() in dType.upper():
+                    tags = default_tags
+                    break
+            if not tags:
+                LOG.warning(
+                    f"Unknown sensor type for '{dType}', " "defaulting to doorWindow"
+                )
+                tags = ("sensor", "doorWindow")
+            LOG.debug(
+                f"Retrieved sensor {dName} id: sensor-{dZone} "
+                f"Status: {dStatus}, tags {tags}"
+            )
+            if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
+                LOG.debug("Zone data incomplete, skipping...")
+            else:
+                tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
+                self.update({int(dZone): tmpzone})
+        else:
+            LOG.debug(
+                f"Skipping incomplete zone name: {dName}, zone: {dZone} "
+                f"status: {dStatus}"
+            )

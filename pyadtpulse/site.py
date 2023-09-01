@@ -16,12 +16,7 @@ from .const import ADT_DEVICE_URI, ADT_SYSTEM_URI, LOG
 from .gateway import ADTPulseGateway
 from .pulse_connection import ADTPulseConnection
 from .util import DebugRLock, make_soup, parse_pulse_datetime, remove_prefix
-from .zones import (
-    ADT_NAME_TO_DEFAULT_TAGS,
-    ADTPulseFlattendZone,
-    ADTPulseZoneData,
-    ADTPulseZones,
-)
+from .zones import ADTPulseFlattendZone, ADTPulseZones
 
 
 class ADTPulseSite:
@@ -249,38 +244,10 @@ class ADTPulseSite:
         if device_id == "1":
             self._alarm_panel.set_alarm_attributes(dev_attr)
             return
-        dName = dev_attr.get("name", "Unknown")
-        dType = dev_attr.get("type_model", "Unknown")
-        dZone = dev_attr.get("zone", "Unknown")
-        dStatus = dev_attr.get("status", "Unknown")
-
-        # NOTE: if empty string, this is the control panel
-        if dZone != "Unknown":
-            tags = None
-            for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
-                # convert to uppercase first
-                if search_term.upper() in dType.upper():
-                    tags = default_tags
-                    break
-            if not tags:
-                LOG.warning(
-                    f"Unknown sensor type for '{dType}', " "defaulting to doorWindow"
-                )
-                tags = ("sensor", "doorWindow")
-            LOG.debug(
-                f"Retrieved sensor {dName} id: sensor-{dZone} "
-                f"Status: {dStatus}, tags {tags}"
-            )
-            if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
-                LOG.debug("Zone data incomplete, skipping...")
-            else:
-                tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
-                self._zones.update({int(dZone): tmpzone})
+        if device_id.isdigit():
+            self._zones.update_zone_attributes(int(device_id), dev_attr)
         else:
-            LOG.debug(
-                f"Skipping incomplete zone name: {dName}, zone: {dZone} "
-                f"status: {dStatus}"
-            )
+            LOG.debug(f"Zone {device_id} is not an integer, skipping")
 
     async def _fetch_devices(self, soup: Optional[BeautifulSoup]) -> bool:
         """Fetch devices for a site.
