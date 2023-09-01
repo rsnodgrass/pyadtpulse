@@ -282,7 +282,7 @@ class ADTPulseSite:
                 f"status: {dStatus}"
             )
 
-    async def _fetch_zones(self, soup: Optional[BeautifulSoup]) -> bool:
+    async def _fetch_devices(self, soup: Optional[BeautifulSoup]) -> bool:
         """Fetch zones for a site.
 
         Args:
