@@ -12,7 +12,7 @@ from warnings import warn
 from bs4 import BeautifulSoup
 
 from .alarm_panel import ADTPulseAlarmPanel
-from .const import ADT_DEVICE_URI, ADT_SYSTEM_URI, LOG
+from .const import ADT_DEVICE_URI, ADT_GATEWAY_STRING, ADT_SYSTEM_URI, LOG
 from .gateway import ADTPulseGateway
 from .pulse_connection import ADTPulseConnection
 from .util import DebugRLock, make_soup, parse_pulse_datetime, remove_prefix
@@ -200,7 +200,7 @@ class ADTPulseSite:
 
     async def _get_device_attributes(self, device_id: str) -> Optional[dict[str, str]]:
         result: dict[str, str] = {}
-        if device_id == "gateway":
+        if device_id == ADT_GATEWAY_STRING:
             deviceResponse = await self._pulse_connection._async_query(
                 "/system/gateway.jsp", timeout=10
             )
@@ -238,7 +238,7 @@ class ADTPulseSite:
         dev_attr = await self._get_device_attributes(device_id)
         if dev_attr is None:
             return
-        if device_id == "gateway":
+        if device_id == ADT_GATEWAY_STRING:
             self._gateway.set_gateway_attributes(dev_attr)
             return
         if device_id == "1":
@@ -276,7 +276,7 @@ class ADTPulseSite:
             for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
                 onClickValueText = row.get("onclick")
                 if onClickValueText == "goToUrl('gateway.jsp');":
-                    task_list.append(create_task(self._set_device("gateway")))
+                    task_list.append(create_task(self._set_device(ADT_GATEWAY_STRING)))
                     continue
                 result = re.findall(regexDevice, onClickValueText)
 
