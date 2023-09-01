@@ -18,6 +18,7 @@ from .alarm_panel import ADT_ALARM_UNKNOWN
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_POLL_INTERVAL,
+    ADT_GATEWAY_STRING,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
     ADT_RELOGIN_INTERVAL,
@@ -362,6 +363,8 @@ class PyADTPulse:
                     close_response(response)
                     continue
                 close_response(response)
+                if self.site.gateway.next_update > time.time():
+                    await self.site._set_device(ADT_GATEWAY_STRING)
             except asyncio.CancelledError:
                 LOG.debug(f"{task_name} cancelled")
                 close_response(response)
