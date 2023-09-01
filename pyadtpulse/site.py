@@ -283,7 +283,7 @@ class ADTPulseSite:
             )
 
     async def _fetch_devices(self, soup: Optional[BeautifulSoup]) -> bool:
-        """Fetch zones for a site.
+        """Fetch devices for a site.
 
         Args:
             soup (BeautifulSoup, Optional): a BS4 object with data fetched from
