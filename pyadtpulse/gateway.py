@@ -18,8 +18,8 @@ STRING_UPDATEABLE_FIELDS = (
     "broadband_connection_status",
     "cellular_connection_status",
     "cellular_connection_signal_strength",
-    "broadband_lan_mac_address",
-    "device_lan_mac_address",
+    "broadband_lan_mac",
+    "device_lan_mac",
 )
 
 DATETIME_UPDATEABLE_FIELDS = ("next_update", "last_update")
@@ -52,9 +52,9 @@ class ADTPulseGateway:
     cellular_connection_status: Optional[str] = None
     cellular_connection_signal_strength: float = 0.0
     broadband_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
-    broadband_lan_mac_address: Optional[str] = None
+    broadband_lan_mac: Optional[str] = None
     device_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
-    device_lan_mac_address: Optional[str] = None
+    device_lan_mac: Optional[str] = None
     router_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
     router_wan_ip_address: Optional[IPv4Address | IPv6Address] = None
 

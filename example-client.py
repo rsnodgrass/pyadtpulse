@@ -94,6 +94,8 @@ def print_site(site: ADTPulseSite) -> None:
     print(f"Armed Home? = {site.alarm_control_panel.is_home}")
     print(f"Force armed? = {site.alarm_control_panel.is_force_armed}")
     print(f"Last updated: {site.last_updated}")
+    print()
+    print(f"Gateway: {site.gateway}")
 
 
 def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool:

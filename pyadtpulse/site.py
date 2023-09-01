@@ -205,13 +205,18 @@ class ADTPulseSite:
 
     async def _get_device_attributes(self, device_id: str) -> Optional[dict[str, str]]:
         result: dict[str, str] = {}
-        deviceResponse = await self._pulse_connection._async_query(
-            ADT_DEVICE_URI, extra_params={"id": device_id}
-        )
+        if device_id == "gateway":
+            deviceResponse = await self._pulse_connection._async_query(
+                "/system/gateway.jsp", timeout=10
+            )
+        else:
+            deviceResponse = await self._pulse_connection._async_query(
+                ADT_DEVICE_URI, extra_params={"id": device_id}
+            )
         deviceResponseSoup = await make_soup(
             deviceResponse,
             logging.DEBUG,
-            "Failed loading zone data from ADT Pulse service",
+            "Failed loading device attributes from ADT Pulse service",
         )
         if deviceResponseSoup is None:
             return None
@@ -234,9 +239,15 @@ class ADTPulseSite:
             result.update({identityText: value})
         return result
 
-    async def _create_zone(self, device_id: str) -> None:
+    async def _set_device(self, device_id: str) -> None:
         dev_attr = await self._get_device_attributes(device_id)
         if dev_attr is None:
+            return
+        if device_id == "gateway":
+            self._gateway.set_gateway_attributes(dev_attr)
+            return
+        if device_id == "1":
+            self._alarm_panel.set_alarm_attributes(dev_attr)
             return
         dName = dev_attr.get("name", "Unknown")
         dType = dev_attr.get("type_model", "Unknown")
@@ -297,6 +308,9 @@ class ADTPulseSite:
         with self._site_lock:
             for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
                 onClickValueText = row.get("onclick")
+                if onClickValueText == "goToUrl('gateway.jsp');":
+                    task_list.append(create_task(self._set_device("gateway")))
+                    continue
                 result = re.findall(regexDevice, onClickValueText)
 
                 # only proceed if regex succeeded, as some users have onClick
@@ -307,7 +321,7 @@ class ADTPulseSite:
                         "from ADT Pulse service, ignoring"
                     )
                     continue
-                task_list.append(create_task(self._create_zone(result[0])))
+                task_list.append(create_task(self._set_device(result[0])))
 
             await gather(*task_list)
             self._last_updated = datetime.now()
