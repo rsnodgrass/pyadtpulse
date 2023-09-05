@@ -88,6 +88,9 @@ def print_site(site: ADTPulseSite) -> None:
         site (ADTPulseSite): The site to display
     """
     print(f"Site: {site.name} (id={site.id})")
+    print(f"Alarm Model: {site.alarm_control_panel.model}")
+    print(f"Manufacturer: {site.alarm_control_panel.manufacturer}")
+    print(f"Alarm Online? = {site.alarm_control_panel.online}")
     print(f"Alarm Status = {site.alarm_control_panel.status}")
     print(f"Disarmed? = {site.alarm_control_panel.is_disarmed}")
     print(f"Armed Away? = {site.alarm_control_panel.is_away}")

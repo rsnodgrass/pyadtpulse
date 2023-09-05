@@ -310,4 +310,16 @@ class ADTPulseAlarmPanel:
                     LOG.warning("Unable to extract sat")
 
     def set_alarm_attributes(self, alarm_attributes: dict[str, str]) -> None:
-        setattr(self, "model", alarm_attributes.get("Type/Model:", "Unknown"))
+        """
+        Set alarm attributes including model, manufacturer, and online status.
+
+        Args:
+            self (object): The instance of the alarm.
+            alarm_attributes (dict[str, str]): A dictionary containing alarm attributes.
+
+        Returns:
+            None
+        """
+        self.model = alarm_attributes.get("type_model", "Unknown")
+        self.manufacturer = alarm_attributes.get("manufacturer_provider", "ADT")
+        self.online = alarm_attributes.get("status", "Offline") == "Online"
