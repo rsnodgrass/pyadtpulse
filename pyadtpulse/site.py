@@ -276,6 +276,28 @@ class ADTPulseSite:
         with self._site_lock:
             for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
                 device_name = row.find("a").get_text()
+                row_tds = row.find_all("td")
+                zone_id = None
+                # see if we can create a zone without calling device.jsp
+                if row_tds is not None and len(row_tds) > 4:
+                    zone_name = row_tds[1].get_text().strip()
+                    zone_id = row_tds[2].get_text().strip()
+                    zone_type = row_tds[4].get_text().strip()
+                    zone_status = row_tds[0].find("canvas").get("title").strip()
+                    if (
+                        zone_id.isdecimal()
+                        and zone_name is not None
+                        and zone_type is not None
+                    ):
+                        self._zones.update_zone_attributes(
+                            {
+                                "name": zone_name,
+                                "zone": zone_id,
+                                "type_model": zone_type,
+                                "status": zone_status,
+                            }
+                        )
+                        continue
                 onClickValueText = row.get("onclick")
                 if (
                     onClickValueText == "goToUrl('gateway.jsp');"
@@ -293,13 +315,14 @@ class ADTPulseSite:
                         "from ADT Pulse service, ignoring"
                     )
                     continue
-                # Don't bother querying if we don't have a zone id
-                if (
-                    result[0] == "1"
-                    or device_name == "Security Panel"
-                    or row.find("td", {"align": "right"}).get_text().strip().isdigit()
-                ):
+                # alarm panel case
+                if result[0] == "1" or device_name == "Security Panel":
                     task_list.append(create_task(self._set_device(result[0])))
+                    continue
+                # zone case if we couldn't just call update_zone_attributes
+                if zone_id is not None and zone_id.isdecimal():
+                    task_list.append(create_task(self._set_device(result[0])))
+                    continue
                 else:
                     LOG.debug(f"Skipping {device_name} as it doesn't have an ID")
 
