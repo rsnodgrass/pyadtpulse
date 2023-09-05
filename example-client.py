@@ -2,9 +2,9 @@
 """Sample client for using pyadtpulse."""
 
 import logging
+import argparse
 import asyncio
 import json
-import os
 import sys
 from time import sleep
 from typing import Dict, Optional
@@ -22,6 +22,21 @@ SLEEP_INTERVAL = "sleep_interval"
 USE_ASYNC = "use_async"
 DEBUG_LOCKS = "debug_locks"
 
+BOOLEAN_PARAMS = {USE_ASYNC, DEBUG_LOCKS, PULSE_DEBUG, TEST_ALARM}
+INT_PARAMS = {SLEEP_INTERVAL}
+
+# Default values
+DEFAULT_USE_ASYNC = True
+DEFAULT_DEBUG = False
+DEFAULT_TEST_ALARM = False
+DEFAULT_SLEEP_INTERVAL = 5
+DEFAULT_DEBUG_LOCKS = False
+
+# Constants for environment variable names
+ENV_USER = "USER"
+ENV_PASSWORD = "PASSWORD"
+ENV_FINGERPRINT = "FINGERPRINT"
+
 
 def setup_logger(level: int):
     """Set up logger."""
@@ -36,49 +51,117 @@ def setup_logger(level: int):
     logger.addHandler(handler)
 
 
-def handle_args() -> Optional[Dict]:
-    """Handle program arguments.
+def handle_args() -> argparse.Namespace:
+    """Handle program arguments using argparse.
 
     Returns:
-        Optional[Dict]: parsed parameters.
+        argparse.Namespace: Parsed command-line arguments.
     """
-    result: Dict = {}
+    parser = argparse.ArgumentParser(description="ADT Pulse example client")
+    parser.add_argument("json_file", nargs="?", help="JSON file containing parameters")
+    parser.add_argument(
+        f"--{USER}",
+        help="Pulse username (can be set in JSON file or environment variable)",
+    )
+    parser.add_argument(
+        f"--{PASSWD}",
+        help="Pulse password (can be set in JSON file or environment variable)",
+    )
+    parser.add_argument(
+        f"--{FINGERPRINT}",
+        help="Pulse fingerprint (can be set in JSON file or environment variable)",
+    )
+    parser.add_argument(
+        f"--{PULSE_DEBUG}",
+        type=bool,
+        default=None,
+        help="Set True to enable debugging",
+    )
+    parser.add_argument(
+        f"--{TEST_ALARM}",
+        type=bool,
+        default=None,
+        help="Set True to test alarm arming/disarming",
+    )
+    parser.add_argument(
+        f"--{SLEEP_INTERVAL}",
+        type=int,
+        default=None,
+        help="Number of seconds to sleep between each call (default: 10 seconds)",
+    )
+    parser.add_argument(
+        f"--{USE_ASYNC}",
+        type=bool,
+        default=None,
+        help="Set to true to use asyncio (default: true)",
+    )
+    parser.add_argument(
+        f"--{DEBUG_LOCKS}",
+        type=bool,
+        default=None,
+        help="Set to true to debug thread locks",
+    )
 
-    for curr_arg in sys.argv[1:]:
-        if "." in curr_arg:
-            f = open(curr_arg, "rb")
-            parameters = json.load(f)
-            result.update(parameters)
-        if "=" in curr_arg:
-            curr_value = curr_arg.split("=")
-            result.update({curr_value[0]: curr_value[1]})
+    args = parser.parse_args()
 
-    if USER not in result:
-        result.update({USER: os.getenv(USER.upper(), None)})
-    if PASSWD not in result:
-        result.update({PASSWD: os.getenv(PASSWD.upper(), None)})
-    if FINGERPRINT not in result:
-        result.update({FINGERPRINT: os.getenv(FINGERPRINT.upper(), None)})
-    if PULSE_DEBUG not in result:
-        result.update({PULSE_DEBUG: os.getenv(PULSE_DEBUG, None)})
-    return result
+    json_params = load_parameters_from_json(args.json_file)
+
+    # Update arguments with values from the JSON file
+    # load_parameters_from_json() will handle incorrect types
+    if json_params is not None:
+        for key, value in json_params.items():
+            if getattr(args, key) is None and value is not None:
+                setattr(args, key, value)
+
+    # Set default values for specific parameters
+    if args.use_async is None:
+        args.use_async = DEFAULT_USE_ASYNC
+    if args.debug_locks is None:
+        args.debug_locks = DEFAULT_DEBUG_LOCKS
+    if args.debug is None:
+        args.debug = DEFAULT_DEBUG
+    if args.sleep_interval is None:
+        args.sleep_interval = DEFAULT_SLEEP_INTERVAL
+    return args
 
 
-def usage() -> None:
-    """Print program usage."""
-    print(f"Usage {sys.argv[0]}: [json-file]")
-    print(f"  {USER.upper()}, {PASSWD.upper()}, and {FINGERPRINT.upper()}")
-    print("  must be set either through the json file, or environment variables.")
-    print()
-    print(f"  Set {PULSE_DEBUG} to True to enable debugging")
-    print(f"  Set {TEST_ALARM} to True to test alarm arming/disarming")
-    print(f"  Set {SLEEP_INTERVAL} to the number of seconds to sleep between each call")
-    print("     Default: 10 seconds")
-    print(f"  Set {USE_ASYNC} to true to use asyncio (default: false)")
-    print(f"  Set {DEBUG_LOCKS} to true to debug thread locks")
-    print()
-    print("  values can be passed on the command line i.e.")
-    print(f"  {USER}=someone@example.com")
+def load_parameters_from_json(json_file: str) -> Optional[Dict]:
+    """Load parameters from a JSON file.
+
+    Args:
+        json_file (str): Path to the JSON file.
+
+    Returns:
+        Optional[Dict]: Loaded parameters as a dictionary,
+                        or None if there was an error.
+    """
+    try:
+        with open(json_file) as file:
+            parameters = json.load(file)
+            for key, value in parameters.items():
+                if key in BOOLEAN_PARAMS:
+                    if not isinstance(value, bool):
+                        print(
+                            "Invalid boolean value for "
+                            f"{key}: {value}"
+                            " in JSON file, ignoring..."
+                        )
+                        parameters.pop(key)
+                elif key in INT_PARAMS:
+                    if not isinstance(value, int):
+                        print(
+                            "Invalid integer value for "
+                            f"{key}: {value}"
+                            " in JSON file, ignoring..."
+                        )
+                        parameters.pop(key)
+            return parameters
+    except FileNotFoundError:
+        print(f"JSON file not found: {json_file}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON: {e}")
+        return None
 
 
 def print_site(site: ADTPulseSite) -> None:
@@ -405,78 +488,33 @@ async def async_example(
 
 
 def main():
-    """Run main program.
+    """Run main program."""
+    args = handle_args()
 
-    Raises:
-        SystemExit: Environment variables not set.
-    """
-    args = None
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--help":
-            usage()
-            sys.exit(0)
-        args = handle_args()
-
-    if not args or USER not in args or PASSWD not in args or FINGERPRINT not in args:
+    if not args or not any(
+        [args.adtpulse_user, args.adtpulse_password, args.adtpulse_fingerprint]
+    ):
         print(f"ERROR! {USER}, {PASSWD}, and {FINGERPRINT} must all be set")
         raise SystemExit
 
-    debug = False
-    try:
-        debug = bool(args[PULSE_DEBUG])
-    except ValueError:
-        print(f"{PULSE_DEBUG} must be True or False, defaulting to False")
-    except KeyError:
-        pass
-
+    debug = args.debug
     if debug:
         level = logging.DEBUG
     else:
         level = logging.ERROR
 
-    run_alarm_test = False
-    try:
-        run_alarm_test = bool(args[TEST_ALARM])
-    except ValueError:
-        print(f"{TEST_ALARM} must be True or False, defaulting to False")
-    except KeyError:
-        pass
-
-    use_async = False
-    try:
-        use_async = bool(args[USE_ASYNC])
-    except ValueError:
-        print(f"{USE_ASYNC} must be an boolean, defaulting to False")
-    except KeyError:
-        pass
-
-    debug_locks = False
-    try:
-        debug_locks = bool(args[DEBUG_LOCKS])
-    except ValueError:
-        print(f"{DEBUG_LOCKS} must be an boolean, defaulting to False")
-    except KeyError:
-        pass
-
-    # don't need to sleep with async
-    sleep_interval = 10
-    try:
-        sleep_interval = int(args[SLEEP_INTERVAL])
-    except ValueError:
-        if use_async:
-            print(f"{SLEEP_INTERVAL} must be an integer, defaulting to 10 seconds")
-    except KeyError:
-        pass
+    run_alarm_test = args.test_alarm
+    use_async = args.use_async
+    debug_locks = args.debug_locks
+    sleep_interval = args.sleep_interval
 
     setup_logger(level)
 
-    ####
-
     if not use_async:
         sync_example(
-            args[USER],
-            args[PASSWD],
-            args[FINGERPRINT],
+            args.adtpulse_user,
+            args.adtpulse_password,
+            args.adtpulse_fingerprint,
             run_alarm_test,
             sleep_interval,
             debug_locks,
@@ -484,7 +522,11 @@ def main():
     else:
         asyncio.run(
             async_example(
-                args[USER], args[PASSWD], args[FINGERPRINT], run_alarm_test, debug_locks
+                args.adtpulse_user,
+                args.adtpulse_password,
+                args.adtpulse_fingerprint,
+                run_alarm_test,
+                debug_locks,
             )
         )
 
