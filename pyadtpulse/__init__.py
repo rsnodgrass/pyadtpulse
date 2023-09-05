@@ -586,9 +586,12 @@ class PyADTPulse:
         retry_after = 0
         if self._updates_exist is None:
             raise RuntimeError(f"{task_name} started without update event initialized")
+        have_update = False
         while True:
             try:
                 pi = self.site.gateway.poll_interval
+                if have_update:
+                    pi = pi / 2.0
                 if retry_after == 0:
                     await asyncio.sleep(pi)
                 else:
@@ -624,19 +627,19 @@ class PyADTPulse:
 
                 # we can have 0-0-0 followed by 1-0-0 followed by 2-0-0, etc
                 # wait until these settle
-                # FIXME this is incorrect, and if we get here we know the gateway
-                # is online.  Plus, we shouldn't set updates_exist until
-                # async_update succeeds
                 if text.endswith("-0-0"):
                     LOG.debug(
                         f"Sync token {text} indicates updates may exist, requerying"
                     )
                     close_response(response)
-                    self._updates_exist.set()
+                    have_update = True
+                    continue
+                if have_update:
+                    have_update = False
                     if await self.async_update() is False:
                         LOG.debug(f"Pulse data update from {task_name} failed")
-                    continue
-
+                        continue
+                    self._updates_exist.set()
                 LOG.debug(f"Sync token {text} indicates no remote updates to process")
                 close_response(response)
 
