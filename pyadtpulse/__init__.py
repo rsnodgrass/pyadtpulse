@@ -234,11 +234,6 @@ class PyADTPulse:
                 await self._initialize_sites(soup)
                 if self._site is None:
                     raise RuntimeError("pyadtpulse could not retrieve site")
-            else:
-                # FIXME: wrong error?
-                LOG.error("pyadtpulse returned no sites")
-                return
-
             self._site.alarm_control_panel._update_alarm_from_soup(soup)
             self._site._update_zone_from_soup(soup)
 
