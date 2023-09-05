@@ -364,7 +364,7 @@ class PyADTPulse:
                     close_response(response)
                     continue
                 close_response(response)
-                if self.site.gateway.next_update > time.time():
+                if self.site.gateway.next_update < time.time():
                     await self.site._set_device(ADT_GATEWAY_STRING)
             except asyncio.CancelledError:
                 LOG.debug(f"{task_name} cancelled")
