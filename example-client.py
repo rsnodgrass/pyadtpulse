@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
+from pprint import pprint
 from time import sleep
 from typing import Dict, Optional
 
@@ -171,17 +172,10 @@ def print_site(site: ADTPulseSite) -> None:
         site (ADTPulseSite): The site to display
     """
     print(f"Site: {site.name} (id={site.id})")
-    print(f"Alarm Model: {site.alarm_control_panel.model}")
-    print(f"Manufacturer: {site.alarm_control_panel.manufacturer}")
-    print(f"Alarm Online? = {site.alarm_control_panel.online}")
-    print(f"Alarm Status = {site.alarm_control_panel.status}")
-    print(f"Disarmed? = {site.alarm_control_panel.is_disarmed}")
-    print(f"Armed Away? = {site.alarm_control_panel.is_away}")
-    print(f"Armed Home? = {site.alarm_control_panel.is_home}")
-    print(f"Force armed? = {site.alarm_control_panel.is_force_armed}")
-    print(f"Last updated: {site.last_updated}")
-    print()
-    print(f"Gateway: {site.gateway}")
+    print("Alarm panel: ")
+    pprint(site.alarm_control_panel, compact=True)
+    print("Gateway: ")
+    pprint(site.gateway, compact=True)
 
 
 def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool:
@@ -318,8 +312,8 @@ def sync_example(
         adt.site.site_lock.release()
         adt.logout()
         return
-    for zone in adt.site.zones:
-        print(zone)
+
+    pprint(adt.site.zones, compact=True)
     adt.site.site_lock.release()
     if run_alarm_test:
         test_alarm(adt.site, adt, sleep_interval)
@@ -343,9 +337,7 @@ def sync_example(
                     break
                 print("\nZones:")
                 with adt.site.site_lock:
-                    for zone in adt.site.zones:
-                        print(zone)
-                    print(f"{adt.site.zones_as_dict}")
+                    pprint(adt.site.zones, compact=True)
             else:
                 print("No updates exist")
             sleep(sleep_interval)
@@ -456,8 +448,7 @@ async def async_example(
         await adt.async_logout()
         return
 
-    for zone in adt.site.zones:
-        print(zone)
+    pprint(adt.site.zones, compact=True)
     if run_alarm_test:
         await async_test_alarm(adt)
 
@@ -472,10 +463,7 @@ async def async_example(
                 done = True
                 break
             print("\nZones:")
-            for zone in adt.site.zones:
-                print(zone)
-                #               print(f"{site.zones_as_dict}")
-
+            pprint(adt.site.zones, compact=True)
             await adt.wait_for_update()
             print("Updates exist, refreshing")
             # no need to call an update method
