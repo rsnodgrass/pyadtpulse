@@ -246,7 +246,7 @@ class ADTPulseSite:
             self._alarm_panel.set_alarm_attributes(dev_attr)
             return
         if device_id.isdigit():
-            self._zones.update_zone_attributes(int(device_id), dev_attr)
+            self._zones.update_zone_attributes(dev_attr)
         else:
             LOG.debug(f"Zone {device_id} is not an integer, skipping")
 

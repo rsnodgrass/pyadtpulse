@@ -193,7 +193,7 @@ class ADTPulseZones(UserDict):
             )
         return result
 
-    def update_zone_attributes(self, key: int, dev_attr: dict[str, str]) -> None:
+    def update_zone_attributes(self, dev_attr: dict[str, str]) -> None:
         """Update zone attributes."""
         dName = dev_attr.get("name", "Unknown")
         dType = dev_attr.get("type_model", "Unknown")
