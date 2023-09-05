@@ -275,8 +275,12 @@ class ADTPulseSite:
         regexDevice = r"goToUrl\('device.jsp\?id=(\d*)'\);"
         with self._site_lock:
             for row in soup.find_all("tr", {"class": "p_listRow", "onclick": True}):
+                device_name = row.find("a").get_text()
                 onClickValueText = row.get("onclick")
-                if onClickValueText == "goToUrl('gateway.jsp');":
+                if (
+                    onClickValueText == "goToUrl('gateway.jsp');"
+                    or device_name == "Gateway"
+                ):
                     task_list.append(create_task(self._set_device(ADT_GATEWAY_STRING)))
                     continue
                 result = re.findall(regexDevice, onClickValueText)
@@ -289,7 +293,15 @@ class ADTPulseSite:
                         "from ADT Pulse service, ignoring"
                     )
                     continue
-                task_list.append(create_task(self._set_device(result[0])))
+                # Don't bother querying if we don't have a zone id
+                if (
+                    result[0] == "1"
+                    or device_name == "Security Panel"
+                    or row.find("td", {"align": "right"}).get_text().strip().isdigit()
+                ):
+                    task_list.append(create_task(self._set_device(result[0])))
+                else:
+                    LOG.debug(f"Skipping {device_name} as it doesn't have an ID")
 
             await gather(*task_list)
             self._last_updated = datetime.now()
