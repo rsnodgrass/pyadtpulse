@@ -27,7 +27,6 @@ from .const import (
     ADT_TIMEOUT_INTERVAL,
     ADT_TIMEOUT_URI,
     DEFAULT_API_HOST,
-    LOG,
 )
 from .pulse_connection import ADTPulseConnection
 from .site import ADTPulseSite
@@ -38,6 +37,8 @@ from .util import (
     handle_response,
     make_soup,
 )
+
+LOG = logging.getLogger(__name__)
 
 SYNC_CHECK_TASK_NAME = "ADT Pulse Sync Check Task"
 KEEPALIVE_TASK_NAME = "ADT Pulse Keepalive Task"

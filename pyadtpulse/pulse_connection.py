@@ -1,5 +1,6 @@
 """ADT Pulse connection."""
 
+import logging
 import asyncio
 import re
 from random import uniform
@@ -24,11 +25,11 @@ from .const import (
     ADT_ORB_URI,
     ADT_SYSTEM_URI,
     API_PREFIX,
-    LOG,
 )
 from .util import DebugRLock, close_response, make_soup
 
 RECOVERABLE_ERRORS = [429, 500, 502, 503, 504]
+LOG = logging.getLogger(__name__)
 
 
 class ADTPulseConnection:

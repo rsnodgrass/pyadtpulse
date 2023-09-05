@@ -1,5 +1,4 @@
 """Module representing an ADT Pulse Site."""
-
 import logging
 import re
 from asyncio import Task, create_task, gather, get_event_loop, run_coroutine_threadsafe
@@ -12,11 +11,13 @@ from warnings import warn
 from bs4 import BeautifulSoup
 
 from .alarm_panel import ADTPulseAlarmPanel
-from .const import ADT_DEVICE_URI, ADT_GATEWAY_STRING, ADT_SYSTEM_URI, LOG
+from .const import ADT_DEVICE_URI, ADT_GATEWAY_STRING, ADT_SYSTEM_URI
 from .gateway import ADTPulseGateway
 from .pulse_connection import ADTPulseConnection
 from .util import DebugRLock, make_soup, parse_pulse_datetime, remove_prefix
 from .zones import ADTPulseFlattendZone, ADTPulseZones
+
+LOG = logging.getLogger(__name__)
 
 
 class ADTPulseSite:

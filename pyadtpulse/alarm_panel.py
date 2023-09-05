@@ -9,10 +9,11 @@ from time import time
 
 from bs4 import BeautifulSoup
 
-from .const import ADT_ARM_DISARM_URI, LOG
+from .const import ADT_ARM_DISARM_URI
 from .pulse_connection import ADTPulseConnection
 from .util import make_soup
 
+LOG = logging.getLogger(__name__)
 ADT_ALARM_AWAY = "away"
 ADT_ALARM_HOME = "stay"
 ADT_ALARM_OFF = "off"

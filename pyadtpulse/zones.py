@@ -1,10 +1,9 @@
 """ADT Pulse zone info."""
+import logging
 from collections import UserDict
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Tuple, TypedDict
-
-from .const import LOG
 
 ADT_NAME_TO_DEFAULT_TAGS = {
     "Door": ("sensor", "doorWindow"),
@@ -18,6 +17,8 @@ ADT_NAME_TO_DEFAULT_TAGS = {
     "Floor": ("sensor", "flood"),
     "Moisture": ("sensor", "flood"),
 }
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
