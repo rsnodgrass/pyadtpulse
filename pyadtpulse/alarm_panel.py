@@ -323,3 +323,7 @@ class ADTPulseAlarmPanel:
         self.model = alarm_attributes.get("type_model", "Unknown")
         self.manufacturer = alarm_attributes.get("manufacturer_provider", "ADT")
         self.online = alarm_attributes.get("status", "Offline") == "Online"
+        LOG.debug(
+            f"Set alarm attributes: Model = {self.model}, Manufacturer = "
+            f"{self.manufacturer}, Online = {self.online}"
+        )
