@@ -184,7 +184,8 @@ class ADTPulseConnection:
                 ClientConnectorError,
             ) as ex:
                 LOG.debug(
-                    f"Error {ex.__str__} occurred making {method} request to {url}, retrying",
+                    f"Error {ex.__str__} occurred making {method}"
+                    f" request to {url}, retrying",
                     exc_info=True,
                 )
                 await asyncio.sleep(2**retry + uniform(0.0, 1.0))
