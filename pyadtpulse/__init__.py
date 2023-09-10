@@ -128,7 +128,7 @@ class PyADTPulse:
 
         self._site: Optional[ADTPulseSite] = None
         self._poll_interval = poll_interval
-        self._relogin_interval = ADT_RELOGIN_INTERVAL
+        self._relogin_interval: int = ADT_RELOGIN_INTERVAL
 
         # authenticate the user
         if do_login and websession is None:
@@ -226,7 +226,7 @@ class PyADTPulse:
         if interval > 0 and interval < 10:
             raise ValueError("Cannot set relogin interval to less than 10 minutes")
         with self._attribute_lock:
-            self._relogin_interval = interval * 60
+            self._relogin_interval = interval
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
@@ -319,7 +319,7 @@ class PyADTPulse:
                     "Keepalive task is running without an authenticated event"
                 )
         while self._authenticated.is_set():
-            relogin_interval = self.relogin_interval
+            relogin_interval = self.relogin_interval * 60
             if (
                 relogin_interval != 0
                 and time.time() - self._last_timeout_reset > relogin_interval
@@ -347,7 +347,7 @@ class PyADTPulse:
                             coro, name=f"{SYNC_CHECK_TASK_NAME}: Async session"
                         )
             try:
-                await asyncio.sleep(ADT_TIMEOUT_INTERVAL + retry_after)
+                await asyncio.sleep(ADT_TIMEOUT_INTERVAL * 60.0 + retry_after)
                 LOG.debug("Resetting timeout")
                 response = await self._pulse_connection._async_query(
                     ADT_TIMEOUT_URI, "POST"
