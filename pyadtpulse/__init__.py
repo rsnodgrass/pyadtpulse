@@ -17,14 +17,14 @@ from bs4 import BeautifulSoup
 from .alarm_panel import ADT_ALARM_UNKNOWN
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
+    ADT_DEFAULT_KEEPALIVE_INTERVAL,
     ADT_DEFAULT_POLL_INTERVAL,
+    ADT_DEFAULT_RELOGIN_INTERVAL,
     ADT_GATEWAY_STRING,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
-    ADT_RELOGIN_INTERVAL,
     ADT_SUMMARY_URI,
     ADT_SYNC_CHECK_URI,
-    ADT_TIMEOUT_INTERVAL,
     ADT_TIMEOUT_URI,
     DEFAULT_API_HOST,
 )
@@ -63,6 +63,7 @@ class PyADTPulse:
         "_fingerprint",
         "_login_exception",
         "_relogin_interval",
+        "_keepalive_interval",
     )
 
     def __init__(
@@ -76,6 +77,8 @@ class PyADTPulse:
         do_login: bool = True,
         poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
         debug_locks: bool = False,
+        keepalive_interval: int = ADT_DEFAULT_KEEPALIVE_INTERVAL,
+        relogin_interval: int = ADT_DEFAULT_RELOGIN_INTERVAL,
     ):
         """Create a PyADTPulse object.
 
@@ -99,6 +102,10 @@ class PyADTPulse:
             poll_interval (float, optional): number of seconds between update checks
             debug_locks: (bool, optional): use debugging locks
                         Defaults to False
+            keepalive_interval (int, optional): number of seconds between
+                        keepalive checks, defaults to ADT_DEFAULT_KEEPALIVE_INTERVAL
+            relogin_interval (int, optional): number of seconds between relogin checks
+                        defaults to ADT_DEFAULT_RELOGIN_INTERVAL
         """
         self._init_login_info(username, password, fingerprint)
         self._pulse_connection = ADTPulseConnection(
@@ -128,7 +135,9 @@ class PyADTPulse:
 
         self._site: Optional[ADTPulseSite] = None
         self._poll_interval = poll_interval
-        self._relogin_interval: int = ADT_RELOGIN_INTERVAL
+        self._check_keepalive_relogin_intervals(keepalive_interval, relogin_interval)
+        self._relogin_interval = relogin_interval
+        self._keepalive_interval = keepalive_interval
 
         # authenticate the user
         if do_login and websession is None:
@@ -200,6 +209,16 @@ class PyADTPulse:
         with ADTPulseConnection._class_threadlock:
             return ADTPulseConnection._api_version
 
+    @staticmethod
+    def _check_keepalive_relogin_intervals(
+        keepalive_interval: int, relogin_interval: int
+    ) -> None:
+        if keepalive_interval > relogin_interval:
+            raise ValueError(
+                f"relogin_interval ({relogin_interval}) must be "
+                f"greater than keepalive_interval ({keepalive_interval})"
+            )
+
     @property
     def relogin_interval(self) -> int:
         """Get re-login interval.
@@ -226,7 +245,25 @@ class PyADTPulse:
         if interval > 0 and interval < 10:
             raise ValueError("Cannot set relogin interval to less than 10 minutes")
         with self._attribute_lock:
+            self._check_keepalive_relogin_intervals(interval, self._relogin_interval)
             self._relogin_interval = interval
+
+    @property
+    def keepalive_interval(self) -> int:
+        """Get the keepalive interval in minutes.
+
+        Returns:
+            int: the keepalive interval
+        """
+        with self._attribute_lock:
+            return self._keepalive_interval
+
+    @keepalive_interval.setter
+    def keepalive_interval(self, interval: int) -> None:
+        """Set the keepalive interval in minutes."""
+        with self._attribute_lock:
+            self._check_keepalive_relogin_intervals(self._keepalive_interval, interval)
+            self._keepalive_interval = interval
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
@@ -345,7 +382,7 @@ class PyADTPulse:
                             coro, name=f"{SYNC_CHECK_TASK_NAME}: Async session"
                         )
             try:
-                await asyncio.sleep(ADT_TIMEOUT_INTERVAL * 60.0 + retry_after)
+                await asyncio.sleep(self.keepalive_interval * 60.0 + retry_after)
                 LOG.debug("Resetting timeout")
                 response = await self._pulse_connection._async_query(
                     ADT_TIMEOUT_URI, "POST"

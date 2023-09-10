@@ -17,8 +17,8 @@ ADT_STATES_URI = "/ajax/currentStates.jsp"
 ADT_SYNC_CHECK_URI = "/Ajax/SyncCheckServ"
 ADT_TIMEOUT_URI = "/KeepAlive"
 # Intervals are all in minutes
-ADT_TIMEOUT_INTERVAL: int = 5
-ADT_RELOGIN_INTERVAL: int = 120
+ADT_DEFAULT_KEEPALIVE_INTERVAL: int = 5
+ADT_DEFAULT_RELOGIN_INTERVAL: int = 120
 ADT_GATEWAY_STRING = "gateway"
 
 # ADT sets their keepalive to 1 second, so poll a little more often
