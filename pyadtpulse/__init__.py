@@ -26,6 +26,7 @@ from .const import (
     ADT_SUMMARY_URI,
     ADT_SYNC_CHECK_URI,
     ADT_TIMEOUT_URI,
+    API_HOST_CA,
     DEFAULT_API_HOST,
 )
 from .pulse_connection import ADTPulseConnection
@@ -107,6 +108,7 @@ class PyADTPulse:
             relogin_interval (int, optional): number of seconds between relogin checks
                         defaults to ADT_DEFAULT_RELOGIN_INTERVAL
         """
+        self._check_service_host(service_host)
         self._init_login_info(username, password, fingerprint)
         self._pulse_connection = ADTPulseConnection(
             service_host,
@@ -168,6 +170,15 @@ class PyADTPulse:
     # support testing as well as alternative ADT Pulse endpoints such as
     # portal-ca.adtpulse.com
 
+    @staticmethod
+    def _check_service_host(service_host: str) -> None:
+        if service_host is None or service_host == "":
+            raise ValueError("Service host is mandatory")
+        if service_host not in (DEFAULT_API_HOST, API_HOST_CA):
+            raise ValueError(
+                "Service host must be one of {DEFAULT_API_HOST}" f" or {API_HOST_CA}"
+            )
+
     @property
     def service_host(self) -> str:
         """Get the Pulse host.
@@ -183,7 +194,9 @@ class PyADTPulse:
         Args:
             host (str): name of Pulse endpoint host
         """
-        self._pulse_connection.service_host = host
+        self._check_service_host(host)
+        with self._attribute_lock:
+            self._pulse_connection.service_host = host
 
     def set_service_host(self, host: str) -> None:
         """Backward compatibility for service host property setter."""
