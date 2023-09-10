@@ -107,6 +107,16 @@ class ADTPulseAlarmPanel:
         with self._state_lock:
             return self._status == ADT_ALARM_DISARMING
 
+    @property
+    def last_update(self) -> float:
+        """Return last update time.
+
+        Returns:
+            float: last arm/disarm time
+        """
+        with self._state_lock:
+            return self._last_arm_disarm
+
     async def _arm(
         self, connection: ADTPulseConnection, mode: str, force_arm: bool
     ) -> bool:
