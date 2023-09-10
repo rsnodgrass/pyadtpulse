@@ -48,6 +48,7 @@ STATE_MOTION = "Motion"
 STATE_TAMPER = "Tamper"
 STATE_ALARM = "Alarm"
 STATE_UNKNOWN = "Unknown"
+STATE_ONLINE = "Online"
 
 ADT_SENSOR_DOOR = "doorWindow"
 ADT_SENSOR_WINDOW = "glass"
