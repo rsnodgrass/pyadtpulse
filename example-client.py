@@ -11,6 +11,12 @@ from time import sleep
 from typing import Dict, Optional
 
 from pyadtpulse import PyADTPulse
+from pyadtpulse.const import (
+    ADT_DEFAULT_KEEPALIVE_INTERVAL,
+    ADT_DEFAULT_RELOGIN_INTERVAL,
+    API_HOST_CA,
+    DEFAULT_API_HOST,
+)
 from pyadtpulse.site import ADTPulseSite
 from pyadtpulse.util import AuthenticationException
 
@@ -22,9 +28,12 @@ TEST_ALARM = "test_alarm"
 SLEEP_INTERVAL = "sleep_interval"
 USE_ASYNC = "use_async"
 DEBUG_LOCKS = "debug_locks"
+KEEPALIVE_INTERVAL = "keepalive_interval"
+RELOGIN_INTERVAL = "relogin_interval"
+SERVICE_HOST = "service_host"
 
 BOOLEAN_PARAMS = {USE_ASYNC, DEBUG_LOCKS, PULSE_DEBUG, TEST_ALARM}
-INT_PARAMS = {SLEEP_INTERVAL}
+INT_PARAMS = {SLEEP_INTERVAL, KEEPALIVE_INTERVAL, RELOGIN_INTERVAL}
 
 # Default values
 DEFAULT_USE_ASYNC = True
@@ -32,6 +41,7 @@ DEFAULT_DEBUG = False
 DEFAULT_TEST_ALARM = False
 DEFAULT_SLEEP_INTERVAL = 5
 DEFAULT_DEBUG_LOCKS = False
+
 
 # Constants for environment variable names
 ENV_USER = "USER"
@@ -73,6 +83,11 @@ def handle_args() -> argparse.Namespace:
         help="Pulse fingerprint (can be set in JSON file or environment variable)",
     )
     parser.add_argument(
+        f"--{SERVICE_HOST}",
+        help=f"Pulse service host, must be {DEFAULT_API_HOST} or {API_HOST_CA}, "
+        f"default is {DEFAULT_API_HOST}",
+    )
+    parser.add_argument(
         f"--{PULSE_DEBUG}",
         type=bool,
         default=None,
@@ -88,19 +103,35 @@ def handle_args() -> argparse.Namespace:
         f"--{SLEEP_INTERVAL}",
         type=int,
         default=None,
-        help="Number of seconds to sleep between each call (default: 10 seconds)",
+        help="Number of seconds to sleep between each call "
+        f"(default: {DEFAULT_SLEEP_INTERVAL} seconds),"
+        " not used for async",
     )
     parser.add_argument(
         f"--{USE_ASYNC}",
         type=bool,
         default=None,
-        help="Set to true to use asyncio (default: true)",
+        help=f"Set to true to use asyncio (default: {DEFAULT_USE_ASYNC})",
     )
     parser.add_argument(
         f"--{DEBUG_LOCKS}",
         type=bool,
         default=None,
-        help="Set to true to debug thread locks",
+        help=f"Set to true to debug thread locks, default: {DEFAULT_DEBUG_LOCKS}",
+    )
+    parser.add_argument(
+        f"--{KEEPALIVE_INTERVAL}",
+        type=int,
+        default=None,
+        help="Number of minutes to wait between keepalive calls (default: "
+        f"{ADT_DEFAULT_KEEPALIVE_INTERVAL} minutes)",
+    )
+    parser.add_argument(
+        f"--{RELOGIN_INTERVAL}",
+        type=int,
+        default=None,
+        help="Number of minutes to wait between relogin calls "
+        f"(default: {ADT_DEFAULT_RELOGIN_INTERVAL} minutes)",
     )
 
     args = parser.parse_args()
@@ -121,8 +152,14 @@ def handle_args() -> argparse.Namespace:
         args.debug_locks = DEFAULT_DEBUG_LOCKS
     if args.debug is None:
         args.debug = DEFAULT_DEBUG
-    if args.sleep_interval is None:
+    if args.sleep_interval is None and args.use_async is False:
         args.sleep_interval = DEFAULT_SLEEP_INTERVAL
+    if args.keepalive_interval is None:
+        args.keepalive_interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
+    if args.relogin_interval is None:
+        args.relogin_interval = ADT_DEFAULT_RELOGIN_INTERVAL
+    if args.service_host is None:
+        args.service_host = DEFAULT_API_HOST
     return args
 
 
