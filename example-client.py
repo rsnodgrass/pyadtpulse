@@ -202,6 +202,7 @@ def load_parameters_from_json(json_file: str) -> Optional[Dict]:
     try:
         with open(json_file) as file:
             parameters = json.load(file)
+            invalid_keys = []
             for key, value in parameters.items():
                 if key in BOOLEAN_PARAMS and not isinstance(value, bool):
                     print(
@@ -209,21 +210,23 @@ def load_parameters_from_json(json_file: str) -> Optional[Dict]:
                         f"{key}: {value}"
                         " in JSON file, ignoring..."
                     )
-                    parameters.pop(key)
+                    invalid_keys.append(key)
                 elif key in INT_PARAMS and not isinstance(value, int):
                     print(
                         "Invalid integer value for "
                         f"{key}: {value}"
                         " in JSON file, ignoring..."
                     )
-                    parameters.pop(key)
+                    invalid_keys.append(key)
                 elif key in FLOAT_PARAMS and not isinstance(value, float):
                     print(
                         "Invalid float value for "
                         f"{key}: {value}"
                         " in JSON file, ignoring..."
                     )
-                    parameters.pop(key)
+                    invalid_keys.append(key)
+            for key in invalid_keys:
+                del parameters[key]
             return parameters
     except FileNotFoundError:
         print(f"JSON file not found: {json_file}")
