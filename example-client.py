@@ -218,7 +218,11 @@ def load_parameters_from_json(json_file: str) -> Optional[Dict]:
                         " in JSON file, ignoring..."
                     )
                     invalid_keys.append(key)
-                elif key in FLOAT_PARAMS and not isinstance(value, float):
+                elif (
+                    key in FLOAT_PARAMS
+                    and not isinstance(value, float)
+                    and not isinstance(value, int)
+                ):
                     print(
                         "Invalid float value for "
                         f"{key}: {value}"
