@@ -13,6 +13,7 @@ from typing import Dict, Optional
 from pyadtpulse import PyADTPulse
 from pyadtpulse.const import (
     ADT_DEFAULT_KEEPALIVE_INTERVAL,
+    ADT_DEFAULT_POLL_INTERVAL,
     ADT_DEFAULT_RELOGIN_INTERVAL,
     API_HOST_CA,
     DEFAULT_API_HOST,
@@ -31,9 +32,11 @@ DEBUG_LOCKS = "debug_locks"
 KEEPALIVE_INTERVAL = "keepalive_interval"
 RELOGIN_INTERVAL = "relogin_interval"
 SERVICE_HOST = "service_host"
+POLL_INTERVAL = "poll_interval"
 
 BOOLEAN_PARAMS = {USE_ASYNC, DEBUG_LOCKS, PULSE_DEBUG, TEST_ALARM}
 INT_PARAMS = {SLEEP_INTERVAL, KEEPALIVE_INTERVAL, RELOGIN_INTERVAL}
+FLOAT_PARAMS = {POLL_INTERVAL}
 
 # Default values
 DEFAULT_USE_ASYNC = True
@@ -134,6 +137,14 @@ def handle_args() -> argparse.Namespace:
         f"(default: {ADT_DEFAULT_RELOGIN_INTERVAL} minutes)",
     )
 
+    parser.add_argument(
+        f"--{POLL_INTERVAL}",
+        type=float,
+        default=None,
+        help="Number of seconds to wait between polling calls "
+        f"(default: {ADT_DEFAULT_POLL_INTERVAL} seconds)",
+    )
+
     args = parser.parse_args()
 
     json_params = load_parameters_from_json(args.json_file)
@@ -146,20 +157,32 @@ def handle_args() -> argparse.Namespace:
                 setattr(args, key, value)
 
     # Set default values for specific parameters
-    if args.use_async is None:
-        args.use_async = DEFAULT_USE_ASYNC
-    if args.debug_locks is None:
-        args.debug_locks = DEFAULT_DEBUG_LOCKS
-    if args.debug is None:
-        args.debug = DEFAULT_DEBUG
-    if args.sleep_interval is None and args.use_async is False:
+    args.use_async = args.use_async if args.use_async is not None else DEFAULT_USE_ASYNC
+    args.debug_locks = (
+        args.debug_locks if args.debug_locks is not None else DEFAULT_DEBUG_LOCKS
+    )
+    args.debug = args.debug if args.debug is not None else DEFAULT_DEBUG
+    if args.use_async is False and args.sleep_interval is None:
         args.sleep_interval = DEFAULT_SLEEP_INTERVAL
-    if args.keepalive_interval is None:
-        args.keepalive_interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
-    if args.relogin_interval is None:
-        args.relogin_interval = ADT_DEFAULT_RELOGIN_INTERVAL
-    if args.service_host is None:
-        args.service_host = DEFAULT_API_HOST
+    args.keepalive_interval = (
+        args.keepalive_interval
+        if args.keepalive_interval is not None
+        else ADT_DEFAULT_KEEPALIVE_INTERVAL
+    )
+    args.relogin_interval = (
+        args.relogin_interval
+        if args.relogin_interval is not None
+        else ADT_DEFAULT_RELOGIN_INTERVAL
+    )
+    args.service_host = (
+        args.service_host if args.service_host is not None else DEFAULT_API_HOST
+    )
+    args.poll_interval = (
+        args.poll_interval
+        if args.poll_interval is not None
+        else ADT_DEFAULT_POLL_INTERVAL
+    )
+
     return args
 
 
@@ -177,22 +200,27 @@ def load_parameters_from_json(json_file: str) -> Optional[Dict]:
         with open(json_file) as file:
             parameters = json.load(file)
             for key, value in parameters.items():
-                if key in BOOLEAN_PARAMS:
-                    if not isinstance(value, bool):
-                        print(
-                            "Invalid boolean value for "
-                            f"{key}: {value}"
-                            " in JSON file, ignoring..."
-                        )
-                        parameters.pop(key)
-                elif key in INT_PARAMS:
-                    if not isinstance(value, int):
-                        print(
-                            "Invalid integer value for "
-                            f"{key}: {value}"
-                            " in JSON file, ignoring..."
-                        )
-                        parameters.pop(key)
+                if key in BOOLEAN_PARAMS and not isinstance(value, bool):
+                    print(
+                        "Invalid boolean value for "
+                        f"{key}: {value}"
+                        " in JSON file, ignoring..."
+                    )
+                    parameters.pop(key)
+                elif key in INT_PARAMS and not isinstance(value, int):
+                    print(
+                        "Invalid integer value for "
+                        f"{key}: {value}"
+                        " in JSON file, ignoring..."
+                    )
+                    parameters.pop(key)
+                elif key in FLOAT_PARAMS and not isinstance(value, float):
+                    print(
+                        "Invalid float value for "
+                        f"{key}: {value}"
+                        " in JSON file, ignoring..."
+                    )
+                    parameters.pop(key)
             return parameters
     except FileNotFoundError:
         print(f"JSON file not found: {json_file}")
@@ -312,6 +340,7 @@ def sync_example(
     run_alarm_test: bool,
     sleep_interval: int,
     debug_locks: bool,
+    poll_interval: float,
 ) -> None:
     """Run example of sync pyadtpulse calls.
 
@@ -322,6 +351,7 @@ def sync_example(
         run_alarm_test (bool): True if alarm test to be run
         sleep_interval (int): how long in seconds to sleep between update checks
         debug_locks: bool: True to enable thread lock debugging
+        poll_interval (float): polling interval in seconds
     """
     try:
         adt = PyADTPulse(username, password, fingerprint, debug_locks=debug_locks)
@@ -452,6 +482,7 @@ async def async_example(
     fingerprint: str,
     run_alarm_test: bool,
     debug_locks: bool,
+    poll_interval: float,
 ) -> None:
     """Run example of pytadtpulse async usage.
 
@@ -461,9 +492,15 @@ async def async_example(
         fingerprint (str): Pulse fingerprint
         run_alarm_test (bool): True if alarm tests should be run
         debug_locks (bool): True to enable thread lock debugging
+        poll_interval (float): polling interval in seconds
     """
     adt = PyADTPulse(
-        username, password, fingerprint, do_login=False, debug_locks=debug_locks
+        username,
+        password,
+        fingerprint,
+        do_login=False,
+        debug_locks=debug_locks,
+        poll_interval=poll_interval,
     )
 
     if not await adt.async_login():
@@ -522,16 +559,12 @@ def main():
         print(f"ERROR! {USER}, {PASSWD}, and {FINGERPRINT} must all be set")
         raise SystemExit
 
-    debug = args.debug
-    if debug:
+    if args.debug:
         level = logging.DEBUG
     else:
         level = logging.ERROR
 
-    run_alarm_test = args.test_alarm
     use_async = args.use_async
-    debug_locks = args.debug_locks
-    sleep_interval = args.sleep_interval
 
     setup_logger(level)
 
@@ -540,9 +573,10 @@ def main():
             args.adtpulse_user,
             args.adtpulse_password,
             args.adtpulse_fingerprint,
-            run_alarm_test,
-            sleep_interval,
-            debug_locks,
+            args.run_alarm_test,
+            args.sleep_interval,
+            args.debug_locks,
+            args.poll_interval,
         )
     else:
         asyncio.run(
@@ -550,8 +584,9 @@ def main():
                 args.adtpulse_user,
                 args.adtpulse_password,
                 args.adtpulse_fingerprint,
-                run_alarm_test,
-                debug_locks,
+                args.run_alarm_test,
+                args.debug_locks,
+                args.poll_interval,
             )
         )
 
