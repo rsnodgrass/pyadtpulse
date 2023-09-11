@@ -586,6 +586,7 @@ class PyADTPulse:
             self._authenticated.clear()
             return False
 
+        self.site.gateway.poll_interval = self._poll_interval
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
 
