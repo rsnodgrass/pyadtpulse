@@ -344,6 +344,8 @@ def sync_example(
     sleep_interval: int,
     debug_locks: bool,
     poll_interval: float,
+    keepalive_interval: int,
+    relogin_interval: int,
 ) -> None:
     """Run example of sync pyadtpulse calls.
 
@@ -355,9 +357,19 @@ def sync_example(
         sleep_interval (int): how long in seconds to sleep between update checks
         debug_locks: bool: True to enable thread lock debugging
         poll_interval (float): polling interval in seconds
+        keepalive_interval (int): keepalive interval in minutes
+        relogin_interval (int): relogin interval in minutes
     """
     try:
-        adt = PyADTPulse(username, password, fingerprint, debug_locks=debug_locks)
+        adt = PyADTPulse(
+            username,
+            password,
+            fingerprint,
+            debug_locks=debug_locks,
+            poll_interval=poll_interval,
+            keepalive_interval=keepalive_interval,
+            relogin_interval=relogin_interval,
+        )
     except AuthenticationException:
         print("Invalid credentials for ADT Pulse site")
         sys.exit()
@@ -486,6 +498,8 @@ async def async_example(
     run_alarm_test: bool,
     debug_locks: bool,
     poll_interval: float,
+    keepalive_interval: int,
+    relogin_interval: int,
 ) -> None:
     """Run example of pytadtpulse async usage.
 
@@ -496,6 +510,8 @@ async def async_example(
         run_alarm_test (bool): True if alarm tests should be run
         debug_locks (bool): True to enable thread lock debugging
         poll_interval (float): polling interval in seconds
+        keepalive_interval (int): keepalive interval in minutes
+        relogin_interval (int): relogin interval in minutes
     """
     adt = PyADTPulse(
         username,
@@ -504,6 +520,8 @@ async def async_example(
         do_login=False,
         debug_locks=debug_locks,
         poll_interval=poll_interval,
+        keepalive_interval=keepalive_interval,
+        relogin_interval=relogin_interval,
     )
 
     if not await adt.async_login():
@@ -580,6 +598,8 @@ def main():
             args.sleep_interval,
             args.debug_locks,
             args.poll_interval,
+            args.keepalive_interval,
+            args.relogin_interval,
         )
     else:
         asyncio.run(
@@ -590,6 +610,8 @@ def main():
                 args.test_alarm,
                 args.debug_locks,
                 args.poll_interval,
+                args.keepalive_interval,
+                args.relogin_interval,
             )
         )
 
