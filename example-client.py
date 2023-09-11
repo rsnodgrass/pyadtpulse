@@ -162,6 +162,9 @@ def handle_args() -> argparse.Namespace:
         args.debug_locks if args.debug_locks is not None else DEFAULT_DEBUG_LOCKS
     )
     args.debug = args.debug if args.debug is not None else DEFAULT_DEBUG
+    args.test_alarm = (
+        args.test_alarm if args.test_alarm is not None else DEFAULT_TEST_ALARM
+    )
     if args.use_async is False and args.sleep_interval is None:
         args.sleep_interval = DEFAULT_SLEEP_INTERVAL
     args.keepalive_interval = (
@@ -573,7 +576,7 @@ def main():
             args.adtpulse_user,
             args.adtpulse_password,
             args.adtpulse_fingerprint,
-            args.run_alarm_test,
+            args.test_alarm,
             args.sleep_interval,
             args.debug_locks,
             args.poll_interval,
@@ -584,7 +587,7 @@ def main():
                 args.adtpulse_user,
                 args.adtpulse_password,
                 args.adtpulse_fingerprint,
-                args.run_alarm_test,
+                args.test_alarm,
                 args.debug_locks,
                 args.poll_interval,
             )
