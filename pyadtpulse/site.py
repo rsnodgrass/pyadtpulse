@@ -328,7 +328,7 @@ class ADTPulseSite:
                     LOG.debug(f"Skipping {device_name} as it doesn't have an ID")
 
             await gather(*task_list)
-            self._last_updated = int(time.time())
+            self._last_updated = int(time())
             return True
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
@@ -429,7 +429,7 @@ class ADTPulseSite:
                     f"with timestamp {last_update}"
                 )
             self._gateway.is_online = gateway_online
-            self._last_updated = int(time.time())
+            self._last_updated = int(time())
             return self._zones
 
     async def _async_update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:
