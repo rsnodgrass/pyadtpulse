@@ -133,7 +133,7 @@ class PyADTPulse:
             self._attribute_lock = RLock()
         else:
             self._attribute_lock = DebugRLock("PyADTPulse._attribute_lock")
-        self._last_login_time = 0.0
+        self._last_login_time: int = 0
 
         self._site: Optional[ADTPulseSite] = None
         self._poll_interval = poll_interval
@@ -523,7 +523,7 @@ class PyADTPulse:
         ):
             close_response(retval)
             return None
-        self._last_login_time = time.time()
+        self._last_login_time = int(time.time())
         return retval
 
     async def _do_logout_query(self) -> None:

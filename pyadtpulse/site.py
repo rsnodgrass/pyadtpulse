@@ -4,6 +4,7 @@ import re
 from asyncio import Task, create_task, gather, get_event_loop, run_coroutine_threadsafe
 from datetime import datetime
 from threading import RLock
+from time import time
 from typing import List, Optional, Union
 from warnings import warn
 
@@ -45,7 +46,7 @@ class ADTPulseSite:
         self._pulse_connection = pulse_connection
         self._id = site_id
         self._name = name
-        self._last_updated = datetime(1970, 1, 1)
+        self._last_updated: int = 0
         self._zones = ADTPulseZones()
         self._site_lock: Union[RLock, DebugRLock]
         if isinstance(self._pulse_connection._attribute_lock, DebugRLock):
@@ -77,11 +78,11 @@ class ADTPulseSite:
     # return state that shows the site is compromised??
 
     @property
-    def last_updated(self) -> datetime:
+    def last_updated(self) -> int:
         """Return time site last updated.
 
         Returns:
-            datetime: the time site last updated as datetime
+            int: the time site last updated as datetime
         """
         with self._site_lock:
             return self._last_updated
@@ -327,7 +328,7 @@ class ADTPulseSite:
                     LOG.debug(f"Skipping {device_name} as it doesn't have an ID")
 
             await gather(*task_list)
-            self._last_updated = datetime.now()
+            self._last_updated = int(time.time())
             return True
 
         # FIXME: ensure the zones for the correct site are being loaded!!!
@@ -428,7 +429,7 @@ class ADTPulseSite:
                     f"with timestamp {last_update}"
                 )
             self._gateway.is_online = gateway_online
-            self._last_updated = datetime.now()
+            self._last_updated = int(time.time())
             return self._zones
 
     async def _async_update_zones(self) -> Optional[List[ADTPulseFlattendZone]]:

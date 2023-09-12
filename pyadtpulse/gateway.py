@@ -46,8 +46,8 @@ class ADTPulseGateway:
     _attribute_lock = RLock()
     model: Optional[str] = None
     serial_number: Optional[str] = None
-    next_update: float = 0.0
-    last_update: float = 0.0
+    next_update: int = 0
+    last_update: int = 0
     firmware_version: Optional[str] = None
     hardware_version: Optional[str] = None
     primary_connection_type: Optional[str] = None
@@ -148,7 +148,7 @@ class ADTPulseGateway:
                     temp = None
             elif i in DATETIME_UPDATEABLE_FIELDS:
                 try:
-                    temp = parse_pulse_datetime(temp).timestamp()
+                    temp = int(parse_pulse_datetime(temp).timestamp())
                 except ValueError:
                     temp = None
             setattr(self, i, temp)

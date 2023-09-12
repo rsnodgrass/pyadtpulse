@@ -35,7 +35,7 @@ class ADTPulseAlarmPanel:
     online: bool = True
     _is_force_armed: bool = False
     _state_lock = RLock()
-    _last_arm_disarm: float = time()
+    _last_arm_disarm: int = int(time())
 
     @property
     def status(self) -> str:
@@ -185,7 +185,7 @@ class ADTPulseAlarmPanel:
             self._status = ADT_ALARM_DISARMING
         else:
             self._status = ADT_ALARM_ARMING
-        self._last_arm_disarm = time()
+        self._last_arm_disarm = int(time())
         return True
 
     def _sync_set_alarm_mode(
@@ -272,7 +272,7 @@ class ADTPulseAlarmPanel:
         with self._state_lock:
             if value:
                 text = value.text
-                last_updated = time()
+                last_updated = int(time())
 
                 if re.match("Disarmed", text):
                     if (
