@@ -69,6 +69,16 @@ class ADTPulseFlattendZone(TypedDict):
 class ADTPulseZones(UserDict):
     """Dictionary containing ADTPulseZoneData with zone as the key."""
 
+    @staticmethod
+    def _check_value(value: ADTPulseZoneData) -> None:
+        if not isinstance(value, ADTPulseZoneData):
+            raise ValueError("ADT Pulse zone data must be of type ADTPulseZoneData")
+
+    @staticmethod
+    def _check_key(key: int) -> None:
+        if not isinstance(key, int):
+            raise ValueError("ADT Pulse Zone must be an integer")
+
     def __getitem__(self, key: int) -> ADTPulseZoneData:
         """Get a Zone.
 
@@ -79,16 +89,6 @@ class ADTPulseZones(UserDict):
             ADTPulseZoneData: zone data
         """
         return super().__getitem__(key)
-
-    @staticmethod
-    def _check_value(value: ADTPulseZoneData) -> None:
-        if not isinstance(value, ADTPulseZoneData):
-            raise ValueError("ADT Pulse zone data must be of type ADTPulseZoneData")
-
-    @staticmethod
-    def _check_key(key: int) -> None:
-        if not isinstance(key, int):
-            raise ValueError("ADT Pulse Zone must be an integer")
 
     def _get_zonedata(self, key: int) -> ADTPulseZoneData:
         self._check_key(key)

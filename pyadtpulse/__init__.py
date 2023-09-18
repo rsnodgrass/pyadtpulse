@@ -67,6 +67,25 @@ class PyADTPulse:
         "_keepalive_interval",
     )
 
+    @staticmethod
+    def _check_service_host(service_host: str) -> None:
+        if service_host is None or service_host == "":
+            raise ValueError("Service host is mandatory")
+        if service_host not in (DEFAULT_API_HOST, API_HOST_CA):
+            raise ValueError(
+                "Service host must be one of {DEFAULT_API_HOST}" f" or {API_HOST_CA}"
+            )
+
+    @staticmethod
+    def _check_keepalive_relogin_intervals(
+        keepalive_interval: int, relogin_interval: int
+    ) -> None:
+        if keepalive_interval > relogin_interval:
+            raise ValueError(
+                f"relogin_interval ({relogin_interval}) must be "
+                f"greater than keepalive_interval ({keepalive_interval})"
+            )
+
     def __init__(
         self,
         username: str,
@@ -170,15 +189,6 @@ class PyADTPulse:
     # support testing as well as alternative ADT Pulse endpoints such as
     # portal-ca.adtpulse.com
 
-    @staticmethod
-    def _check_service_host(service_host: str) -> None:
-        if service_host is None or service_host == "":
-            raise ValueError("Service host is mandatory")
-        if service_host not in (DEFAULT_API_HOST, API_HOST_CA):
-            raise ValueError(
-                "Service host must be one of {DEFAULT_API_HOST}" f" or {API_HOST_CA}"
-            )
-
     @property
     def service_host(self) -> str:
         """Get the Pulse host.
@@ -221,16 +231,6 @@ class PyADTPulse:
         """
         with ADTPulseConnection._class_threadlock:
             return ADTPulseConnection._api_version
-
-    @staticmethod
-    def _check_keepalive_relogin_intervals(
-        keepalive_interval: int, relogin_interval: int
-    ) -> None:
-        if keepalive_interval > relogin_interval:
-            raise ValueError(
-                f"relogin_interval ({relogin_interval}) must be "
-                f"greater than keepalive_interval ({keepalive_interval})"
-            )
 
     @property
     def relogin_interval(self) -> int:
