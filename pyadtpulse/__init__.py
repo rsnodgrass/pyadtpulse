@@ -552,7 +552,7 @@ class PyADTPulse:
         response = await self._do_login_query()
         if response is None:
             return False
-        if self._pulse_connection.make_url(ADT_SUMMARY_URI) != str(response.url):  # type: ignore
+        if self._pulse_connection.make_url(ADT_SUMMARY_URI) != str(response.url):
             # more specifically:
             # redirect to signin.jsp = username/password error
             # redirect to mfaSignin.jsp = fingerprint error
