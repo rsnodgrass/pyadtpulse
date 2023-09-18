@@ -184,7 +184,7 @@ class ADTPulseConnection:
                 ClientConnectorError,
             ) as ex:
                 LOG.debug(
-                    f"Error {ex.__str__} occurred making {method}"
+                    f"Error {ex.args} occurred making {method}"
                     f" request to {url}, retrying",
                     exc_info=True,
                 )
