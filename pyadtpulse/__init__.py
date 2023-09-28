@@ -95,10 +95,10 @@ class PyADTPulse:
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
         websession: Optional[ClientSession] = None,
         do_login: bool = True,
-        poll_interval: float = ADT_DEFAULT_POLL_INTERVAL,
+        poll_interval: Optional[float] = ADT_DEFAULT_POLL_INTERVAL,
         debug_locks: bool = False,
-        keepalive_interval: int = ADT_DEFAULT_KEEPALIVE_INTERVAL,
-        relogin_interval: int = ADT_DEFAULT_RELOGIN_INTERVAL,
+        keepalive_interval: Optional[int] = ADT_DEFAULT_KEEPALIVE_INTERVAL,
+        relogin_interval: Optional[int] = ADT_DEFAULT_RELOGIN_INTERVAL,
     ):
         """Create a PyADTPulse object.
 
@@ -155,7 +155,14 @@ class PyADTPulse:
         self._last_login_time: int = 0
 
         self._site: Optional[ADTPulseSite] = None
-        self._poll_interval = poll_interval
+        if poll_interval is None:
+            self._poll_interval = ADT_DEFAULT_POLL_INTERVAL
+        else:
+            self._poll_interval = poll_interval
+        if keepalive_interval is None:
+            keepalive_interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
+        if relogin_interval is None:
+            relogin_interval = ADT_DEFAULT_RELOGIN_INTERVAL
         self._check_keepalive_relogin_intervals(keepalive_interval, relogin_interval)
         self._relogin_interval = relogin_interval
         self._keepalive_interval = keepalive_interval
