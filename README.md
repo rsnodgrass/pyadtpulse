@@ -78,6 +78,18 @@ for site in adt.sites:
     await site.async_arm_away(force=True)
 ```
 
+The pyadtpulse object runs background tasks and refreshes its data automatically.
+
+Certain parameters can be set to control how often certain actions are run.
+
+Namely:
+
+```python
+adt.poll_interval = 0.75  # check for updates every 0.75 seconds
+adt.relogin_interval = 60 # relogin every 60 minutes
+adt.keepalive_interval = 10 # run keepalive (prevent logout) every 10 minutes
+```
+
 See [example-client.py](example-client.py) for a working example.
 
 ## Browser Fingerprinting

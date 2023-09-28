@@ -3,6 +3,7 @@ import logging
 import string
 import sys
 from base64 import urlsafe_b64encode
+from datetime import datetime, timedelta
 from pathlib import Path
 from random import randint
 from threading import RLock, current_thread
@@ -10,6 +11,7 @@ from typing import Optional
 
 from aiohttp import ClientResponse
 from bs4 import BeautifulSoup
+from dateutil import relativedelta
 
 LOG = logging.getLogger(__name__)
 
@@ -37,6 +39,16 @@ def handle_response(
     LOG.log(level, f"{error_message}: error code={response.status}")
 
     return False
+
+
+def close_response(response: Optional[ClientResponse]) -> None:
+    """Close a response object, handles None.
+
+    Args:
+        response (Optional[ClientResponse]): ClientResponse object to close
+    """
+    if response is not None and not response.closed:
+        response.close()
 
 
 def remove_prefix(text: str, prefix: str) -> str:
@@ -188,6 +200,40 @@ class DebugRLock:
         )
 
         self._Rlock.release()
+
+
+def parse_pulse_datetime(datestring: str) -> datetime:
+    """Parse pulse date strings.
+
+    Args:
+        datestring (str): the string to parse
+
+    Raises:
+        ValueError: pass through of value error if string
+                    cannot be converted
+
+    Returns:
+        datetime: time value of given string
+    """
+    split_string = datestring.split("\xa0")
+    if len(split_string) < 3:
+        raise ValueError("Invalid datestring")
+    t = datetime.today()
+    if split_string[0].lstrip() == "Today":
+        last_update = t
+    else:
+        if split_string[0].lstrip() == "Yesterday":
+            last_update = t - timedelta(days=1)
+        else:
+            tempdate = ("/".join((split_string[0], str(t.year)))).lstrip()
+            last_update = datetime.strptime(tempdate, "%m/%d/%Y")
+            if last_update > t:
+                last_update = last_update - relativedelta.relativedelta(years=1)
+    update_time = datetime.time(
+        datetime.strptime(split_string[1] + split_string[2], "%I:%M%p")
+    )
+    last_update = datetime.combine(last_update, update_time)
+    return last_update
 
 
 class AuthenticationException(RuntimeError):

@@ -1,3 +1,15 @@
+## 1.1 (2023-09-20)
+
+* bug fixes
+* relogin support
+* device dataclasses
+
+## 1.0 (2023-03-28)
+
+* async support
+* background refresh
+* bug fixes
+
 ## 0.1.0 (2019-12-16)
 
 * added ability to override the ADT API host (example: Canada endpoint portal-ca.adtpulse.com)

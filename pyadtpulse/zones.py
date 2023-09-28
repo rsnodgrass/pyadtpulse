@@ -1,4 +1,5 @@
 """ADT Pulse zone info."""
+import logging
 from collections import UserDict
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,6 +17,8 @@ ADT_NAME_TO_DEFAULT_TAGS = {
     "Floor": ("sensor", "flood"),
     "Moisture": ("sensor", "flood"),
 }
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -38,7 +41,7 @@ class ADTPulseZoneData:
     tags: Tuple = ADT_NAME_TO_DEFAULT_TAGS["Window"]
     status: str = "Unknown"
     state: str = "Unknown"
-    last_activity_timestamp: float = 0.0
+    last_activity_timestamp: int = 0
 
 
 class ADTPulseFlattendZone(TypedDict):
@@ -60,11 +63,21 @@ class ADTPulseFlattendZone(TypedDict):
     tags: Tuple
     status: str
     state: str
-    last_activity_timestamp: float
+    last_activity_timestamp: int
 
 
 class ADTPulseZones(UserDict):
     """Dictionary containing ADTPulseZoneData with zone as the key."""
+
+    @staticmethod
+    def _check_value(value: ADTPulseZoneData) -> None:
+        if not isinstance(value, ADTPulseZoneData):
+            raise ValueError("ADT Pulse zone data must be of type ADTPulseZoneData")
+
+    @staticmethod
+    def _check_key(key: int) -> None:
+        if not isinstance(key, int):
+            raise ValueError("ADT Pulse Zone must be an integer")
 
     def __getitem__(self, key: int) -> ADTPulseZoneData:
         """Get a Zone.
@@ -76,16 +89,6 @@ class ADTPulseZones(UserDict):
             ADTPulseZoneData: zone data
         """
         return super().__getitem__(key)
-
-    @staticmethod
-    def _check_value(value: ADTPulseZoneData) -> None:
-        if not isinstance(value, ADTPulseZoneData):
-            raise ValueError("ADT Pulse zone data must be of type ADTPulseZoneData")
-
-    @staticmethod
-    def _check_key(key: int) -> None:
-        if not isinstance(key, int):
-            raise ValueError("ADT Pulse Zone must be an integer")
 
     def _get_zonedata(self, key: int) -> ADTPulseZoneData:
         self._check_key(key)
@@ -139,7 +142,7 @@ class ADTPulseZones(UserDict):
             dt (datetime): timestamp to set
         """
         temp = self._get_zonedata(key)
-        temp.last_activity_timestamp = dt.timestamp()
+        temp.last_activity_timestamp = int(dt.timestamp())
         self.__setitem__(key, temp)
 
     def update_device_info(
@@ -164,7 +167,7 @@ class ADTPulseZones(UserDict):
         temp = self._get_zonedata(key)
         temp.state = state
         temp.status = status
-        temp.last_activity_timestamp = last_activity.timestamp()
+        temp.last_activity_timestamp = int(last_activity.timestamp())
         self.__setitem__(key, temp)
 
     def flatten(self) -> List[ADTPulseFlattendZone]:
@@ -189,3 +192,37 @@ class ADTPulseZones(UserDict):
                 }
             )
         return result
+
+    def update_zone_attributes(self, dev_attr: dict[str, str]) -> None:
+        """Update zone attributes."""
+        dName = dev_attr.get("name", "Unknown")
+        dType = dev_attr.get("type_model", "Unknown")
+        dZone = dev_attr.get("zone", "Unknown")
+        dStatus = dev_attr.get("status", "Unknown")
+
+        if dZone != "Unknown":
+            tags = None
+            for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
+                # convert to uppercase first
+                if search_term.upper() in dType.upper():
+                    tags = default_tags
+                    break
+            if not tags:
+                LOG.warning(
+                    f"Unknown sensor type for '{dType}', " "defaulting to doorWindow"
+                )
+                tags = ("sensor", "doorWindow")
+            LOG.debug(
+                f"Retrieved sensor {dName} id: sensor-{dZone} "
+                f"Status: {dStatus}, tags {tags}"
+            )
+            if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
+                LOG.debug("Zone data incomplete, skipping...")
+            else:
+                tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
+                self.update({int(dZone): tmpzone})
+        else:
+            LOG.debug(
+                f"Skipping incomplete zone name: {dName}, zone: {dZone} "
+                f"status: {dStatus}"
+            )

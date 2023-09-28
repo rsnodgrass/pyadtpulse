@@ -16,7 +16,10 @@ ADT_DEVICE_URI = "/system/device.jsp"
 ADT_STATES_URI = "/ajax/currentStates.jsp"
 ADT_SYNC_CHECK_URI = "/Ajax/SyncCheckServ"
 ADT_TIMEOUT_URI = "/KeepAlive"
-ADT_TIMEOUT_INTERVAL = 300.0
+# Intervals are all in minutes
+ADT_DEFAULT_KEEPALIVE_INTERVAL: int = 5
+ADT_DEFAULT_RELOGIN_INTERVAL: int = 120
+ADT_GATEWAY_STRING = "gateway"
 
 # ADT sets their keepalive to 1 second, so poll a little more often
 # than that
@@ -45,6 +48,7 @@ STATE_MOTION = "Motion"
 STATE_TAMPER = "Tamper"
 STATE_ALARM = "Alarm"
 STATE_UNKNOWN = "Unknown"
+STATE_ONLINE = "Online"
 
 ADT_SENSOR_DOOR = "doorWindow"
 ADT_SENSOR_WINDOW = "glass"

@@ -6,5 +6,9 @@
   "debug_locks": false,
   "adtpulse_user": "me@myisp.com",
   "adtpulse_password": "supersecretpassword",
-  "adtpulse_fingerprint": "areallyreallyreallyreallyreallylongstring"
+  "adtpulse_fingerprint": "areallyreallyreallyreallyreallylongstring",
+  "service_host": "https://portal.adtpulse.com",
+  "relogin_interval": 60,
+  "keepalive_interval": 10,
+  "poll_interval": 0.9
 }
