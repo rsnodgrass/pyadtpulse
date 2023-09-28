@@ -267,6 +267,7 @@ class PyADTPulse:
         with self._attribute_lock:
             self._check_keepalive_relogin_intervals(interval, self._relogin_interval)
             self._relogin_interval = interval
+            LOG.debug(f"relogin interval set to {self._relogin_interval}")
 
     @property
     def keepalive_interval(self) -> int:
@@ -284,6 +285,7 @@ class PyADTPulse:
         with self._attribute_lock:
             self._check_keepalive_relogin_intervals(self._keepalive_interval, interval)
             self._keepalive_interval = interval
+            LOG.debug(f"keepalive interval set to {self._keepalive_interval}")
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
