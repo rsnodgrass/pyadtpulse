@@ -209,12 +209,15 @@ class ADTPulseZones(UserDict):
                     break
             if not tags:
                 LOG.warning(
-                    f"Unknown sensor type for '{dType}', " "defaulting to doorWindow"
+                    "Unknown sensor type for '%s', defaulting to doorWindow", dType
                 )
                 tags = ("sensor", "doorWindow")
             LOG.debug(
-                f"Retrieved sensor {dName} id: sensor-{dZone} "
-                f"Status: {dStatus}, tags {tags}"
+                "Retrieved sensor %s id: sensor-%s Status: %s, tags %s",
+                dName,
+                dZone,
+                dStatus,
+                tags,
             )
             if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
                 LOG.debug("Zone data incomplete, skipping...")
@@ -223,6 +226,8 @@ class ADTPulseZones(UserDict):
                 self.update({int(dZone): tmpzone})
         else:
             LOG.debug(
-                f"Skipping incomplete zone name: {dName}, zone: {dZone} "
-                f"status: {dStatus}"
+                "Skipping incomplete zone name: %s, zone: %s status: %s",
+                dName,
+                dZone,
+                dStatus,
             )

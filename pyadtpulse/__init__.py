@@ -267,7 +267,7 @@ class PyADTPulse:
         with self._attribute_lock:
             self._check_keepalive_relogin_intervals(interval, self._relogin_interval)
             self._relogin_interval = interval
-            LOG.debug(f"relogin interval set to {self._relogin_interval}")
+            LOG.debug("relogin interval set to %d", self._relogin_interval)
 
     @property
     def keepalive_interval(self) -> int:
@@ -285,7 +285,7 @@ class PyADTPulse:
         with self._attribute_lock:
             self._check_keepalive_relogin_intervals(self._keepalive_interval, interval)
             self._keepalive_interval = interval
-            LOG.debug(f"keepalive interval set to {self._keepalive_interval}")
+            LOG.debug("keepalive interval set to %d", self._keepalive_interval)
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
@@ -310,7 +310,7 @@ class PyADTPulse:
                 m = re.search("networkid=(.+)&", signout_link)
                 if m and m.group(1) and m.group(1):
                     site_id = m.group(1)
-                    LOG.debug(f"Discovered site id {site_id}: {site_name}")
+                    LOG.debug("Discovered site id %s: %s", site_id, site_name)
                     new_site = ADTPulseSite(self._pulse_connection, site_id, site_name)
 
                     # fetch zones first, so that we can have the status
@@ -326,7 +326,7 @@ class PyADTPulse:
                     return
             else:
                 LOG.warning(
-                    f"Couldn't find site id for '{site_name}' in '{signout_link}'"
+                    "Couldn't find site id for %s in %s", site_name, signout_link
                 )
         else:
             LOG.error("ADT Pulse accounts with MULTIPLE sites not supported!!!")
@@ -361,7 +361,9 @@ class PyADTPulse:
             reason = "Too many requests"
         elif response.status == 503:
             reason = "Service unavailable"
-        LOG.warning(f"Task {task_name} received Retry-After {retval} due to {reason}")
+        LOG.warning(
+            "Task %s received Retry-After %s due to %s", task_name, retval, reason
+        )
         return retval
 
     async def _keepalive_task(self) -> None:
@@ -370,7 +372,7 @@ class PyADTPulse:
             task_name = self._timeout_task.get_name()
         else:
             task_name = f"{KEEPALIVE_TASK_NAME} - possible internal error"
-        LOG.debug(f"creating {task_name}")
+        LOG.debug("creating %s", task_name)
         response = None
         with self._attribute_lock:
             if self._authenticated is None:
@@ -394,7 +396,7 @@ class PyADTPulse:
                     response = await self._do_login_query()
                     if response is None:
                         LOG.error(
-                            f"{task_name} could not re-login to ADT Pulse, exiting..."
+                            "%s could not re-login to ADT Pulse, exiting...", task_name
                         )
                         return
                     close_response(response)
@@ -419,7 +421,7 @@ class PyADTPulse:
                 if self.site.gateway.next_update < time.time():
                     await self.site._set_device(ADT_GATEWAY_STRING)
             except asyncio.CancelledError:
-                LOG.debug(f"{task_name} cancelled")
+                LOG.debug("%s cancelled", task_name)
                 close_response(response)
                 return
 
@@ -449,7 +451,7 @@ class PyADTPulse:
                     pass
                 except Exception as e:
                     LOG.exception(
-                        f"Received exception while waiting for ADT Pulse service {e}"
+                        "Received exception while waiting for ADT Pulse service %s", e
                     )
             else:
                 # we should never get here
@@ -520,7 +522,7 @@ class PyADTPulse:
                 timeout=timeout,
             )
         except Exception as e:
-            LOG.error(f"Could not log into Pulse site: {e}")
+            LOG.error("Could not log into Pulse site: %s", e)
             return None
         if retval is None:
             LOG.error("Could not log into Pulse site.")
@@ -555,7 +557,7 @@ class PyADTPulse:
         else:
             self._authenticated.clear()
 
-        LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
+        LOG.debug("Authenticating to ADT Pulse cloud service as %s", self._username)
         await self._pulse_connection._async_fetch_version()
 
         response = await self._do_login_query()
@@ -578,13 +580,14 @@ class PyADTPulse:
         # FIXME: should probably raise exceptions
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
-            LOG.error(f"Invalid ADT Pulse username/password: {error}")
+            LOG.error("Invalid ADT Pulse username/password: %s", error)
             return False
         error = soup.find("div", "responsiveContainer")
         if error:
             LOG.error(
-                f"2FA authentiation required for ADT pulse username {self.username} "
-                f"{error}"
+                "2FA authentiation required for ADT pulse username %s: %s",
+                self.username,
+                error,
             )
             return False
         # need to set authenticated here to prevent login loop
@@ -610,18 +613,18 @@ class PyADTPulse:
 
     async def async_logout(self) -> None:
         """Logout of ADT Pulse async."""
-        LOG.info(f"Logging {self._username} out of ADT Pulse")
+        LOG.info("Logging %s out of ADT Pulse", self._username)
         if self._timeout_task is not None:
             try:
                 self._timeout_task.cancel()
             except asyncio.CancelledError:
-                LOG.debug(f"{KEEPALIVE_TASK_NAME} successfully cancelled")
+                LOG.debug("%s successfully cancelled", KEEPALIVE_TASK_NAME)
                 await self._timeout_task
         if self._sync_task is not None:
             try:
                 self._sync_task.cancel()
             except asyncio.CancelledError:
-                LOG.debug(f"{SYNC_CHECK_TASK_NAME} successfully cancelled")
+                LOG.debug("%s successfully cancelled", SYNC_CHECK_TASK_NAME)
                 await self._sync_task
         self._timeout_task = self._sync_task = None
         await self._do_logout_query()
@@ -647,7 +650,7 @@ class PyADTPulse:
         else:
             task_name = f"{SYNC_CHECK_TASK_NAME} - possible internal error"
 
-        LOG.debug(f"creating {task_name}")
+        LOG.debug("creating %s", task_name)
         response = None
         retry_after = 0
         if self._updates_exist is None:
@@ -682,10 +685,10 @@ class PyADTPulse:
 
                 pattern = r"\d+[-]\d+[-]\d+"
                 if not re.match(pattern, text):
-                    LOG.warn(
-                        f"Unexpected sync check format ({pattern}), forcing re-auth"
+                    LOG.warning(
+                        "Unexpected sync check format (%s), forcing re-auth", pattern
                     )
-                    LOG.debug(f"Received {text} from ADT Pulse site")
+                    LOG.debug("Received %s from ADT Pulse site", text)
                     close_response(response)
                     await self._do_logout_query()
                     await self.async_login()
@@ -695,7 +698,7 @@ class PyADTPulse:
                 # wait until these settle
                 if text.endswith("-0-0"):
                     LOG.debug(
-                        f"Sync token {text} indicates updates may exist, requerying"
+                        "Sync token %s indicates updates may exist, requerying", text
                     )
                     close_response(response)
                     have_update = True
@@ -703,14 +706,14 @@ class PyADTPulse:
                 if have_update:
                     have_update = False
                     if await self.async_update() is False:
-                        LOG.debug(f"Pulse data update from {task_name} failed")
+                        LOG.debug("Pulse data update from %s failed", task_name)
                         continue
                     self._updates_exist.set()
-                LOG.debug(f"Sync token {text} indicates no remote updates to process")
+                LOG.debug("Sync token %s indicates no remote updates to process", text)
                 close_response(response)
 
             except asyncio.CancelledError:
-                LOG.debug(f"{task_name} cancelled")
+                LOG.debug("%s cancelled", task_name)
                 close_response(response)
                 return
 

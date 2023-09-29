@@ -30,13 +30,13 @@ def handle_response(
         bool: True if no error occurred.
     """
     if response is None:
-        LOG.log(level, f"{error_message}")
+        LOG.log(level, "%s", error_message)
         return False
 
     if response.ok:
         return True
 
-    LOG.log(level, f"{error_message}: error code={response.status}")
+    LOG.log(level, "%s: error code = %s", error_message, response.status)
 
     return False
 
@@ -149,14 +149,20 @@ class DebugRLock:
         else:
             caller2 = "*Unknown*"
         LOG.debug(
-            f"pyadtpulse acquiring lock {self._lock_name} "
-            f"blocking: {blocking} from {caller2} from thread {thread_name}"
+            "acquiring lock %s blocking: %s from %s from thread %s",
+            self._lock_name,
+            blocking,
+            caller2,
+            thread_name,
         )
         retval = self._Rlock.acquire(blocking, timeout)
         LOG.debug(
-            f"pyadtpulse acquisition of {self._lock_name} from {caller2} "
-            f"from thread {thread_name}  returned {retval} "
-            f"info: {self._Rlock.__repr__()}"
+            "acquisition of %s from %s from thread %s  returned %d info: %s",
+            self._lock_name,
+            caller2,
+            thread_name,
+            retval,
+            repr(self._Rlock),
         )
         return retval
 
@@ -171,13 +177,18 @@ class DebugRLock:
             caller2 = "*Unknown*"
         thread_name = current_thread().name
         LOG.debug(
-            f"pyadtpulse attempting to release lock {self._lock_name} "
-            f"from {caller2} in thread {thread_name}"
+            "attempting to release lock %s from %s in thread %s",
+            self._lock_name,
+            caller2,
+            thread_name,
         )
         self._Rlock.release()
         LOG.debug(
-            f"pyadtpulse released lock {self._lock_name} from {caller2} "
-            f"in thread {thread_name} info: {self._Rlock.__repr__()}"
+            "released lock %s from %s in thread %s info: %s",
+            self._lock_name,
+            caller2,
+            thread_name,
+            repr(self._Rlock),
         )
 
     def __exit__(self, t, v, b):
@@ -195,8 +206,10 @@ class DebugRLock:
             caller2 = "*Unknown*"
         thread_name = current_thread().name
         LOG.debug(
-            f"pyadtpulse released lock {self._lock_name} from {caller2} "
-            f" in thread {thread_name} at exit"
+            "released lock %s from %s in thread %s at exit",
+            self._lock_name,
+            caller2,
+            thread_name,
         )
 
         self._Rlock.release()

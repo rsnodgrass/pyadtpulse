@@ -249,7 +249,7 @@ class ADTPulseSite:
         if device_id.isdigit():
             self._zones.update_zone_attributes(dev_attr)
         else:
-            LOG.debug(f"Zone {device_id} is not an integer, skipping")
+            LOG.debug("Zone %s is not an integer, skipping", device_id)
 
     async def _fetch_devices(self, soup: Optional[BeautifulSoup]) -> bool:
         """Fetch devices for a site.
@@ -312,8 +312,10 @@ class ADTPulseSite:
                 # links that include gateway.jsp
                 if not result:
                     LOG.debug(
-                        f"Failed regex match #{regexDevice} on #{onClickValueText} "
-                        "from ADT Pulse service, ignoring"
+                        "Failed regex match #%s on #%s "
+                        "from ADT Pulse service, ignoring",
+                        regexDevice,
+                        onClickValueText,
                     )
                     continue
                 # alarm panel case
@@ -325,7 +327,7 @@ class ADTPulseSite:
                     task_list.append(create_task(self._set_device(result[0])))
                     continue
                 else:
-                    LOG.debug(f"Skipping {device_name} as it doesn't have an ID")
+                    LOG.debug("Skipping %s as it doesn't have an ID", device_name)
 
             await gather(*task_list)
             self._last_updated = int(time())
@@ -346,7 +348,7 @@ class ADTPulseSite:
             if self._zones is None:
                 self._site_lock.release()
                 raise RuntimeError("No zones exist")
-            LOG.debug(f"fetching zones for site { self._id}")
+            LOG.debug("fetching zones for site %s", self._id)
             if not soup:
                 # call ADT orb uri
                 soup = await self._pulse_connection._query_orb(
@@ -425,8 +427,11 @@ class ADTPulseSite:
                     gateway_online = True
                 self._zones.update_device_info(zone, state, status, last_update)
                 LOG.debug(
-                    f"Set zone {zone} - to {state}, status {status} "
-                    f"with timestamp {last_update}"
+                    "Set zone %s - to %s, status %s " "with timestamp %d",
+                    zone,
+                    state,
+                    status,
+                    last_update,
                 )
             self._gateway.is_online = gateway_online
             self._last_updated = int(time())

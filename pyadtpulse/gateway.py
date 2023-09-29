@@ -92,8 +92,9 @@ class ADTPulseGateway:
                 self._current_poll_interval = self._initial_poll_interval
 
             LOG.info(
-                f"ADT Pulse gateway {self._status_text}, "
-                f"poll interval={self._current_poll_interval}"
+                "ADT Pulse gateway %s, poll interval=%f",
+                self._status_text,
+                self._current_poll_interval,
             )
 
     @property
@@ -122,7 +123,7 @@ class ADTPulseGateway:
             self._initial_poll_interval = new_interval
             if self._current_poll_interval != ADT_GATEWAY_OFFLINE_POLL_INTERVAL:
                 self._current_poll_interval = new_interval
-            LOG.debug(f"Set poll interval to {self._initial_poll_interval}")
+            LOG.debug("Set poll interval to %f", self._initial_poll_interval)
 
     def set_gateway_attributes(self, gateway_attributes: dict[str, str]) -> None:
         """Set gateway attributes from dictionary.

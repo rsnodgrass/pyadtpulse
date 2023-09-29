@@ -132,10 +132,12 @@ class ADTPulseConnection:
         else:
             new_headers = {"Accept": "*/*"}
 
-        LOG.debug(f"Updating HTTP headers: {new_headers}")
+        LOG.debug("Updating HTTP headers: %s", new_headers)
         self._session.headers.update(new_headers)
 
-        LOG.debug(f"Attempting {method} {url} params={extra_params} timeout={timeout}")
+        LOG.debug(
+            "Attempting %s %s params=%s timeout=%d", method, uri, extra_params, timeout
+        )
 
         # FIXME: reauthenticate if received:
         # "You have not yet signed in or you
@@ -157,19 +159,20 @@ class ADTPulseConnection:
                     ) as response:
                         await response.text()
                 else:
-                    LOG.error(f"Invalid request method {method}")
+                    LOG.error("Invalid request method %s", method)
                     return None
 
                 if response.status in RECOVERABLE_ERRORS:
                     retry = retry + 1
                     LOG.info(
-                        f"pyadtpulse query returned recoverable error code "
-                        f"{response.status}, retrying (count ={retry})"
+                        "query returned recoverable error code %s, "
+                        "retrying (count = %d)",
+                        response.status,
+                        retry,
                     )
                     if retry == max_retries:
                         LOG.warning(
-                            "pyadtpulse exceeded max retries of "
-                            f"{max_retries}, giving up"
+                            "Exceeded max retries of %d, giving up", max_retries
                         )
                         response.raise_for_status()
                     await asyncio.sleep(2**retry + uniform(0.0, 1.0))
@@ -184,8 +187,10 @@ class ADTPulseConnection:
                 ClientConnectorError,
             ) as ex:
                 LOG.debug(
-                    f"Error {ex.args} occurred making {method}"
-                    f" request to {url}, retrying",
+                    "Error %s occurred making %s request to %s, retrying",
+                    ex.args,
+                    method,
+                    url,
                     exc_info=True,
                 )
                 await asyncio.sleep(2**retry + uniform(0.0, 1.0))
@@ -193,7 +198,7 @@ class ADTPulseConnection:
             except ClientResponseError as err:
                 code = err.code
                 LOG.exception(
-                    f"Received HTTP error code {code} in request to ADT Pulse"
+                    "Received HTTP error code %i in request to ADT Pulse", code
                 )
                 return None
 
@@ -205,7 +210,7 @@ class ADTPulseConnection:
             else:
                 if response is not None and response.url is not None:
                     referer = str(response.url)
-                    LOG.debug(f"Setting Referer to: {referer}")
+                    LOG.debug("Setting Referer to: %s", referer)
                     self._session.headers.update({"Referer": referer})
 
         return response
@@ -269,16 +274,16 @@ class ADTPulseConnection:
                         response.raise_for_status()
                 except (ClientResponseError, ClientConnectionError):
                     LOG.warning(
-                        "Error occurred during API version fetch, defaulting to"
-                        f"{ADT_DEFAULT_VERSION}"
+                        "Error occurred during API version fetch, defaulting to %s",
+                        ADT_DEFAULT_VERSION,
                     )
                     close_response(response)
                     return
 
             if response is None:
                 LOG.warning(
-                    "Error occurred during API version fetch, defaulting to"
-                    f"{ADT_DEFAULT_VERSION}"
+                    "Error occurred during API version fetch, defaulting to %s",
+                    ADT_DEFAULT_VERSION,
                 )
                 return
 
@@ -287,12 +292,13 @@ class ADTPulseConnection:
             if m is not None:
                 ADTPulseConnection._api_version = m.group(1)
                 LOG.debug(
-                    "Discovered ADT Pulse version"
-                    f" {ADTPulseConnection._api_version} at {self.service_host}"
+                    "Discovered ADT Pulse version %s at %s",
+                    ADTPulseConnection._api_version,
+                    self.service_host,
                 )
                 return
 
             LOG.warning(
-                "Couldn't auto-detect ADT Pulse version, "
-                f"defaulting to {ADT_DEFAULT_VERSION}"
+                "Couldn't auto-detect ADT Pulse version, defaulting to %s",
+                ADT_DEFAULT_VERSION,
             )
