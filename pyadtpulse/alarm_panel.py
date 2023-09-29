@@ -133,7 +133,7 @@ class ADTPulseAlarmPanel:
         with self._state_lock:
             if self._status == mode:
                 LOG.warning(
-                    "Attempting to set alarm status %s to " "existing status %s",
+                    "Attempting to set alarm status %s to existing status %s",
                     mode,
                     self._status,
                 )
@@ -155,7 +155,7 @@ class ADTPulseAlarmPanel:
                     "sat": self._sat,
                 }
 
-            response = await connection._async_query(
+            response = await connection.async_query(
                 ADT_ARM_DISARM_URI,
                 method="POST",
                 extra_params=params,
@@ -335,7 +335,7 @@ class ADTPulseAlarmPanel:
         self.manufacturer = alarm_attributes.get("manufacturer_provider", "ADT")
         self.online = alarm_attributes.get("status", "Offline") == "Online"
         LOG.debug(
-            "Set alarm attributes: Model = %s, Manufacturer = " "%s, Online = %s",
+            "Set alarm attributes: Model = %s, Manufacturer = %s, Online = %s",
             self.model,
             self.manufacturer,
             self.online,

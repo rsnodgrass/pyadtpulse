@@ -1,4 +1,4 @@
-"""ADT Pulse connection."""
+"""ADT Pulse connection. End users should probably not call this directly."""
 
 import logging
 import asyncio
@@ -75,6 +75,12 @@ class ADTPulseConnection:
             self._session.detach()
 
     @property
+    def api_version(self) -> str:
+        """Get the API version."""
+        with self._class_threadlock:
+            return self._api_version
+
+    @property
     def service_host(self) -> str:
         """Get the host prefix for connections."""
         with self._attribute_lock:
@@ -99,7 +105,7 @@ class ADTPulseConnection:
         with self._attribute_lock:
             self._loop = loop
 
-    async def _async_query(
+    async def async_query(
         self,
         uri: str,
         method: str = "GET",
@@ -125,7 +131,7 @@ class ADTPulseConnection:
         response = None
         with ADTPulseConnection._class_threadlock:
             if ADTPulseConnection._api_version == ADT_DEFAULT_VERSION:
-                await self._async_fetch_version()
+                await self.async_fetch_version()
         url = self.make_url(uri)
         if uri in ADT_HTTP_REFERER_URIS:
             new_headers = {"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]}
@@ -239,13 +245,22 @@ class ADTPulseConnection:
         """
         if self._loop is None:
             raise RuntimeError("Attempting to run sync query from async login")
-        coro = self._async_query(uri, method, extra_params, extra_headers, timeout)
+        coro = self.async_query(uri, method, extra_params, extra_headers, timeout)
         return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
 
-    async def _query_orb(
+    async def query_orb(
         self, level: int, error_message: str
     ) -> Optional[BeautifulSoup]:
-        response = await self._async_query(ADT_ORB_URI)
+        """Query ADT Pulse ORB.
+
+        Args:
+            level (int): error level to log on failure
+            error_message (str): error message to use on failure
+
+        Returns:
+            Optional[BeautifulSoup]: A Beautiful Soup object, or None if failure
+        """
+        response = await self.async_query(ADT_ORB_URI)
 
         return await make_soup(response, level, error_message)
 
@@ -261,7 +276,8 @@ class ADTPulseConnection:
         with self._attribute_lock:
             return f"{self._api_host}{API_PREFIX}{ADTPulseConnection._api_version}{uri}"
 
-    async def _async_fetch_version(self) -> None:
+    async def async_fetch_version(self) -> None:
+        """Fetch ADT Pulse version."""
         with ADTPulseConnection._class_threadlock:
             if ADTPulseConnection._api_version != ADT_DEFAULT_VERSION:
                 return

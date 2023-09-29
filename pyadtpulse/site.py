@@ -203,11 +203,11 @@ class ADTPulseSite:
     async def _get_device_attributes(self, device_id: str) -> Optional[dict[str, str]]:
         result: dict[str, str] = {}
         if device_id == ADT_GATEWAY_STRING:
-            deviceResponse = await self._pulse_connection._async_query(
+            deviceResponse = await self._pulse_connection.async_query(
                 "/system/gateway.jsp", timeout=10
             )
         else:
-            deviceResponse = await self._pulse_connection._async_query(
+            deviceResponse = await self._pulse_connection.async_query(
                 ADT_DEVICE_URI, extra_params={"id": device_id}
             )
         deviceResponseSoup = await make_soup(
@@ -264,7 +264,7 @@ class ADTPulseSite:
         """
         task_list: list[Task] = []
         if not soup:
-            response = await self._pulse_connection._async_query(ADT_SYSTEM_URI)
+            response = await self._pulse_connection.async_query(ADT_SYSTEM_URI)
             soup = await make_soup(
                 response,
                 logging.WARNING,
@@ -351,7 +351,7 @@ class ADTPulseSite:
             LOG.debug("fetching zones for site %s", self._id)
             if not soup:
                 # call ADT orb uri
-                soup = await self._pulse_connection._query_orb(
+                soup = await self._pulse_connection.query_orb(
                     logging.WARNING, "Could not fetch zone status updates"
                 )
             if soup is None:
@@ -427,7 +427,7 @@ class ADTPulseSite:
                     gateway_online = True
                 self._zones.update_device_info(zone, state, status, last_update)
                 LOG.debug(
-                    "Set zone %s - to %s, status %s " "with timestamp %d",
+                    "Set zone %s - to %s, status %s with timestamp %d",
                     zone,
                     state,
                     status,

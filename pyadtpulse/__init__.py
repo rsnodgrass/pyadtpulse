@@ -236,8 +236,7 @@ class PyADTPulse:
         Returns:
             str: a string containing the version
         """
-        with ADTPulseConnection._class_threadlock:
-            return ADTPulseConnection._api_version
+        return self._pulse_connection.api_version
 
     @property
     def relogin_interval(self) -> int:
@@ -408,7 +407,7 @@ class PyADTPulse:
             try:
                 await asyncio.sleep(self.keepalive_interval * 60.0 + retry_after)
                 LOG.debug("Resetting timeout")
-                response = await self._pulse_connection._async_query(
+                response = await self._pulse_connection.async_query(
                     ADT_TIMEOUT_URI, "POST"
                 )
                 if handle_response(
@@ -508,7 +507,7 @@ class PyADTPulse:
 
     async def _do_login_query(self, timeout: int = 30) -> ClientResponse | None:
         try:
-            retval = await self._pulse_connection._async_query(
+            retval = await self._pulse_connection.async_query(
                 ADT_LOGIN_URI,
                 method="POST",
                 extra_params={
@@ -543,7 +542,7 @@ class PyADTPulse:
         if network is not None:
             params.update({"network": str(network.id)})
         params.update({"partner": "adt"})
-        await self._pulse_connection._async_query(
+        await self._pulse_connection.async_query(
             ADT_LOGOUT_URI, extra_params=params, timeout=10
         )
 
@@ -558,7 +557,7 @@ class PyADTPulse:
             self._authenticated.clear()
 
         LOG.debug("Authenticating to ADT Pulse cloud service as %s", self._username)
-        await self._pulse_connection._async_fetch_version()
+        await self._pulse_connection.async_fetch_version()
 
         response = await self._do_login_query()
         if response is None:
@@ -665,7 +664,7 @@ class PyADTPulse:
                     await asyncio.sleep(pi)
                 else:
                     await asyncio.sleep(retry_after)
-                response = await self._pulse_connection._async_query(
+                response = await self._pulse_connection.async_query(
                     ADT_SYNC_CHECK_URI,
                     extra_params={"ts": str(int(time.time() * 1000))},
                 )
@@ -785,7 +784,7 @@ class PyADTPulse:
         LOG.debug("Checking ADT Pulse cloud service for updates")
 
         # FIXME will have to query other URIs for camera/zwave/etc
-        soup = await self._pulse_connection._query_orb(
+        soup = await self._pulse_connection.query_orb(
             logging.INFO, "Error returned from ADT Pulse service check"
         )
         if soup is not None:

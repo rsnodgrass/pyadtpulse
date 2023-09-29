@@ -252,7 +252,7 @@ def parse_pulse_datetime(datestring: str) -> datetime:
 class AuthenticationException(RuntimeError):
     """Raised when a login failed."""
 
-    def __init(self, username: str):
+    def __init__(self, username: str):
         """Create the exception.
 
         Args:
