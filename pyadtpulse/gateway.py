@@ -108,16 +108,19 @@ class ADTPulseGateway:
             return self._current_poll_interval
 
     @poll_interval.setter
-    def poll_interval(self, new_interval: float) -> None:
+    def poll_interval(self, new_interval: Optional[float]) -> None:
         """Set polling interval.
 
         Args:
-            new_interval (float): polling interval if gateway is online
+            new_interval (float): polling interval if gateway is online,
+                if set to None, resets to ADT_DEFAULT_POLL_INTERVAL
 
         Raises:
             ValueError: if new_interval is less than 0
         """
-        if new_interval < 0.0:
+        if new_interval is None:
+            new_interval = ADT_DEFAULT_POLL_INTERVAL
+        elif new_interval < 0.0:
             raise ValueError("ADT Pulse polling interval must be greater than 0")
         with self._attribute_lock:
             self._initial_poll_interval = new_interval

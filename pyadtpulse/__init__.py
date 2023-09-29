@@ -190,7 +190,7 @@ class PyADTPulse:
 
     def __repr__(self) -> str:
         """Object representation."""
-        return "<{}: {}>".format(self.__class__.__name__, self._username)
+        return f"<{self.__class__.__name__}: {self._username}>"
 
     # ADTPulse API endpoint is configurable (besides default US ADT Pulse endpoint) to
     # support testing as well as alternative ADT Pulse endpoints such as
@@ -250,17 +250,20 @@ class PyADTPulse:
             return self._relogin_interval
 
     @relogin_interval.setter
-    def relogin_interval(self, interval: int) -> None:
+    def relogin_interval(self, interval: Optional[int]) -> None:
         """Set re-login interval.
 
         Args:
             interval (int): The number of minutes between logins.
                             0 means disable
+                            If set to None, resets to ADT_DEFAULT_RELOGIN_INTERVAL
 
         Raises:
             ValueError: if a relogin interval of less than 10 minutes
                         is specified
         """
+        if interval is None:
+            interval = ADT_DEFAULT_RELOGIN_INTERVAL
         if interval > 0 and interval < 10:
             raise ValueError("Cannot set relogin interval to less than 10 minutes")
         with self._attribute_lock:
@@ -279,8 +282,13 @@ class PyADTPulse:
             return self._keepalive_interval
 
     @keepalive_interval.setter
-    def keepalive_interval(self, interval: int) -> None:
-        """Set the keepalive interval in minutes."""
+    def keepalive_interval(self, interval: Optional[int]) -> None:
+        """Set the keepalive interval in minutes.
+
+        If set to None, resets to ADT_DEFAULT_KEEPALIVE_INTERVAL
+        """
+        if interval is None:
+            interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
         with self._attribute_lock:
             self._check_keepalive_relogin_intervals(self._keepalive_interval, interval)
             self._keepalive_interval = interval
