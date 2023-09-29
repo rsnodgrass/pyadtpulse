@@ -114,7 +114,7 @@ def generate_fingerprint_from_browser_json(filename: str) -> str:
     Returns:
         str: the fingerprint
     """
-    data = Path(filename).read_text()
+    data = Path(filename).read_text(encoding="utf-8")
     # Pulse just calls JSON.Stringify() and btoa() in javascript, so we need to
     # do this to emulate that
     data2 = "".join(data.split())
