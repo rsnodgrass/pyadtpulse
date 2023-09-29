@@ -449,7 +449,7 @@ class PyADTPulse:
                     await asyncio.wait(task_list)
                 except asyncio.CancelledError:
                     pass
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     LOG.exception(
                         "Received exception while waiting for ADT Pulse service %s", e
                     )
@@ -521,7 +521,7 @@ class PyADTPulse:
                 },
                 timeout=timeout,
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             LOG.error("Could not log into Pulse site: %s", e)
             return None
         if retval is None:
