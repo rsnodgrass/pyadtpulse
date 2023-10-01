@@ -363,7 +363,6 @@ def sync_example(
         run_alarm_test (bool): True if alarm test to be run
         sleep_interval (int): how long in seconds to sleep between update checks
         debug_locks: bool: True to enable thread lock debugging
-        poll_interval (float): polling interval in seconds
         keepalive_interval (int): keepalive interval in minutes
         relogin_interval (int): relogin interval in minutes
     """
@@ -373,7 +372,6 @@ def sync_example(
             password,
             fingerprint,
             debug_locks=debug_locks,
-            poll_interval=poll_interval,
             keepalive_interval=keepalive_interval,
             relogin_interval=relogin_interval,
         )
@@ -401,7 +399,7 @@ def sync_example(
         adt.site.site_lock.release()
         adt.logout()
         return
-
+    adt.site.gateway.poll_interval = poll_interval
     pprint(adt.site.zones, compact=True)
     adt.site.site_lock.release()
     if run_alarm_test:
@@ -526,7 +524,6 @@ async def async_example(
         fingerprint,
         do_login=False,
         debug_locks=debug_locks,
-        poll_interval=poll_interval,
         keepalive_interval=keepalive_interval,
         relogin_interval=relogin_interval,
     )
@@ -549,7 +546,7 @@ async def async_example(
         print("Error: no zones exist")
         await adt.async_logout()
         return
-
+    adt.site.gateway.poll_interval = poll_interval
     pprint(adt.site.zones, compact=True)
     if run_alarm_test:
         await async_test_alarm(adt)
