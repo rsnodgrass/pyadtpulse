@@ -18,7 +18,6 @@ from .alarm_panel import ADT_ALARM_UNKNOWN
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_KEEPALIVE_INTERVAL,
-    ADT_DEFAULT_POLL_INTERVAL,
     ADT_DEFAULT_RELOGIN_INTERVAL,
     ADT_GATEWAY_STRING,
     ADT_LOGIN_URI,
@@ -808,8 +807,6 @@ class PyADTPulse:
             raise RuntimeError("Attempting to run sync update from async login")
         coro = self.async_update()
         return asyncio.run_coroutine_threadsafe(coro, loop).result()
-
-    # FIXME circular reference, should be ADTPulseSite
 
     @property
     def sites(self) -> List[ADTPulseSite]:

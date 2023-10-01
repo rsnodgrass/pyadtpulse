@@ -200,7 +200,7 @@ def load_parameters_from_json(json_file: str) -> Optional[Dict]:
                         or None if there was an error.
     """
     try:
-        with open(json_file) as file:
+        with open(json_file, encoding="utf-8") as file:
             parameters = json.load(file)
             invalid_keys = []
             for key, value in parameters.items():
@@ -253,7 +253,7 @@ def print_site(site: ADTPulseSite) -> None:
     pprint(site.gateway, compact=True)
 
 
-def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool:
+def check_updates(site: ADTPulseSite, adt: PyADTPulse, run_alarm_test: bool) -> bool:
     """Check a site for updates and print details.
 
     We don't really need to do this anymore, as the data will be
@@ -266,7 +266,7 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
 
         Returns: bool: True if update successful
     """
-    if test_alarm:
+    if run_alarm_test:
         while (
             site.alarm_control_panel.is_arming or site.alarm_control_panel.is_disarming
         ):
@@ -283,7 +283,7 @@ def check_updates(site: ADTPulseSite, adt: PyADTPulse, test_alarm: bool) -> bool
     return False
 
 
-def test_alarm(site: ADTPulseSite, adt: PyADTPulse, sleep_interval: int) -> None:
+def test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
     """Test alarm functions.
 
     Args:
@@ -403,7 +403,7 @@ def sync_example(
     pprint(adt.site.zones, compact=True)
     adt.site.site_lock.release()
     if run_alarm_test:
-        test_alarm(adt.site, adt, sleep_interval)
+        test_alarm(adt.site, adt)
 
     done = False
     while not done:
