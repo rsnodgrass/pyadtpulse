@@ -23,6 +23,8 @@ from .const import (
     ADT_GATEWAY_STRING,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
+    ADT_MAX_KEEPALIVE_INTERVAL,
+    ADT_MIN_RELOGIN_INTERVAL,
     ADT_SUMMARY_URI,
     ADT_SYNC_CHECK_URI,
     ADT_TIMEOUT_URI,
@@ -77,13 +79,19 @@ class PyADTPulse:
             )
 
     @staticmethod
-    def _check_keepalive_relogin_intervals(
-        keepalive_interval: int, relogin_interval: int
-    ) -> None:
-        if keepalive_interval > relogin_interval:
+    def _check_keepalive_interval(keepalive_interval: int) -> None:
+        if keepalive_interval > ADT_MAX_KEEPALIVE_INTERVAL or keepalive_interval <= 0:
             raise ValueError(
-                f"relogin_interval ({relogin_interval}) must be "
-                f"greater than keepalive_interval ({keepalive_interval})"
+                f"keepalive interval ({keepalive_interval}) must be "
+                f"greater than 0 and less than {ADT_MAX_KEEPALIVE_INTERVAL}"
+            )
+
+    @staticmethod
+    def _check_relogin_interval(relogin_interval: int) -> None:
+        if relogin_interval < ADT_MIN_RELOGIN_INTERVAL:
+            raise ValueError(
+                f"relogin interval ({relogin_interval}) must be "
+                f"greater than {ADT_MIN_RELOGIN_INTERVAL}"
             )
 
     def __init__(
@@ -122,10 +130,12 @@ class PyADTPulse:
             poll_interval (float, optional): number of seconds between update checks
             debug_locks: (bool, optional): use debugging locks
                         Defaults to False
-            keepalive_interval (int, optional): number of seconds between
-                        keepalive checks, defaults to ADT_DEFAULT_KEEPALIVE_INTERVAL
-            relogin_interval (int, optional): number of seconds between relogin checks
-                        defaults to ADT_DEFAULT_RELOGIN_INTERVAL
+            keepalive_interval (int, optional): number of minutes between
+                        keepalive checks, defaults to ADT_DEFAULT_KEEPALIVE_INTERVAL,
+                        maxiumum is ADT_MAX_KEEPALIVE_INTERVAL
+            relogin_interval (int, optional): number of minutes between relogin checks
+                        defaults to ADT_DEFAULT_RELOGIN_INTERVAL,
+                        minimum is ADT_MIN_RELOGIN_INTERVAL
         """
         self._check_service_host(service_host)
         self._init_login_info(username, password, fingerprint)
@@ -155,17 +165,12 @@ class PyADTPulse:
         self._last_login_time: int = 0
 
         self._site: Optional[ADTPulseSite] = None
+        self.keepalive_interval = keepalive_interval
+        self.relogin_interval = relogin_interval
         if poll_interval is None:
             self._poll_interval = ADT_DEFAULT_POLL_INTERVAL
         else:
             self._poll_interval = poll_interval
-        if keepalive_interval is None:
-            keepalive_interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
-        if relogin_interval is None:
-            relogin_interval = ADT_DEFAULT_RELOGIN_INTERVAL
-        self._check_keepalive_relogin_intervals(keepalive_interval, relogin_interval)
-        self._relogin_interval = relogin_interval
-        self._keepalive_interval = keepalive_interval
 
         # authenticate the user
         if do_login and websession is None:
@@ -255,7 +260,6 @@ class PyADTPulse:
 
         Args:
             interval (int): The number of minutes between logins.
-                            0 means disable
                             If set to None, resets to ADT_DEFAULT_RELOGIN_INTERVAL
 
         Raises:
@@ -264,10 +268,9 @@ class PyADTPulse:
         """
         if interval is None:
             interval = ADT_DEFAULT_RELOGIN_INTERVAL
-        if interval > 0 and interval < 10:
-            raise ValueError("Cannot set relogin interval to less than 10 minutes")
+        else:
+            self._check_relogin_interval(interval)
         with self._attribute_lock:
-            self._check_keepalive_relogin_intervals(interval, self._relogin_interval)
             self._relogin_interval = interval
             LOG.debug("relogin interval set to %d", self._relogin_interval)
 
@@ -289,8 +292,9 @@ class PyADTPulse:
         """
         if interval is None:
             interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
+        else:
+            self._check_keepalive_interval(interval)
         with self._attribute_lock:
-            self._check_keepalive_relogin_intervals(self._keepalive_interval, interval)
             self._keepalive_interval = interval
             LOG.debug("keepalive interval set to %d", self._keepalive_interval)
 
