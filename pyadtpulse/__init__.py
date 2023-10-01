@@ -60,7 +60,6 @@ class PyADTPulse:
         "_attribute_lock",
         "_last_login_time",
         "_site",
-        "_poll_interval",
         "_username",
         "_password",
         "_fingerprint",
@@ -103,7 +102,6 @@ class PyADTPulse:
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
         websession: Optional[ClientSession] = None,
         do_login: bool = True,
-        poll_interval: Optional[float] = ADT_DEFAULT_POLL_INTERVAL,
         debug_locks: bool = False,
         keepalive_interval: Optional[int] = ADT_DEFAULT_KEEPALIVE_INTERVAL,
         relogin_interval: Optional[int] = ADT_DEFAULT_RELOGIN_INTERVAL,
@@ -127,7 +125,6 @@ class PyADTPulse:
                             Setting websession will override this
                             and not login
                         Defaults to True
-            poll_interval (float, optional): number of seconds between update checks
             debug_locks: (bool, optional): use debugging locks
                         Defaults to False
             keepalive_interval (int, optional): number of minutes between
@@ -167,10 +164,6 @@ class PyADTPulse:
         self._site: Optional[ADTPulseSite] = None
         self.keepalive_interval = keepalive_interval
         self.relogin_interval = relogin_interval
-        if poll_interval is None:
-            self._poll_interval = ADT_DEFAULT_POLL_INTERVAL
-        else:
-            self._poll_interval = poll_interval
 
         # authenticate the user
         if do_login and websession is None:
@@ -609,7 +602,6 @@ class PyADTPulse:
             self._authenticated.clear()
             return False
 
-        self.site.gateway.poll_interval = self._poll_interval
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
 
