@@ -1,3 +1,11 @@
+## 1.1.1 (2023-10-02)
+
+* pylint fixes
+* set min relogin interval
+* set max keepalive interval
+* remove poll_interval from pyADTPulse constructor
+* expose public methods in ADTPulseConnection object
+
 ## 1.1 (2023-09-20)
 
 * bug fixes
