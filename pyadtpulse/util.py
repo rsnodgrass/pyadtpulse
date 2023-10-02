@@ -3,6 +3,7 @@ import logging
 import string
 import sys
 from base64 import urlsafe_b64encode
+from datetime import datetime, timedelta
 from pathlib import Path
 from random import randint
 from threading import RLock, current_thread
@@ -10,6 +11,7 @@ from typing import Optional
 
 from aiohttp import ClientResponse
 from bs4 import BeautifulSoup
+from dateutil import relativedelta
 
 LOG = logging.getLogger(__name__)
 
@@ -28,15 +30,25 @@ def handle_response(
         bool: True if no error occurred.
     """
     if response is None:
-        LOG.log(level, f"{error_message}")
+        LOG.log(level, "%s", error_message)
         return False
 
     if response.ok:
         return True
 
-    LOG.log(level, f"{error_message}: error code={response.status}")
+    LOG.log(level, "%s: error code = %s", error_message, response.status)
 
     return False
+
+
+def close_response(response: Optional[ClientResponse]) -> None:
+    """Close a response object, handles None.
+
+    Args:
+        response (Optional[ClientResponse]): ClientResponse object to close
+    """
+    if response is not None and not response.closed:
+        response.close()
 
 
 def remove_prefix(text: str, prefix: str) -> str:
@@ -102,7 +114,7 @@ def generate_fingerprint_from_browser_json(filename: str) -> str:
     Returns:
         str: the fingerprint
     """
-    data = Path(filename).read_text()
+    data = Path(filename).read_text(encoding="utf-8")
     # Pulse just calls JSON.Stringify() and btoa() in javascript, so we need to
     # do this to emulate that
     data2 = "".join(data.split())
@@ -137,14 +149,20 @@ class DebugRLock:
         else:
             caller2 = "*Unknown*"
         LOG.debug(
-            f"pyadtpulse acquiring lock {self._lock_name} "
-            f"blocking: {blocking} from {caller2} from thread {thread_name}"
+            "acquiring lock %s blocking: %s from %s from thread %s",
+            self._lock_name,
+            blocking,
+            caller2,
+            thread_name,
         )
         retval = self._Rlock.acquire(blocking, timeout)
         LOG.debug(
-            f"pyadtpulse acquisition of {self._lock_name} from {caller2} "
-            f"from thread {thread_name}  returned {retval} "
-            f"info: {self._Rlock.__repr__()}"
+            "acquisition of %s from %s from thread %s  returned %d info: %s",
+            self._lock_name,
+            caller2,
+            thread_name,
+            retval,
+            repr(self._Rlock),
         )
         return retval
 
@@ -159,13 +177,18 @@ class DebugRLock:
             caller2 = "*Unknown*"
         thread_name = current_thread().name
         LOG.debug(
-            f"pyadtpulse attempting to release lock {self._lock_name} "
-            f"from {caller2} in thread {thread_name}"
+            "attempting to release lock %s from %s in thread %s",
+            self._lock_name,
+            caller2,
+            thread_name,
         )
         self._Rlock.release()
         LOG.debug(
-            f"pyadtpulse released lock {self._lock_name} from {caller2} "
-            f"in thread {thread_name} info: {self._Rlock.__repr__()}"
+            "released lock %s from %s in thread %s info: %s",
+            self._lock_name,
+            caller2,
+            thread_name,
+            repr(self._Rlock),
         )
 
     def __exit__(self, t, v, b):
@@ -183,17 +206,53 @@ class DebugRLock:
             caller2 = "*Unknown*"
         thread_name = current_thread().name
         LOG.debug(
-            f"pyadtpulse released lock {self._lock_name} from {caller2} "
-            f" in thread {thread_name} at exit"
+            "released lock %s from %s in thread %s at exit",
+            self._lock_name,
+            caller2,
+            thread_name,
         )
 
         self._Rlock.release()
 
 
+def parse_pulse_datetime(datestring: str) -> datetime:
+    """Parse pulse date strings.
+
+    Args:
+        datestring (str): the string to parse
+
+    Raises:
+        ValueError: pass through of value error if string
+                    cannot be converted
+
+    Returns:
+        datetime: time value of given string
+    """
+    split_string = datestring.split("\xa0")
+    if len(split_string) < 3:
+        raise ValueError("Invalid datestring")
+    t = datetime.today()
+    if split_string[0].lstrip() == "Today":
+        last_update = t
+    else:
+        if split_string[0].lstrip() == "Yesterday":
+            last_update = t - timedelta(days=1)
+        else:
+            tempdate = ("/".join((split_string[0], str(t.year)))).lstrip()
+            last_update = datetime.strptime(tempdate, "%m/%d/%Y")
+            if last_update > t:
+                last_update = last_update - relativedelta.relativedelta(years=1)
+    update_time = datetime.time(
+        datetime.strptime(split_string[1] + split_string[2], "%I:%M%p")
+    )
+    last_update = datetime.combine(last_update, update_time)
+    return last_update
+
+
 class AuthenticationException(RuntimeError):
     """Raised when a login failed."""
 
-    def __init(self, username: str):
+    def __init__(self, username: str):
         """Create the exception.
 
         Args:

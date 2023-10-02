@@ -6,6 +6,8 @@ from pathlib import Path
 
 import setuptools
 
+from pyadtpulse.const import __version__
+
 if sys.argv[-1] == "publish":
     os.system("python setup.py sdist upload")
     sys.exit()
@@ -20,7 +22,7 @@ long_description = Path(
 
 setuptools.setup(
     name="pyadtpulse",
-    version="1.0.5",
+    version=__version__,
     packages=["pyadtpulse"],
     description="Python interface for ADT Pulse security systems",
     long_description=long_description,

@@ -19,7 +19,7 @@
             "module": "example-client",
             "justMyCode": true,
             "args": [
-                "/home/rlippmann/pulse.json"
+                "~/pulse.json"
             ]
         }
     ]
