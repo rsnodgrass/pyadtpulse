@@ -1,5 +1,5 @@
 """Constants for pyadtpulse."""
-
+__version__ = "1.1.1"
 DEFAULT_API_HOST = "https://portal.adtpulse.com"
 API_HOST_CA = "https://portal-ca.adtpulse.com"  # Canada
 
@@ -19,6 +19,8 @@ ADT_TIMEOUT_URI = "/KeepAlive"
 # Intervals are all in minutes
 ADT_DEFAULT_KEEPALIVE_INTERVAL: int = 5
 ADT_DEFAULT_RELOGIN_INTERVAL: int = 120
+ADT_MAX_KEEPALIVE_INTERVAL: int = 15
+ADT_MIN_RELOGIN_INTERVAL: int = 20
 ADT_GATEWAY_STRING = "gateway"
 
 # ADT sets their keepalive to 1 second, so poll a little more often

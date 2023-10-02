@@ -129,16 +129,17 @@ class ADTPulseAlarmPanel:
         Returns:
             bool: True if operation successful
         """
-        LOG.debug(f"Setting ADT alarm '{self._sat}' to '{mode}, force = {force_arm}'")
+        LOG.debug("Setting ADT alarm %s to %s, force = %s", self._sat, mode, force_arm)
         with self._state_lock:
             if self._status == mode:
                 LOG.warning(
-                    f"Attempting to set alarm status {mode} to "
-                    f"existing status {self._status}"
+                    "Attempting to set alarm status %s to existing status %s",
+                    mode,
+                    self._status,
                 )
                 return False
             if self._status != ADT_ALARM_OFF and mode != ADT_ALARM_OFF:
-                LOG.warning(f"Cannot set alarm status from {self._status} to {mode}")
+                LOG.warning("Cannot set alarm status from %s to %s", self._status, mode)
                 return False
             params = {
                 "href": "rest/adt/ui/client/security/setArmState",
@@ -154,7 +155,7 @@ class ADTPulseAlarmPanel:
                     "sat": self._sat,
                 }
 
-            response = await connection._async_query(
+            response = await connection.async_query(
                 ADT_ARM_DISARM_URI,
                 method="POST",
                 extra_params=params,
@@ -177,7 +178,7 @@ class ADTPulseAlarmPanel:
                         "Arm AnywayCancel\n\n", ""
                     )
                     LOG.warning(
-                        f"Could not set alarm state to {mode} " f"because {error_text}"
+                        "Could not set alarm state to %s because %s", mode, error_text
                     )
                     return False
         self._is_force_armed = force_arm
@@ -296,11 +297,11 @@ class ADTPulseAlarmPanel:
                         self._status = ADT_ALARM_HOME
                         self._last_arm_disarm = last_updated
                 else:
-                    LOG.warning(f"Failed to get alarm status from '{text}'")
+                    LOG.warning("Failed to get alarm status from '%s'", text)
                     self._status = ADT_ALARM_UNKNOWN
                     self._last_arm_disarm = last_updated
                     return
-                LOG.debug(f"Alarm status = {self._status}")
+                LOG.debug("Alarm status = %s", self._status)
 
             if self._sat == "":
                 sat_button = summary_html_soup.find(
@@ -334,6 +335,8 @@ class ADTPulseAlarmPanel:
         self.manufacturer = alarm_attributes.get("manufacturer_provider", "ADT")
         self.online = alarm_attributes.get("status", "Offline") == "Online"
         LOG.debug(
-            f"Set alarm attributes: Model = {self.model}, Manufacturer = "
-            f"{self.manufacturer}, Online = {self.online}"
+            "Set alarm attributes: Model = %s, Manufacturer = %s, Online = %s",
+            self.model,
+            self.manufacturer,
+            self.online,
         )

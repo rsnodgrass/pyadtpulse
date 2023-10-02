@@ -18,11 +18,12 @@ from .alarm_panel import ADT_ALARM_UNKNOWN
 from .const import (
     ADT_DEFAULT_HTTP_HEADERS,
     ADT_DEFAULT_KEEPALIVE_INTERVAL,
-    ADT_DEFAULT_POLL_INTERVAL,
     ADT_DEFAULT_RELOGIN_INTERVAL,
     ADT_GATEWAY_STRING,
     ADT_LOGIN_URI,
     ADT_LOGOUT_URI,
+    ADT_MAX_KEEPALIVE_INTERVAL,
+    ADT_MIN_RELOGIN_INTERVAL,
     ADT_SUMMARY_URI,
     ADT_SYNC_CHECK_URI,
     ADT_TIMEOUT_URI,
@@ -58,7 +59,6 @@ class PyADTPulse:
         "_attribute_lock",
         "_last_login_time",
         "_site",
-        "_poll_interval",
         "_username",
         "_password",
         "_fingerprint",
@@ -77,13 +77,19 @@ class PyADTPulse:
             )
 
     @staticmethod
-    def _check_keepalive_relogin_intervals(
-        keepalive_interval: int, relogin_interval: int
-    ) -> None:
-        if keepalive_interval > relogin_interval:
+    def _check_keepalive_interval(keepalive_interval: int) -> None:
+        if keepalive_interval > ADT_MAX_KEEPALIVE_INTERVAL or keepalive_interval <= 0:
             raise ValueError(
-                f"relogin_interval ({relogin_interval}) must be "
-                f"greater than keepalive_interval ({keepalive_interval})"
+                f"keepalive interval ({keepalive_interval}) must be "
+                f"greater than 0 and less than {ADT_MAX_KEEPALIVE_INTERVAL}"
+            )
+
+    @staticmethod
+    def _check_relogin_interval(relogin_interval: int) -> None:
+        if relogin_interval < ADT_MIN_RELOGIN_INTERVAL:
+            raise ValueError(
+                f"relogin interval ({relogin_interval}) must be "
+                f"greater than {ADT_MIN_RELOGIN_INTERVAL}"
             )
 
     def __init__(
@@ -95,7 +101,6 @@ class PyADTPulse:
         user_agent=ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
         websession: Optional[ClientSession] = None,
         do_login: bool = True,
-        poll_interval: Optional[float] = ADT_DEFAULT_POLL_INTERVAL,
         debug_locks: bool = False,
         keepalive_interval: Optional[int] = ADT_DEFAULT_KEEPALIVE_INTERVAL,
         relogin_interval: Optional[int] = ADT_DEFAULT_RELOGIN_INTERVAL,
@@ -119,13 +124,14 @@ class PyADTPulse:
                             Setting websession will override this
                             and not login
                         Defaults to True
-            poll_interval (float, optional): number of seconds between update checks
             debug_locks: (bool, optional): use debugging locks
                         Defaults to False
-            keepalive_interval (int, optional): number of seconds between
-                        keepalive checks, defaults to ADT_DEFAULT_KEEPALIVE_INTERVAL
-            relogin_interval (int, optional): number of seconds between relogin checks
-                        defaults to ADT_DEFAULT_RELOGIN_INTERVAL
+            keepalive_interval (int, optional): number of minutes between
+                        keepalive checks, defaults to ADT_DEFAULT_KEEPALIVE_INTERVAL,
+                        maxiumum is ADT_MAX_KEEPALIVE_INTERVAL
+            relogin_interval (int, optional): number of minutes between relogin checks
+                        defaults to ADT_DEFAULT_RELOGIN_INTERVAL,
+                        minimum is ADT_MIN_RELOGIN_INTERVAL
         """
         self._check_service_host(service_host)
         self._init_login_info(username, password, fingerprint)
@@ -155,17 +161,8 @@ class PyADTPulse:
         self._last_login_time: int = 0
 
         self._site: Optional[ADTPulseSite] = None
-        if poll_interval is None:
-            self._poll_interval = ADT_DEFAULT_POLL_INTERVAL
-        else:
-            self._poll_interval = poll_interval
-        if keepalive_interval is None:
-            keepalive_interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
-        if relogin_interval is None:
-            relogin_interval = ADT_DEFAULT_RELOGIN_INTERVAL
-        self._check_keepalive_relogin_intervals(keepalive_interval, relogin_interval)
-        self._relogin_interval = relogin_interval
-        self._keepalive_interval = keepalive_interval
+        self.keepalive_interval = keepalive_interval
+        self.relogin_interval = relogin_interval
 
         # authenticate the user
         if do_login and websession is None:
@@ -190,7 +187,7 @@ class PyADTPulse:
 
     def __repr__(self) -> str:
         """Object representation."""
-        return "<{}: {}>".format(self.__class__.__name__, self._username)
+        return f"<{self.__class__.__name__}: {self._username}>"
 
     # ADTPulse API endpoint is configurable (besides default US ADT Pulse endpoint) to
     # support testing as well as alternative ADT Pulse endpoints such as
@@ -236,8 +233,7 @@ class PyADTPulse:
         Returns:
             str: a string containing the version
         """
-        with ADTPulseConnection._class_threadlock:
-            return ADTPulseConnection._api_version
+        return self._pulse_connection.api_version
 
     @property
     def relogin_interval(self) -> int:
@@ -251,23 +247,24 @@ class PyADTPulse:
             return self._relogin_interval
 
     @relogin_interval.setter
-    def relogin_interval(self, interval: int) -> None:
+    def relogin_interval(self, interval: Optional[int]) -> None:
         """Set re-login interval.
 
         Args:
             interval (int): The number of minutes between logins.
-                            0 means disable
+                            If set to None, resets to ADT_DEFAULT_RELOGIN_INTERVAL
 
         Raises:
             ValueError: if a relogin interval of less than 10 minutes
                         is specified
         """
-        if interval > 0 and interval < 10:
-            raise ValueError("Cannot set relogin interval to less than 10 minutes")
+        if interval is None:
+            interval = ADT_DEFAULT_RELOGIN_INTERVAL
+        else:
+            self._check_relogin_interval(interval)
         with self._attribute_lock:
-            self._check_keepalive_relogin_intervals(interval, self._relogin_interval)
             self._relogin_interval = interval
-            LOG.debug(f"relogin interval set to {self._relogin_interval}")
+            LOG.debug("relogin interval set to %d", self._relogin_interval)
 
     @property
     def keepalive_interval(self) -> int:
@@ -280,12 +277,18 @@ class PyADTPulse:
             return self._keepalive_interval
 
     @keepalive_interval.setter
-    def keepalive_interval(self, interval: int) -> None:
-        """Set the keepalive interval in minutes."""
+    def keepalive_interval(self, interval: Optional[int]) -> None:
+        """Set the keepalive interval in minutes.
+
+        If set to None, resets to ADT_DEFAULT_KEEPALIVE_INTERVAL
+        """
+        if interval is None:
+            interval = ADT_DEFAULT_KEEPALIVE_INTERVAL
+        else:
+            self._check_keepalive_interval(interval)
         with self._attribute_lock:
-            self._check_keepalive_relogin_intervals(self._keepalive_interval, interval)
             self._keepalive_interval = interval
-            LOG.debug(f"keepalive interval set to {self._keepalive_interval}")
+            LOG.debug("keepalive interval set to %d", self._keepalive_interval)
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._attribute_lock:
@@ -310,7 +313,7 @@ class PyADTPulse:
                 m = re.search("networkid=(.+)&", signout_link)
                 if m and m.group(1) and m.group(1):
                     site_id = m.group(1)
-                    LOG.debug(f"Discovered site id {site_id}: {site_name}")
+                    LOG.debug("Discovered site id %s: %s", site_id, site_name)
                     new_site = ADTPulseSite(self._pulse_connection, site_id, site_name)
 
                     # fetch zones first, so that we can have the status
@@ -326,7 +329,7 @@ class PyADTPulse:
                     return
             else:
                 LOG.warning(
-                    f"Couldn't find site id for '{site_name}' in '{signout_link}'"
+                    "Couldn't find site id for %s in %s", site_name, signout_link
                 )
         else:
             LOG.error("ADT Pulse accounts with MULTIPLE sites not supported!!!")
@@ -361,7 +364,9 @@ class PyADTPulse:
             reason = "Too many requests"
         elif response.status == 503:
             reason = "Service unavailable"
-        LOG.warning(f"Task {task_name} received Retry-After {retval} due to {reason}")
+        LOG.warning(
+            "Task %s received Retry-After %s due to %s", task_name, retval, reason
+        )
         return retval
 
     async def _keepalive_task(self) -> None:
@@ -370,7 +375,7 @@ class PyADTPulse:
             task_name = self._timeout_task.get_name()
         else:
             task_name = f"{KEEPALIVE_TASK_NAME} - possible internal error"
-        LOG.debug(f"creating {task_name}")
+        LOG.debug("creating %s", task_name)
         response = None
         with self._attribute_lock:
             if self._authenticated is None:
@@ -394,7 +399,7 @@ class PyADTPulse:
                     response = await self._do_login_query()
                     if response is None:
                         LOG.error(
-                            f"{task_name} could not re-login to ADT Pulse, exiting..."
+                            "%s could not re-login to ADT Pulse, exiting...", task_name
                         )
                         return
                     close_response(response)
@@ -406,7 +411,7 @@ class PyADTPulse:
             try:
                 await asyncio.sleep(self.keepalive_interval * 60.0 + retry_after)
                 LOG.debug("Resetting timeout")
-                response = await self._pulse_connection._async_query(
+                response = await self._pulse_connection.async_query(
                     ADT_TIMEOUT_URI, "POST"
                 )
                 if handle_response(
@@ -419,7 +424,7 @@ class PyADTPulse:
                 if self.site.gateway.next_update < time.time():
                     await self.site._set_device(ADT_GATEWAY_STRING)
             except asyncio.CancelledError:
-                LOG.debug(f"{task_name} cancelled")
+                LOG.debug("%s cancelled", task_name)
                 close_response(response)
                 return
 
@@ -447,9 +452,9 @@ class PyADTPulse:
                     await asyncio.wait(task_list)
                 except asyncio.CancelledError:
                     pass
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     LOG.exception(
-                        f"Received exception while waiting for ADT Pulse service {e}"
+                        "Received exception while waiting for ADT Pulse service %s", e
                     )
             else:
                 # we should never get here
@@ -506,7 +511,7 @@ class PyADTPulse:
 
     async def _do_login_query(self, timeout: int = 30) -> ClientResponse | None:
         try:
-            retval = await self._pulse_connection._async_query(
+            retval = await self._pulse_connection.async_query(
                 ADT_LOGIN_URI,
                 method="POST",
                 extra_params={
@@ -519,8 +524,8 @@ class PyADTPulse:
                 },
                 timeout=timeout,
             )
-        except Exception as e:
-            LOG.error(f"Could not log into Pulse site: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            LOG.error("Could not log into Pulse site: %s", e)
             return None
         if retval is None:
             LOG.error("Could not log into Pulse site.")
@@ -541,7 +546,7 @@ class PyADTPulse:
         if network is not None:
             params.update({"network": str(network.id)})
         params.update({"partner": "adt"})
-        await self._pulse_connection._async_query(
+        await self._pulse_connection.async_query(
             ADT_LOGOUT_URI, extra_params=params, timeout=10
         )
 
@@ -555,8 +560,8 @@ class PyADTPulse:
         else:
             self._authenticated.clear()
 
-        LOG.debug(f"Authenticating to ADT Pulse cloud service as {self._username}")
-        await self._pulse_connection._async_fetch_version()
+        LOG.debug("Authenticating to ADT Pulse cloud service as %s", self._username)
+        await self._pulse_connection.async_fetch_version()
 
         response = await self._do_login_query()
         if response is None:
@@ -578,13 +583,14 @@ class PyADTPulse:
         # FIXME: should probably raise exceptions
         error = soup.find("div", {"id": "warnMsgContents"})
         if error:
-            LOG.error(f"Invalid ADT Pulse username/password: {error}")
+            LOG.error("Invalid ADT Pulse username/password: %s", error)
             return False
         error = soup.find("div", "responsiveContainer")
         if error:
             LOG.error(
-                f"2FA authentiation required for ADT pulse username {self.username} "
-                f"{error}"
+                "2FA authentiation required for ADT pulse username %s: %s",
+                self.username,
+                error,
             )
             return False
         # need to set authenticated here to prevent login loop
@@ -595,7 +601,6 @@ class PyADTPulse:
             self._authenticated.clear()
             return False
 
-        self.site.gateway.poll_interval = self._poll_interval
         # since we received fresh data on the status of the alarm, go ahead
         # and update the sites with the alarm status.
 
@@ -610,18 +615,18 @@ class PyADTPulse:
 
     async def async_logout(self) -> None:
         """Logout of ADT Pulse async."""
-        LOG.info(f"Logging {self._username} out of ADT Pulse")
+        LOG.info("Logging %s out of ADT Pulse", self._username)
         if self._timeout_task is not None:
             try:
                 self._timeout_task.cancel()
             except asyncio.CancelledError:
-                LOG.debug(f"{KEEPALIVE_TASK_NAME} successfully cancelled")
+                LOG.debug("%s successfully cancelled", KEEPALIVE_TASK_NAME)
                 await self._timeout_task
         if self._sync_task is not None:
             try:
                 self._sync_task.cancel()
             except asyncio.CancelledError:
-                LOG.debug(f"{SYNC_CHECK_TASK_NAME} successfully cancelled")
+                LOG.debug("%s successfully cancelled", SYNC_CHECK_TASK_NAME)
                 await self._sync_task
         self._timeout_task = self._sync_task = None
         await self._do_logout_query()
@@ -647,7 +652,7 @@ class PyADTPulse:
         else:
             task_name = f"{SYNC_CHECK_TASK_NAME} - possible internal error"
 
-        LOG.debug(f"creating {task_name}")
+        LOG.debug("creating %s", task_name)
         response = None
         retry_after = 0
         if self._updates_exist is None:
@@ -662,7 +667,7 @@ class PyADTPulse:
                     await asyncio.sleep(pi)
                 else:
                     await asyncio.sleep(retry_after)
-                response = await self._pulse_connection._async_query(
+                response = await self._pulse_connection.async_query(
                     ADT_SYNC_CHECK_URI,
                     extra_params={"ts": str(int(time.time() * 1000))},
                 )
@@ -682,10 +687,10 @@ class PyADTPulse:
 
                 pattern = r"\d+[-]\d+[-]\d+"
                 if not re.match(pattern, text):
-                    LOG.warn(
-                        f"Unexpected sync check format ({pattern}), forcing re-auth"
+                    LOG.warning(
+                        "Unexpected sync check format (%s), forcing re-auth", pattern
                     )
-                    LOG.debug(f"Received {text} from ADT Pulse site")
+                    LOG.debug("Received %s from ADT Pulse site", text)
                     close_response(response)
                     await self._do_logout_query()
                     await self.async_login()
@@ -695,7 +700,7 @@ class PyADTPulse:
                 # wait until these settle
                 if text.endswith("-0-0"):
                     LOG.debug(
-                        f"Sync token {text} indicates updates may exist, requerying"
+                        "Sync token %s indicates updates may exist, requerying", text
                     )
                     close_response(response)
                     have_update = True
@@ -703,14 +708,14 @@ class PyADTPulse:
                 if have_update:
                     have_update = False
                     if await self.async_update() is False:
-                        LOG.debug(f"Pulse data update from {task_name} failed")
+                        LOG.debug("Pulse data update from %s failed", task_name)
                         continue
                     self._updates_exist.set()
-                LOG.debug(f"Sync token {text} indicates no remote updates to process")
+                LOG.debug("Sync token %s indicates no remote updates to process", text)
                 close_response(response)
 
             except asyncio.CancelledError:
-                LOG.debug(f"{task_name} cancelled")
+                LOG.debug("%s cancelled", task_name)
                 close_response(response)
                 return
 
@@ -782,7 +787,7 @@ class PyADTPulse:
         LOG.debug("Checking ADT Pulse cloud service for updates")
 
         # FIXME will have to query other URIs for camera/zwave/etc
-        soup = await self._pulse_connection._query_orb(
+        soup = await self._pulse_connection.query_orb(
             logging.INFO, "Error returned from ADT Pulse service check"
         )
         if soup is not None:
@@ -802,8 +807,6 @@ class PyADTPulse:
             raise RuntimeError("Attempting to run sync update from async login")
         coro = self.async_update()
         return asyncio.run_coroutine_threadsafe(coro, loop).result()
-
-    # FIXME circular reference, should be ADTPulseSite
 
     @property
     def sites(self) -> List[ADTPulseSite]:
