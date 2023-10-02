@@ -427,7 +427,7 @@ class ADTPulseSite:
                     gateway_online = True
                 self._zones.update_device_info(zone, state, status, last_update)
                 LOG.debug(
-                    "Set zone %s - to %s, status %s with timestamp %d",
+                    "Set zone %d - to %s, status %s with timestamp %s",
                     zone,
                     state,
                     status,
