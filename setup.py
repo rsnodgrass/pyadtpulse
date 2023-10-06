@@ -27,7 +27,7 @@ setuptools.setup(
     description="Python interface for ADT Pulse security systems",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/rsnodgrass/pyadtpulse",
+    url="https://github.com/rlippmann/pyadtpulse",
     author="",
     author_email="",
     license="Apache Software License",
