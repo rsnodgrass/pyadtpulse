@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import os
 import sys
+from os import path, system
 from pathlib import Path
 
 import setuptools
@@ -9,11 +9,9 @@ import setuptools
 from pyadtpulse.const import __version__
 
 if sys.argv[-1] == "publish":
-    os.system("python setup.py sdist upload")
+    system("python setup.py sdist upload")
     sys.exit()
 
-# read the contents of your README file
-from os import path
 
 this_directory = path.abspath(path.dirname(__file__))
 long_description = Path(
