@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import os
 import sys
+from os import path, system
 from pathlib import Path
 
 import setuptools
@@ -9,11 +9,9 @@ import setuptools
 from pyadtpulse.const import __version__
 
 if sys.argv[-1] == "publish":
-    os.system("python setup.py sdist upload")
+    system("python setup.py sdist upload")
     sys.exit()
 
-# read the contents of your README file
-from os import path
 
 this_directory = path.abspath(path.dirname(__file__))
 long_description = Path(
@@ -27,11 +25,11 @@ setuptools.setup(
     description="Python interface for ADT Pulse security systems",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/rsnodgrass/pyadtpulse",
+    url="https://github.com/rlippmann/pyadtpulse",
     author="",
     author_email="",
     license="Apache Software License",
-    install_requires=["aiohttp>=3.8.1", "uvloop>=0.17.0"],
+    install_requires=["aiohttp>=3.8.1", "uvloop>=0.17.0", "beautifulsoup4>=4.11.1"],
     keywords=["security system", "adt", "home automation", "security alarm"],
     zip_safe=True,
     classifiers=[

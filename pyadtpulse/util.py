@@ -11,7 +11,6 @@ from typing import Optional
 
 from aiohttp import ClientResponse
 from bs4 import BeautifulSoup
-from dateutil import relativedelta
 
 LOG = logging.getLogger(__name__)
 
@@ -234,14 +233,13 @@ def parse_pulse_datetime(datestring: str) -> datetime:
     t = datetime.today()
     if split_string[0].lstrip() == "Today":
         last_update = t
+    elif split_string[0].lstrip() == "Yesterday":
+        last_update = t - timedelta(days=1)
     else:
-        if split_string[0].lstrip() == "Yesterday":
-            last_update = t - timedelta(days=1)
-        else:
-            tempdate = ("/".join((split_string[0], str(t.year)))).lstrip()
-            last_update = datetime.strptime(tempdate, "%m/%d/%Y")
-            if last_update > t:
-                last_update = last_update - relativedelta.relativedelta(years=1)
+        tempdate = f"{split_string[0]}/{t.year}"
+        last_update = datetime.strptime(tempdate, "%m/%d/%Y")
+    if last_update > t:
+        last_update = last_update.replace(year=t.year)
     update_time = datetime.time(
         datetime.strptime(split_string[1] + split_string[2], "%I:%M%p")
     )

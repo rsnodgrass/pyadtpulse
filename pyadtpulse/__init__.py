@@ -414,7 +414,7 @@ class PyADTPulse:
                 response = await self._pulse_connection.async_query(
                     ADT_TIMEOUT_URI, "POST"
                 )
-                if handle_response(
+                if not handle_response(
                     response, logging.INFO, "Failed resetting ADT Pulse cloud timeout"
                 ):
                     retry_after = self._check_retry_after(response, "Keepalive task")

@@ -1,3 +1,12 @@
+## 1.1.2 (2023-10-06)
+
+* change default poll interval to 2 seconds
+* update pyproject.toml
+* change source location to github/rlippmann from github/rsnodgrass
+* fix gateway attributes not updating
+* remove dependency on python_dateutils
+* add timestamp to example-client logging
+
 ## 1.1.1 (2023-10-02)
 
 * pylint fixes
