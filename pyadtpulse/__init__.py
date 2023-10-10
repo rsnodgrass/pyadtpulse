@@ -371,12 +371,12 @@ class PyADTPulse:
 
     async def _keepalive_task(self) -> None:
         retry_after = 0
+        response: ClientResponse | None = None
         if self._timeout_task is not None:
             task_name = self._timeout_task.get_name()
         else:
             task_name = f"{KEEPALIVE_TASK_NAME} - possible internal error"
         LOG.debug("creating %s", task_name)
-        response = None
         with self._attribute_lock:
             if self._authenticated is None:
                 raise RuntimeError(
@@ -396,13 +396,9 @@ class PyADTPulse:
                         with suppress(Exception):
                             await self._sync_task
                     await self._do_logout_query()
-                    response = await self._do_login_query()
-                    if response is None:
-                        LOG.error(
-                            "%s could not re-login to ADT Pulse, exiting...", task_name
-                        )
+                    if not await self.async_quick_relogin():
+                        LOG.error("%s could not re-login, exiting", task_name)
                         return
-                    close_response(response)
                     if self._sync_task is not None:
                         coro = self._sync_check_task()
                         self._sync_task = asyncio.create_task(
@@ -508,6 +504,25 @@ class PyADTPulse:
                                                  None if no thread is running
         """
         return self._pulse_connection.loop
+
+    async def async_quick_relogin(self) -> bool:
+        """Quickly re-login to Pulse.
+
+        Doesn't do device queries or set connected event unless a failure occurs.
+        FIXME:  Should probably just re-work login logic."""
+        response = await self._do_login_query()
+        if not handle_response(response, logging.ERROR, "Could not re-login to Pulse"):
+            await self.async_logout()
+            return False
+        return True
+
+    def quick_relogin(self) -> bool:
+        """Perform quick_relogin synchronously."""
+        coro = self.async_quick_relogin()
+        loop = self._pulse_connection.loop
+        if loop is None:
+            raise RuntimeError("Attempting to do call sync quick re-login from async")
+        return asyncio.run_coroutine_threadsafe(coro, loop).result()
 
     async def _do_login_query(self, timeout: int = 30) -> ClientResponse | None:
         try:
@@ -658,7 +673,6 @@ class PyADTPulse:
         last_sync_text = "0-0-0"
         if self._updates_exist is None:
             raise RuntimeError(f"{task_name} started without update event initialized")
-        have_update = False
         while True:
             try:
                 pi = self.site.gateway.poll_interval
@@ -692,7 +706,8 @@ class PyADTPulse:
                     LOG.debug("Received %s from ADT Pulse site", text)
                     close_response(response)
                     await self._do_logout_query()
-                    await self.async_login()
+                    if not await self.async_quick_relogin():
+                        LOG.error("%s couldn't re-login, exiting.", task_name)
                     continue
                 if text != last_sync_text:
                     LOG.debug("Updates exist, updating devices")
