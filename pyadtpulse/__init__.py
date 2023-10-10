@@ -675,6 +675,7 @@ class PyADTPulse:
             raise RuntimeError(f"{task_name} started without update event initialized")
         while True:
             try:
+                self.site.gateway.adjust_backoff_poll_interval()
                 pi = self.site.gateway.poll_interval
                 if retry_after == 0:
                     await asyncio.sleep(pi)
