@@ -655,14 +655,13 @@ class PyADTPulse:
         LOG.debug("creating %s", task_name)
         response = None
         retry_after = 0
+        last_sync_text = "0-0-0"
         if self._updates_exist is None:
             raise RuntimeError(f"{task_name} started without update event initialized")
         have_update = False
         while True:
             try:
                 pi = self.site.gateway.poll_interval
-                if have_update:
-                    pi = pi / 2.0
                 if retry_after == 0:
                     await asyncio.sleep(pi)
                 else:
@@ -695,18 +694,8 @@ class PyADTPulse:
                     await self._do_logout_query()
                     await self.async_login()
                     continue
-
-                # we can have 0-0-0 followed by 1-0-0 followed by 2-0-0, etc
-                # wait until these settle
-                if text.endswith("-0-0"):
-                    LOG.debug(
-                        "Sync token %s indicates updates may exist, requerying", text
-                    )
-                    close_response(response)
-                    have_update = True
-                    continue
-                if have_update:
-                    have_update = False
+                if text != last_sync_text:
+                    LOG.debug("Updates exist, updating devices")
                     if await self.async_update() is False:
                         LOG.debug("Pulse data update from %s failed", task_name)
                         continue
