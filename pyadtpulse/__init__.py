@@ -673,10 +673,14 @@ class PyADTPulse:
         last_sync_text = "0-0-0"
         if self._updates_exist is None:
             raise RuntimeError(f"{task_name} started without update event initialized")
+        have_updates = False
         while True:
             try:
                 self.site.gateway.adjust_backoff_poll_interval()
-                pi = self.site.gateway.poll_interval
+                if not have_updates:
+                    pi = self.site.gateway.poll_interval
+                else:
+                    pi = 0.0
                 if retry_after == 0:
                     await asyncio.sleep(pi)
                 else:
@@ -698,26 +702,32 @@ class PyADTPulse:
                 ):
                     close_response(response)
                     continue
-
+                close_response(response)
                 pattern = r"\d+[-]\d+[-]\d+"
                 if not re.match(pattern, text):
                     LOG.warning(
                         "Unexpected sync check format (%s), forcing re-auth", pattern
                     )
                     LOG.debug("Received %s from ADT Pulse site", text)
-                    close_response(response)
                     await self._do_logout_query()
                     if not await self.async_quick_relogin():
                         LOG.error("%s couldn't re-login, exiting.", task_name)
                     continue
                 if text != last_sync_text:
-                    LOG.debug("Updates exist, updating devices")
+                    LOG.debug("Updates exist: %s, requerying", text)
+                    last_sync_text = text
+                    have_updates = True
+                    continue
+                if have_updates:
+                    have_updates = False
                     if await self.async_update() is False:
                         LOG.debug("Pulse data update from %s failed", task_name)
                         continue
                     self._updates_exist.set()
-                LOG.debug("Sync token %s indicates no remote updates to process", text)
-                close_response(response)
+                else:
+                    LOG.debug(
+                        "Sync token %s indicates no remote updates to process", text
+                    )
 
             except asyncio.CancelledError:
                 LOG.debug("%s cancelled", task_name)
