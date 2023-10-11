@@ -6,6 +6,7 @@ import datetime
 import re
 import time
 from contextlib import suppress
+from random import randint
 from threading import RLock, Thread
 from typing import List, Optional, Union
 from warnings import warn
@@ -384,9 +385,8 @@ class PyADTPulse:
                 )
         while self._authenticated.is_set():
             relogin_interval = self.relogin_interval * 60
-            if (
-                relogin_interval != 0
-                and time.time() - self._last_login_time > relogin_interval
+            if relogin_interval != 0 and time.time() - self._last_login_time > randint(
+                int(0.75 * relogin_interval), relogin_interval
             ):
                 LOG.info("Login timeout reached, re-logging in")
                 # FIXME?: should we just pause the task?
