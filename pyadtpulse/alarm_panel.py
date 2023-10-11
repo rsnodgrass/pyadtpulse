@@ -195,7 +195,6 @@ class ADTPulseAlarmPanel:
         mode: str,
         force_arm: bool = False,
     ) -> bool:
-        loop = connection.loop
         coro = self._arm(connection, mode, force_arm)
         return run_coroutine_threadsafe(
             coro,
