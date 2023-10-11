@@ -519,10 +519,12 @@ class PyADTPulse:
     def quick_relogin(self) -> bool:
         """Perform quick_relogin synchronously."""
         coro = self.async_quick_relogin()
-        loop = self._pulse_connection.loop
-        if loop is None:
-            raise RuntimeError("Attempting to do call sync quick re-login from async")
-        return asyncio.run_coroutine_threadsafe(coro, loop).result()
+        return asyncio.run_coroutine_threadsafe(
+            coro,
+            self._pulse_connection.check_sync(
+                "Attempting to do call sync quick re-login from async"
+            ),
+        ).result()
 
     async def _do_login_query(self, timeout: int = 30) -> ClientResponse | None:
         try:
@@ -650,9 +652,9 @@ class PyADTPulse:
 
     def logout(self) -> None:
         """Log out of ADT Pulse."""
-        loop = self._pulse_connection.loop
-        if loop is None:
-            raise RuntimeError("Attempting to call sync logout without sync login")
+        loop = self._pulse_connection.check_sync(
+            "Attempting to call sync logout without sync login"
+        )
         sync_thread = self._session_thread
 
         coro = self.async_logout()
@@ -817,11 +819,13 @@ class PyADTPulse:
         Returns:
             bool: True on success
         """
-        loop = self._pulse_connection.loop
-        if loop is None:
-            raise RuntimeError("Attempting to run sync update from async login")
         coro = self.async_update()
-        return asyncio.run_coroutine_threadsafe(coro, loop).result()
+        return asyncio.run_coroutine_threadsafe(
+            coro,
+            self._pulse_connection.check_sync(
+                "Attempting to run sync update from async login"
+            ),
+        ).result()
 
     @property
     def sites(self) -> List[ADTPulseSite]:

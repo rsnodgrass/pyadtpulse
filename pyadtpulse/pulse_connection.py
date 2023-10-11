@@ -105,6 +105,16 @@ class ADTPulseConnection:
         with self._attribute_lock:
             self._loop = loop
 
+    def check_sync(self, message: str) -> asyncio.AbstractEventLoop:
+        """Checks if sync login was performed.
+
+        Returns the loop to use for run_coroutine_threadsafe if so.
+        Raises RuntimeError with given message if not."""
+        with self._attribute_lock:
+            if self._loop is None:
+                raise RuntimeError(message)
+        return self._loop
+
     async def async_query(
         self,
         uri: str,
@@ -243,10 +253,10 @@ class ADTPulseConnection:
                                       None on failure
                                       ClientResponse will already be closed.
         """
-        if self._loop is None:
-            raise RuntimeError("Attempting to run sync query from async login")
         coro = self.async_query(uri, method, extra_params, extra_headers, timeout)
-        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
+        return asyncio.run_coroutine_threadsafe(
+            coro, self.check_sync("Attempting to run sync query from async login")
+        ).result()
 
     async def query_orb(
         self, level: int, error_message: str
