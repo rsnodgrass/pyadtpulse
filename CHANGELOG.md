@@ -1,3 +1,11 @@
+## 1.1.3 (2023-10-11)
+
+* revert sync check logic to check against last check value.  this should hopefully fix the problem of HA alarm status not updating
+* use exponential backoff for gateway updates if offline instead of constant 90 seconds
+* add jitter to relogin interval
+* add quick_relogin/async_quick_relogin to do a quick relogin without requerying devices, exiting tasks
+* add more alarm testing in example client
+
 ## 1.1.2 (2023-10-06)
 
 * change default poll interval to 2 seconds
