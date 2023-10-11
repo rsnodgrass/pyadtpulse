@@ -321,9 +321,9 @@ def test_alarm(site: ADTPulseSite, adt: PyADTPulse) -> None:
         check_updates(site, adt, True)
         print("Testing disarming twice")
         if site.disarm():
-            print("Test disarm twice failed")
+            print("Test disarm twice suceeded")
         else:
-            print("Test succeeded")
+            print("Test disarm twice failed")
     else:
         print("Disarming failed")
 
@@ -471,12 +471,12 @@ async def async_test_alarm(adt: PyADTPulse) -> None:
     print("Disarming alarm")
     if await adt.site.async_disarm():
         print("Disarming succeeded")
-        #        check_updates(site, adt, False)
         print("Testing disarming twice")
+        await adt.wait_for_update()
         if await adt.site.async_disarm():
-            print("Test failed")
+            print("Test suceeded")
         else:
-            print("Test succeeded")
+            print("Test failed")
     else:
         print("Disarming failed")
 
