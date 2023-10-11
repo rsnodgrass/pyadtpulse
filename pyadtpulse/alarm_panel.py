@@ -137,7 +137,6 @@ class ADTPulseAlarmPanel:
                     mode,
                     self._status,
                 )
-                return False
             if self._status != ADT_ALARM_OFF and mode != ADT_ALARM_OFF:
                 LOG.warning("Cannot set alarm status from %s to %s", self._status, mode)
                 return False
