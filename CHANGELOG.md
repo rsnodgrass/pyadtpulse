@@ -1,3 +1,7 @@
+## 1.1.5 (2023-12-22)
+
+* fix more zone html parsing due to changes in Pulse v27
+
 ## 1.1.4 (2023-12-13)
 
 * fix zone html parsing due to changes in Pulse v27
