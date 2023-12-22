@@ -363,6 +363,21 @@ class ADTPulseSite:
         with self._site_lock:
             gateway_online = False
             for row in soup.find_all("tr", {"class": "p_listRow"}):
+                temp = row.find("div", {"class": "p_grayNormalText"})
+                # v26 and lower: temp = row.find("span", {"class": "p_grayNormalText"})
+                if temp is None:
+                    break
+                try:
+                    zone = int(
+                        remove_prefix(
+                            temp.get_text(),
+                            "Zone",
+                        )
+                    )
+                except ValueError:
+                    LOG.debug("skipping row due to zone not being an integer")
+                    continue
+                # parse out last activity (required dealing with "Yesterday 1:52 PM")
                 temp = row.find("span", {"class": "devStatIcon"})
                 if temp is None:
                     break
@@ -374,15 +389,7 @@ class ADTPulseSite:
                 except ValueError:
                     last_update = datetime(1970, 1, 1)
                 # name = row.find("a", {"class": "p_deviceNameText"}).get_text()
-                temp = row.find("div", {"class": "p_grayNormalText"})
-                if temp is None:
-                    break
-                zone = int(
-                    remove_prefix(
-                        temp.get_text(),
-                        "Zone\xa0",
-                    )
-                )
+
                 state = remove_prefix(
                     row.find("canvas", {"class": "p_ic_icon_device"}).get("icon"),
                     "devStat",
