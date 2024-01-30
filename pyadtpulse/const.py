@@ -1,5 +1,5 @@
 """Constants for pyadtpulse."""
-__version__ = "1.1.1"
+__version__ = "1.1.5"
 DEFAULT_API_HOST = "https://portal.adtpulse.com"
 API_HOST_CA = "https://portal-ca.adtpulse.com"  # Canada
 
@@ -25,7 +25,7 @@ ADT_GATEWAY_STRING = "gateway"
 
 # ADT sets their keepalive to 1 second, so poll a little more often
 # than that
-ADT_DEFAULT_POLL_INTERVAL = 0.75
+ADT_DEFAULT_POLL_INTERVAL = 2.0
 ADT_GATEWAY_OFFLINE_POLL_INTERVAL = 90.0
 ADT_DEFAULT_HTTP_HEADERS = {
     "User-Agent": (

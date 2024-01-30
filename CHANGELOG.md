@@ -1,3 +1,28 @@
+## 1.1.5 (2023-12-22)
+
+* fix more zone html parsing due to changes in Pulse v27
+
+## 1.1.4 (2023-12-13)
+
+* fix zone html parsing due to changes in Pulse v27
+
+## 1.1.3 (2023-10-11)
+
+* revert sync check logic to check against last check value.  this should hopefully fix the problem of HA alarm status not updating
+* use exponential backoff for gateway updates if offline instead of constant 90 seconds
+* add jitter to relogin interval
+* add quick_relogin/async_quick_relogin to do a quick relogin without requerying devices, exiting tasks
+* add more alarm testing in example client
+
+## 1.1.2 (2023-10-06)
+
+* change default poll interval to 2 seconds
+* update pyproject.toml
+* change source location to github/rlippmann from github/rsnodgrass
+* fix gateway attributes not updating
+* remove dependency on python_dateutils
+* add timestamp to example-client logging
+
 ## 1.1.1 (2023-10-02)
 
 * pylint fixes

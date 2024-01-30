@@ -128,6 +128,25 @@ class ADTPulseGateway:
                 self._current_poll_interval = new_interval
             LOG.debug("Set poll interval to %f", self._initial_poll_interval)
 
+    def adjust_backoff_poll_interval(self) -> None:
+        """Calculates the backoff poll interval.
+
+        Each call will adjust current_poll interval with exponential backoff,
+        unless gateway is online, in which case, poll interval will be reset to
+        initial_poll interval."""
+
+        with self._attribute_lock:
+            if self.is_online:
+                self._current_poll_interval = self._initial_poll_interval
+                return
+            # use an exponential backoff
+            self._current_poll_interval = self._current_poll_interval * 2
+            if self._current_poll_interval > ADT_GATEWAY_OFFLINE_POLL_INTERVAL:
+                self._current_poll_interval = ADT_DEFAULT_POLL_INTERVAL
+            LOG.debug(
+                "Setting current poll interval to %f", self._current_poll_interval
+            )
+
     def set_gateway_attributes(self, gateway_attributes: dict[str, str]) -> None:
         """Set gateway attributes from dictionary.
 

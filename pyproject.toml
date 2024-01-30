@@ -1,3 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyadtpulse"
+dynamic = ["version"]
+description="Python interface for ADT Pulse security systems"
+readme = "README.md"
+authors = [{name = "Ryan Snodgrass"}]
+maintainers = [{name = "Robert Lippmann"}]
+license = {file = "LICENSE.md"}
+dependencies = ["aiohttp>=3.8.1", "uvloop>=0.17.0", "beautifulsoup4>=4.11.1"]
+keywords = ["security system", "adt", "home automation", "security alarm"]
+classifiers = [
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: OS Independent",
+    ]
+
+[project.urls]
+"Changelog" = "https://github.com/rlippmann/pyadtpulse/blob/master/CHANGELOG.md"
+"Source" = "https://github.com/rlippmann/pyadtpulse"
+"Issues" = "https://github.com/rlippmann/pyadtpulse/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "pyadtpulse.const.__version__"}
+
 [tool.isort]
 profile = "black"
 force_to_top = [ "logging" ]

@@ -137,7 +137,6 @@ class ADTPulseAlarmPanel:
                     mode,
                     self._status,
                 )
-                return False
             if self._status != ADT_ALARM_OFF and mode != ADT_ALARM_OFF:
                 LOG.warning("Cannot set alarm status from %s to %s", self._status, mode)
                 return False
@@ -195,13 +194,13 @@ class ADTPulseAlarmPanel:
         mode: str,
         force_arm: bool = False,
     ) -> bool:
-        loop = connection.loop
-        if loop is None:
-            raise RuntimeError(
-                "Attempting to sync change alarm mode from async session"
-            )
         coro = self._arm(connection, mode, force_arm)
-        return run_coroutine_threadsafe(coro, loop).result()
+        return run_coroutine_threadsafe(
+            coro,
+            connection.check_sync(
+                "Attempting to sync change alarm mode from async session"
+            ),
+        ).result()
 
     def arm_away(self, connection: ADTPulseConnection, force_arm: bool = False) -> bool:
         """Arm the alarm in Away mode.
