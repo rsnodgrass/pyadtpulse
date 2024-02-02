@@ -1,30 +1,59 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "pyadtpulse"
-dynamic = ["version"]
-description="Python interface for ADT Pulse security systems"
+version = "1.2.0"
+description = "Python interface for ADT Pulse security systems"
+authors = ["Ryan Snodgrass"]
+maintainers = ["Robert Lippmann"]
+license = "Apache-2.0"
 readme = "README.md"
-authors = [{name = "Ryan Snodgrass"}]
-maintainers = [{name = "Robert Lippmann"}]
-license = {file = "LICENSE.md"}
-dependencies = ["aiohttp>=3.8.1", "uvloop>=0.17.0", "beautifulsoup4>=4.11.1"]
-keywords = ["security system", "adt", "home automation", "security alarm"]
+repository = "https://github.com/rlippmann/pyadtpulse"
 classifiers = [
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
-        "Operating System :: OS Independent",
+        "Operating System :: OS Independent"
     ]
 
-[project.urls]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+aiohttp = "3.9.1"
+beautifulsoup4 = "^4.12.2"
+uvloop = "^0.19.0"
+bs4 = "^0.0.1"
+typeguard = "^4.1.5"
+
+
+[tool.poetry.urls]
 "Changelog" = "https://github.com/rlippmann/pyadtpulse/blob/master/CHANGELOG.md"
-"Source" = "https://github.com/rlippmann/pyadtpulse"
 "Issues" = "https://github.com/rlippmann/pyadtpulse/issues"
 
-[tool.setuptools.dynamic]
-version = {attr = "pyadtpulse.const.__version__"}
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.3"
+pytest-asyncio = "^0.21.1"
+pytest-mock = "^3.12.0"
+pytest-aiohttp = "^1.0.5"
+pytest-timeout = "^2.2.0"
+aioresponses = "^0.7.6"
+freezegun = "^1.2.2"
+pytest-coverage = "^0.0"
+pytest-xdist = "^3.5.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.5.0"
+ruff = "^0.1.4"
+pycln = "^2.3.0"
+pyupgrade = "^3.15.0"
+isort = "^5.12.0"
+black = "^23.10.1"
+mypy = "^1.6.1"
+pylint = "^3.0.2"
+types-beautifulsoup4 = "^4.12.0.7"
+refurb = "^1.22.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = ["poetry.core.masonry.api"]
 
 [tool.isort]
 profile = "black"
@@ -36,3 +65,9 @@ line-length = 90
 
 [tool.pycln]
 all = true
+
+[tool.pytest.ini_options]
+timeout = 30
+# addopts = "--cov=pyadtpulse --cov-report=html"
+
+[tool.pyright]

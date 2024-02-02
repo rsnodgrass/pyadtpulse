@@ -1,4 +1,5 @@
 """Utility functions for pyadtpulse."""
+
 import logging
 import string
 import sys
@@ -7,47 +8,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from random import randint
 from threading import RLock, current_thread
-from typing import Optional
 
-from aiohttp import ClientResponse
 from bs4 import BeautifulSoup
+from yarl import URL
 
 LOG = logging.getLogger(__name__)
-
-
-def handle_response(
-    response: Optional[ClientResponse], level: int, error_message: str
-) -> bool:
-    """Handle the response from query().
-
-    Args:
-        response (Optional[Response]): the response from the query()
-        level (int): Level to log on error (i.e. INFO, DEBUG)
-        error_message (str): the error message
-
-    Returns:
-        bool: True if no error occurred.
-    """
-    if response is None:
-        LOG.log(level, "%s", error_message)
-        return False
-
-    if response.ok:
-        return True
-
-    LOG.log(level, "%s: error code = %s", error_message, response.status)
-
-    return False
-
-
-def close_response(response: Optional[ClientResponse]) -> None:
-    """Close a response object, handles None.
-
-    Args:
-        response (Optional[ClientResponse]): ClientResponse object to close
-    """
-    if response is not None and not response.closed:
-        response.close()
 
 
 def remove_prefix(text: str, prefix: str) -> str:
@@ -63,27 +28,47 @@ def remove_prefix(text: str, prefix: str) -> str:
     return text[text.startswith(prefix) and len(prefix) :]
 
 
-async def make_soup(
-    response: Optional[ClientResponse], level: int, error_message: str
-) -> Optional[BeautifulSoup]:
+def handle_response(code: int, url: URL | None, level: int, error_message: str) -> bool:
+    """Handle the response from query().
+
+    Args:
+        code (int): the return code
+        level (int): Level to log on error (i.e. INFO, DEBUG)
+        error_message (str): the error message
+
+    Returns:
+        bool: True if no error occurred.
+    """
+    if code >= 400:
+        LOG.log(level, "%s: error code = %s from %s", error_message, code, url)
+        return False
+    return True
+
+
+def make_soup(
+    code: int,
+    response_text: str | None,
+    url: URL | None,
+    level: int,
+    error_message: str,
+) -> BeautifulSoup | None:
     """Make a BS object from a Response.
 
     Args:
-        response (Optional[Response]): the response
+        code (int): the return code
+        response_text Optional(str): the response text
         level (int): the logging level on error
         error_message (str): the error message
 
     Returns:
         Optional[BeautifulSoup]: a BS object, or None on failure
     """
-    if not handle_response(response, level, error_message):
+    if not handle_response(code, url, level, error_message):
         return None
-
-    if response is None:  # shut up type checker
+    if response_text is None:
+        LOG.log(level, "%s: no response received from %s", error_message, url)
         return None
-    body_text = await response.text()
-    response.close()
-    return BeautifulSoup(body_text, "html.parser")
+    return BeautifulSoup(response_text, "html.parser")
 
 
 FINGERPRINT_LENGTH = 2292
@@ -227,7 +212,8 @@ def parse_pulse_datetime(datestring: str) -> datetime:
     Returns:
         datetime: time value of given string
     """
-    split_string = datestring.split("\xa0")
+    datestring = datestring.replace("\xa0", " ").rstrip()
+    split_string = [s for s in datestring.split(" ") if s.strip()]
     if len(split_string) < 3:
         raise ValueError("Invalid datestring")
     t = datetime.today()
@@ -247,13 +233,16 @@ def parse_pulse_datetime(datestring: str) -> datetime:
     return last_update
 
 
-class AuthenticationException(RuntimeError):
-    """Raised when a login failed."""
+def set_debug_lock(debug_lock: bool, name: str) -> "RLock | DebugRLock":
+    """Set lock or debug lock
 
-    def __init__(self, username: str):
-        """Create the exception.
+    Args:
+        debug_lock (bool): set a debug lock
+        name (str): debug lock name
 
-        Args:
-            username (str): Username used to login
-        """
-        super().__init__(f"Could not log into ADT site with username {username}")
+    Returns:
+        RLock | DebugRLock: lock object to return
+    """
+    if debug_lock:
+        return DebugRLock(name)
+    return RLock()

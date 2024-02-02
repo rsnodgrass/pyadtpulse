@@ -1,3 +1,11 @@
+## 1.2.0 (2024-01-30)
+
+* add exceptions and exception handling
+* make code more robust for error handling
+* refactor code into smaller objects
+* add testing framework
+* add poetry
+
 ## 1.1.5 (2023-12-22)
 
 * fix more zone html parsing due to changes in Pulse v27

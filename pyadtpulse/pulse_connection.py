@@ -1,330 +1,327 @@
-"""ADT Pulse connection. End users should probably not call this directly."""
+"""ADT Pulse connection. End users should probably not call this directly.
+
+This is the main interface to the http functions to access ADT Pulse.
+"""
 
 import logging
-import asyncio
 import re
-from random import uniform
-from threading import Lock, RLock
-from typing import Dict, Optional, Union
+from asyncio import AbstractEventLoop
+from time import time
 
-from aiohttp import (
-    ClientConnectionError,
-    ClientConnectorError,
-    ClientResponse,
-    ClientResponseError,
-    ClientSession,
-)
 from bs4 import BeautifulSoup
+from typeguard import typechecked
+from yarl import URL
 
 from .const import (
-    ADT_DEFAULT_HTTP_HEADERS,
-    ADT_DEFAULT_VERSION,
-    ADT_DEVICE_URI,
-    ADT_HTTP_REFERER_URIS,
+    ADT_DEFAULT_LOGIN_TIMEOUT,
     ADT_LOGIN_URI,
-    ADT_ORB_URI,
-    ADT_SYSTEM_URI,
-    API_PREFIX,
+    ADT_LOGOUT_URI,
+    ADT_MFA_FAIL_URI,
+    ADT_SUMMARY_URI,
 )
-from .util import DebugRLock, close_response, make_soup
+from .exceptions import (
+    PulseAccountLockedError,
+    PulseAuthenticationError,
+    PulseClientConnectionError,
+    PulseMFARequiredError,
+    PulseNotLoggedInError,
+    PulseServerConnectionError,
+    PulseServiceTemporarilyUnavailableError,
+)
+from .pulse_authentication_properties import PulseAuthenticationProperties
+from .pulse_backoff import PulseBackoff
+from .pulse_connection_properties import PulseConnectionProperties
+from .pulse_connection_status import PulseConnectionStatus
+from .pulse_query_manager import PulseQueryManager
+from .util import make_soup, set_debug_lock
 
-RECOVERABLE_ERRORS = [429, 500, 502, 503, 504]
 LOG = logging.getLogger(__name__)
 
 
-class ADTPulseConnection:
+SESSION_COOKIES = {"X-mobile-browser": "false", "ICLocal": "en_US"}
+
+
+class PulseConnection(PulseQueryManager):
     """ADT Pulse connection related attributes."""
 
-    _api_version = ADT_DEFAULT_VERSION
-    _class_threadlock = Lock()
-
     __slots__ = (
-        "_api_host",
-        "_allocated_session",
-        "_session",
-        "_attribute_lock",
-        "_loop",
+        "_pc_attribute_lock",
+        "_authentication_properties",
+        "_login_backoff",
+        "_login_in_progress",
     )
 
+    @typechecked
     def __init__(
         self,
-        host: str,
-        session: Optional[ClientSession] = None,
-        user_agent: str = ADT_DEFAULT_HTTP_HEADERS["User-Agent"],
+        pulse_connection_status: PulseConnectionStatus,
+        pulse_connection_properties: PulseConnectionProperties,
+        pulse_authentication: PulseAuthenticationProperties,
         debug_locks: bool = False,
     ):
         """Initialize ADT Pulse connection."""
-        self._api_host = host
-        self._allocated_session = False
-        if session is None:
-            self._allocated_session = True
-            self._session = ClientSession()
-        else:
-            self._session = session
-        self._session.headers.update({"User-Agent": user_agent})
-        self._attribute_lock: Union[RLock, DebugRLock]
-        if not debug_locks:
-            self._attribute_lock = RLock()
-        else:
-            self._attribute_lock = DebugRLock("ADTPulseConnection._attribute_lock")
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
-    def __del__(self):
-        """Destructor for ADTPulseConnection."""
-        if self._allocated_session and self._session is not None:
-            self._session.detach()
+        # need to initialize this after the session since we set cookies
+        # based on it
+        super().__init__(
+            pulse_connection_status,
+            pulse_connection_properties,
+            debug_locks,
+        )
+        self._pc_attribute_lock = set_debug_lock(
+            debug_locks, "pyadtpulse.pc_attribute_lock"
+        )
+        self._connection_properties = pulse_connection_properties
+        self._connection_status = pulse_connection_status
+        self._authentication_properties = pulse_authentication
+        self._login_backoff = PulseBackoff(
+            "Login",
+            pulse_connection_status._backoff.initial_backoff_interval,
+            detailed_debug_logging=self._connection_properties.detailed_debug_logging,
+        )
+        self._login_in_progress = False
+        self._debug_locks = debug_locks
 
-    @property
-    def api_version(self) -> str:
-        """Get the API version."""
-        with self._class_threadlock:
-            return self._api_version
+    @typechecked
+    def check_login_errors(
+        self, response: tuple[int, str | None, URL | None]
+    ) -> BeautifulSoup:
+        """Check response for login errors.
 
-    @property
-    def service_host(self) -> str:
-        """Get the host prefix for connections."""
-        with self._attribute_lock:
-            return self._api_host
-
-    @service_host.setter
-    def service_host(self, host: str) -> None:
-        """Set the host prefix for connections."""
-        with self._attribute_lock:
-            self._session.headers.update({"Host": host})
-            self._api_host = host
-
-    @property
-    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
-        """Get the event loop."""
-        with self._attribute_lock:
-            return self._loop
-
-    @loop.setter
-    def loop(self, loop: Optional[asyncio.AbstractEventLoop]) -> None:
-        """Set the event loop."""
-        with self._attribute_lock:
-            self._loop = loop
-
-    def check_sync(self, message: str) -> asyncio.AbstractEventLoop:
-        """Checks if sync login was performed.
-
-        Returns the loop to use for run_coroutine_threadsafe if so.
-        Raises RuntimeError with given message if not."""
-        with self._attribute_lock:
-            if self._loop is None:
-                raise RuntimeError(message)
-        return self._loop
-
-    async def async_query(
-        self,
-        uri: str,
-        method: str = "GET",
-        extra_params: Optional[Dict[str, str]] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        timeout=1,
-    ) -> Optional[ClientResponse]:
-        """Query ADT Pulse async.
+        Will handle setting backoffs and raising exceptions.
 
         Args:
-            uri (str): URI to query
-            method (str, optional): method to use. Defaults to "GET".
-            extra_params (Optional[Dict], optional): query parameters. Defaults to None.
-            extra_headers (Optional[Dict], optional): extra HTTP headers.
-                        Defaults to None.
-            timeout (int, optional): timeout in seconds. Defaults to 1.
+            response (tuple[int, str | None, URL | None]): The response
 
         Returns:
-            Optional[ClientResponse]: aiohttp.ClientResponse object
-                                      None on failure
-                                      ClientResponse will already be closed.
+            BeautifulSoup: The parsed response
+
+        Raises:
+            PulseAuthenticationError: if login fails due to incorrect username/password
+            PulseServerConnectionError: if login fails due to server error
+            PulseAccountLockedError: if login fails due to account locked
+            PulseMFARequiredError: if login fails due to MFA required
+            PulseNotLoggedInError: if login fails due to not logged in
         """
-        response = None
-        with ADTPulseConnection._class_threadlock:
-            if ADTPulseConnection._api_version == ADT_DEFAULT_VERSION:
-                await self.async_fetch_version()
-        url = self.make_url(uri)
-        if uri in ADT_HTTP_REFERER_URIS:
-            new_headers = {"Accept": ADT_DEFAULT_HTTP_HEADERS["Accept"]}
-        else:
-            new_headers = {"Accept": "*/*"}
 
-        LOG.debug("Updating HTTP headers: %s", new_headers)
-        self._session.headers.update(new_headers)
+        def extract_seconds_from_string(s: str) -> int:
+            seconds = 0
+            match = re.search(r"\d+", s)
+            if match:
+                seconds = int(match.group())
+                if "minutes" in s:
+                    seconds *= 60
+            return seconds
 
-        LOG.debug(
-            "Attempting %s %s params=%s timeout=%d", method, uri, extra_params, timeout
+        def determine_error_type():
+            """Determine what type of error we have from the url and the parsed page.
+
+            Will raise the appropriate exception.
+            """
+            self._login_in_progress = False
+            url = self._connection_properties.make_url(ADT_LOGIN_URI)
+            if url == response_url_string:
+                error = soup.find("div", {"id": "warnMsgContents"})
+                if error:
+                    error_text = error.get_text()
+                    LOG.error("Error logging into pulse: %s", error_text)
+                    if "Try again in" in error_text:
+                        if (retry_after := extract_seconds_from_string(error_text)) > 0:
+                            raise PulseAccountLockedError(
+                                self._login_backoff,
+                                retry_after + time(),
+                            )
+                    elif "You have not yet signed in" in error_text:
+                        raise PulseNotLoggedInError()
+                    elif "Sign In Unsuccessful" in error_text:
+                        raise PulseAuthenticationError()
+                else:
+                    raise PulseNotLoggedInError()
+            else:
+                url = self._connection_properties.make_url(ADT_MFA_FAIL_URI)
+                if url == response_url_string:
+                    raise PulseMFARequiredError()
+
+        soup = make_soup(
+            response[0],
+            response[1],
+            response[2],
+            logging.ERROR,
+            "Could not log into ADT Pulse site",
+        )
+        # this probably should have been handled by async_query()
+        if soup is None:
+            raise PulseServerConnectionError(
+                f"Could not log into ADT Pulse site: code {response[0]}: URL: {response[2]}, response: {response[1]}",
+                self._login_backoff,
+            )
+        url = self._connection_properties.make_url(ADT_SUMMARY_URI)
+        response_url_string = str(response[2])
+        if url != response_url_string:
+            determine_error_type()
+            raise PulseAuthenticationError()
+        return soup
+
+    @typechecked
+    async def async_do_login_query(
+        self, timeout: int = ADT_DEFAULT_LOGIN_TIMEOUT
+    ) -> BeautifulSoup | None:
+        """
+        Performs a login query to the Pulse site.
+
+        Will backoff on login failures.
+
+        Will set login in progress flag.
+
+        Args:
+            timeout (int, optional): The timeout value for the query in seconds.
+            Defaults to ADT_DEFAULT_LOGIN_TIMEOUT.
+
+        Returns:
+            soup: Optional[BeautifulSoup]: A BeautifulSoup object containing
+            summary.jsp, or None if failure
+        Raises:
+            ValueError: if login parameters are not correct
+            PulseAuthenticationError: if login fails due to incorrect username/password
+            PulseServerConnectionError: if login fails due to server error
+            PulseServiceTemporarilyUnavailableError: if login fails due to too many requests or
+                server is temporarily unavailable
+            PulseAccountLockedError: if login fails due to account locked
+            PulseMFARequiredError: if login fails due to MFA required
+            PulseNotLoggedInError: if login fails due to not logged in (which is probably an internal error)
+        """
+
+        if self.login_in_progress:
+            return None
+        await self.quick_logout()
+        # just raise exceptions if we're not going to be able to log in
+        lockout_time = self._login_backoff.expiration_time
+        if lockout_time > time():
+            raise PulseAccountLockedError(self._login_backoff, lockout_time)
+        cs_backoff = self._connection_status.get_backoff()
+        lockout_time = cs_backoff.expiration_time
+        if lockout_time > time():
+            raise PulseServiceTemporarilyUnavailableError(cs_backoff, lockout_time)
+        self.login_in_progress = True
+        data = {
+            "usernameForm": self._authentication_properties.username,
+            "passwordForm": self._authentication_properties.password,
+            "networkid": self._authentication_properties.site_id,
+            "fingerprint": self._authentication_properties.fingerprint,
+        }
+        await self._login_backoff.wait_for_backoff()
+        try:
+            response = await self.async_query(
+                ADT_LOGIN_URI,
+                "POST",
+                extra_params=data,
+                timeout=timeout,
+                requires_authentication=False,
+            )
+        except (
+            PulseClientConnectionError,
+            PulseServerConnectionError,
+            PulseServiceTemporarilyUnavailableError,
+        ) as e:
+            LOG.error("Could not log into Pulse site: %s", e)
+            self.login_in_progress = False
+            raise
+        soup = self.check_login_errors(response)
+        self._connection_status.authenticated_flag.set()
+        self._authentication_properties.last_login_time = int(time())
+        self._login_backoff.reset_backoff()
+        self.login_in_progress = False
+        return soup
+
+    @typechecked
+    async def async_do_logout_query(self, site_id: str | None = None) -> None:
+        """Performs a logout query to the ADT Pulse site."""
+        params = {}
+        si = ""
+        self._connection_status.authenticated_flag.clear()
+        if site_id is not None and site_id != "":
+            self._authentication_properties.site_id = site_id
+            si = site_id
+        params.update({"networkid": si})
+
+        params.update({"partner": "adt"})
+        try:
+            await self.async_query(
+                ADT_LOGOUT_URI,
+                extra_params=params,
+                timeout=10,
+                requires_authentication=False,
+            )
+        # FIXME: do we care if this raises exceptions?
+        except (
+            PulseClientConnectionError,
+            PulseServiceTemporarilyUnavailableError,
+            PulseServerConnectionError,
+        ) as e:
+            LOG.debug("Could not logout from Pulse site: %s", e)
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if ADT Pulse is connected."""
+        return (
+            self._connection_status.authenticated_flag.is_set()
+            and not self._login_in_progress
         )
 
-        # FIXME: reauthenticate if received:
-        # "You have not yet signed in or you
-        #  have been signed out due to inactivity."
+    @property
+    def login_backoff(self) -> PulseBackoff:
+        """Return backoff object."""
+        with self._pc_attribute_lock:
+            return self._login_backoff
 
-        # define connection method
-        retry = 0
-        max_retries = 3
-        while retry < max_retries:
-            try:
-                if method == "GET":
-                    async with self._session.get(
-                        url, headers=extra_headers, params=extra_params, timeout=timeout
-                    ) as response:
-                        await response.text()
-                elif method == "POST":
-                    async with self._session.post(
-                        url, headers=extra_headers, data=extra_params, timeout=timeout
-                    ) as response:
-                        await response.text()
-                else:
-                    LOG.error("Invalid request method %s", method)
-                    return None
+    def check_sync(self, message: str) -> AbstractEventLoop:
+        """Convenience method to check if running from sync context."""
+        return self._connection_properties.check_sync(message)
 
-                if response.status in RECOVERABLE_ERRORS:
-                    retry = retry + 1
-                    LOG.info(
-                        "query returned recoverable error code %s, "
-                        "retrying (count = %d)",
-                        response.status,
-                        retry,
-                    )
-                    if retry == max_retries:
-                        LOG.warning(
-                            "Exceeded max retries of %d, giving up", max_retries
-                        )
-                        response.raise_for_status()
-                    await asyncio.sleep(2**retry + uniform(0.0, 1.0))
-                    continue
+    @property
+    def debug_locks(self):
+        """Return debug locks."""
+        return self._debug_locks
 
-                response.raise_for_status()
-                # success, break loop
-                retry = 4
-            except (
-                asyncio.TimeoutError,
-                ClientConnectionError,
-                ClientConnectorError,
-            ) as ex:
-                LOG.debug(
-                    "Error %s occurred making %s request to %s, retrying",
-                    ex.args,
-                    method,
-                    url,
-                    exc_info=True,
-                )
-                await asyncio.sleep(2**retry + uniform(0.0, 1.0))
-                continue
-            except ClientResponseError as err:
-                code = err.code
-                LOG.exception(
-                    "Received HTTP error code %i in request to ADT Pulse", code
-                )
-                return None
+    @property
+    def login_in_progress(self) -> bool:
+        """Return login in progress."""
+        with self._pc_attribute_lock:
+            return self._login_in_progress
 
-        # success!
-        # FIXME? login uses redirects so final url is wrong
-        if uri in ADT_HTTP_REFERER_URIS:
-            if uri == ADT_DEVICE_URI:
-                referer = self.make_url(ADT_SYSTEM_URI)
-            else:
-                if response is not None and response.url is not None:
-                    referer = str(response.url)
-                    LOG.debug("Setting Referer to: %s", referer)
-                    self._session.headers.update({"Referer": referer})
+    @login_in_progress.setter
+    @typechecked
+    def login_in_progress(self, value: bool) -> None:
+        """Set login in progress."""
+        with self._pc_attribute_lock:
+            self._login_in_progress = value
 
-        return response
+    async def quick_logout(self) -> None:
+        """Quickly logout.
 
-    def query(
-        self,
-        uri: str,
-        method: str = "GET",
-        extra_params: Optional[Dict[str, str]] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        timeout=1,
-    ) -> Optional[ClientResponse]:
-        """Query ADT Pulse async.
-
-        Args:
-            uri (str): URI to query
-            method (str, optional): method to use. Defaults to "GET".
-            extra_params (Optional[Dict], optional): query parameters. Defaults to None.
-            extra_headers (Optional[Dict], optional): extra HTTP headers.
-                                                    Defaults to None.
-            timeout (int, optional): timeout in seconds. Defaults to 1.
-        Returns:
-            Optional[ClientResponse]: aiohttp.ClientResponse object
-                                      None on failure
-                                      ClientResponse will already be closed.
+        This just resets the authenticated flag and clears the ClientSession.
         """
-        coro = self.async_query(uri, method, extra_params, extra_headers, timeout)
-        return asyncio.run_coroutine_threadsafe(
-            coro, self.check_sync("Attempting to run sync query from async login")
-        ).result()
+        LOG.debug("Resetting session")
+        self._connection_status.authenticated_flag.clear()
+        await self._connection_properties.clear_session()
 
-    async def query_orb(
-        self, level: int, error_message: str
-    ) -> Optional[BeautifulSoup]:
-        """Query ADT Pulse ORB.
+    @property
+    def detailed_debug_logging(self) -> bool:
+        """Return detailed debug logging."""
+        return (
+            self._login_backoff.detailed_debug_logging
+            and self._connection_properties.detailed_debug_logging
+            and self._connection_status.detailed_debug_logging
+        )
 
-        Args:
-            level (int): error level to log on failure
-            error_message (str): error message to use on failure
+    @detailed_debug_logging.setter
+    @typechecked
+    def detailed_debug_logging(self, value: bool):
+        with self._pc_attribute_lock:
+            self._login_backoff.detailed_debug_logging = value
+            self._connection_properties.detailed_debug_logging = value
+            self._connection_status.detailed_debug_logging = value
 
-        Returns:
-            Optional[BeautifulSoup]: A Beautiful Soup object, or None if failure
-        """
-        response = await self.async_query(ADT_ORB_URI)
-
-        return await make_soup(response, level, error_message)
-
-    def make_url(self, uri: str) -> str:
-        """Create a URL to service host from a URI.
-
-        Args:
-            uri (str): the URI to convert
-
-        Returns:
-            str: the converted string
-        """
-        with self._attribute_lock:
-            return f"{self._api_host}{API_PREFIX}{ADTPulseConnection._api_version}{uri}"
-
-    async def async_fetch_version(self) -> None:
-        """Fetch ADT Pulse version."""
-        with ADTPulseConnection._class_threadlock:
-            if ADTPulseConnection._api_version != ADT_DEFAULT_VERSION:
-                return
-            response = None
-            signin_url = f"{self.service_host}/myhome{ADT_LOGIN_URI}"
-            if self._session:
-                try:
-                    async with self._session.get(signin_url) as response:
-                        # we only need the headers here, don't parse response
-                        response.raise_for_status()
-                except (ClientResponseError, ClientConnectionError):
-                    LOG.warning(
-                        "Error occurred during API version fetch, defaulting to %s",
-                        ADT_DEFAULT_VERSION,
-                    )
-                    close_response(response)
-                    return
-
-            if response is None:
-                LOG.warning(
-                    "Error occurred during API version fetch, defaulting to %s",
-                    ADT_DEFAULT_VERSION,
-                )
-                return
-
-            m = re.search("/myhome/(.+)/[a-z]*/", response.real_url.path)
-            close_response(response)
-            if m is not None:
-                ADTPulseConnection._api_version = m.group(1)
-                LOG.debug(
-                    "Discovered ADT Pulse version %s at %s",
-                    ADTPulseConnection._api_version,
-                    self.service_host,
-                )
-                return
-
-            LOG.warning(
-                "Couldn't auto-detect ADT Pulse version, defaulting to %s",
-                ADT_DEFAULT_VERSION,
-            )
+    def get_login_backoff(self) -> PulseBackoff:
+        """Return login backoff."""
+        return self._login_backoff
