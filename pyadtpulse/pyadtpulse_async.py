@@ -61,6 +61,7 @@ class PyADTPulseAsync:
         "_site",
         "_detailed_debug_logging",
         "_sync_check_exception",
+        "_sync_check_sleeping",
     )
 
     @typechecked
@@ -129,6 +130,7 @@ class PyADTPulseAsync:
         pc_backoff = self._pulse_connection.get_login_backoff()
         self._sync_check_exception: Exception | None = PulseNotLoggedInError()
         pc_backoff.reset_backoff()
+        self._sync_check_sleeping = asyncio.Event()
 
     def __repr__(self) -> str:
         """Object representation."""
@@ -138,12 +140,21 @@ class PyADTPulseAsync:
 
     async def _update_sites(self, soup: BeautifulSoup) -> None:
         with self._pa_attribute_lock:
+            start_time = 0.0
+            if self._pulse_connection.detailed_debug_logging:
+                start_time = time.time()
             if self._site is None:
                 await self._initialize_sites(soup)
                 if self._site is None:
                     raise RuntimeError("pyadtpulse could not retrieve site")
             self._site.alarm_control_panel.update_alarm_from_soup(soup)
             self._site.update_zone_from_soup(soup)
+            if self._pulse_connection.detailed_debug_logging:
+                LOG.debug(
+                    "Updated site %s in %s seconds",
+                    self._site.id,
+                    time.time() - start_time,
+                )
 
     async def _initialize_sites(self, soup: BeautifulSoup) -> None:
         """
@@ -159,7 +170,9 @@ class PyADTPulseAsync:
         single_premise = soup.find("span", {"id": "p_singlePremise"})
         if single_premise:
             site_name = single_premise.text
-
+            start_time = 0.0
+            if self._pulse_connection.detailed_debug_logging:
+                start_time = time.time()
             # FIXME: this code works, but it doesn't pass the linter
             signout_link = str(
                 soup.find("a", {"class": "p_signoutlink"}).get("href")  # type: ignore
@@ -180,6 +193,12 @@ class PyADTPulseAsync:
                         new_site.gateway.is_online = False
                     new_site.update_zone_from_soup(soup)
                     self._site = new_site
+                    if self._pulse_connection.detailed_debug_logging:
+                        LOG.debug(
+                            "Initialized site %s in %s seconds",
+                            self._site.id,
+                            time.time() - start_time,
+                        )
                     return
             else:
                 LOG.warning(
@@ -241,6 +260,7 @@ class PyADTPulseAsync:
                 > randint(int(0.75 * relogin_interval), relogin_interval)
             )
 
+        next_full_logout_time = time.time() + 24 * 60 * 60
         response: str | None
         task_name: str = self._get_task_name(self._timeout_task, KEEPALIVE_TASK_NAME)
         LOG.debug("creating %s", task_name)
@@ -257,8 +277,24 @@ class PyADTPulseAsync:
                 if not self._pulse_connection.is_connected:
                     LOG.debug("%s: Skipping relogin because not connected", task_name)
                     continue
-                elif should_relogin(relogin_interval):
-                    await self._pulse_connection.quick_logout()
+                if should_relogin(relogin_interval):
+                    msg = "quick"
+                    if time.time() > next_full_logout_time:
+                        msg = "full"
+                    with self._pa_attribute_lock:
+                        if self._sync_task:
+                            if self._detailed_debug_logging:
+                                LOG.debug(
+                                    "%s: waiting for sync check task to sleep",
+                                    task_name,
+                                )
+                            await self._sync_check_sleeping.wait()
+                    if msg == "full":
+                        next_full_logout_time = time.time() + 24 * 60 * 60
+                        await self.async_logout()
+                    else:
+                        await self._pulse_connection.quick_logout()
+                    LOG.debug("%s: performing %s logout", task_name, msg)
                     try:
                         await self._login_looped(task_name)
                     except (PulseAuthenticationError, PulseMFARequiredError) as ex:
@@ -458,6 +494,7 @@ class PyADTPulseAsync:
 
         while True:
             try:
+                self._sync_check_sleeping.set()
                 if not have_updates and not self.site.gateway.is_online:
                     # gateway going back online will trigger a sync check of 1-0-0
                     await self.site.gateway.backoff.wait_for_backoff()
@@ -465,7 +502,7 @@ class PyADTPulseAsync:
                     await asyncio.sleep(
                         self.site.gateway.poll_interval if not have_updates else 0.0
                     )
-
+                self._sync_check_sleeping.clear()
                 try:
                     code, response_text, url = await perform_sync_check_query()
                 except (

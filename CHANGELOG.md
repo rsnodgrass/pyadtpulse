@@ -1,3 +1,9 @@
+## 1.2.1 (2024-02-07)
+
+* add timing loggin for zone/site updates
+* do full logout once per day
+* have keepalive task wait for sync check task to sleep before logging out
+
 ## 1.2.0 (2024-01-30)
 
 * add exceptions and exception handling

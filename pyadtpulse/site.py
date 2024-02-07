@@ -312,7 +312,9 @@ class ADTPulseSite(ADTPulseSiteProperties):
         Raises:
             PulseGatewayOffline: If the gateway is offline.
         """
-
+        start_time = 0.0
+        if self._pulse_connection.detailed_debug_logging:
+            start_time = time()
         # parse ADT's convulated html to get sensor status
         with self._site_lock:
             orb_status = soup.find("canvas", {"id": "ic_orb"})
@@ -402,7 +404,11 @@ class ADTPulseSite(ADTPulseSiteProperties):
                     status,
                     last_update,
                 )
+
             self._last_updated = int(time())
+
+            if self._pulse_connection.detailed_debug_logging:
+                LOG.debug("Updated zones in %f seconds", time() - start_time)
 
     async def _async_update_zones(self) -> list[ADTPulseFlattendZone] | None:
         """Update zones asynchronously.
