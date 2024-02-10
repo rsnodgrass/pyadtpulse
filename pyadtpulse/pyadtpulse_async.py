@@ -44,7 +44,7 @@ SYNC_CHECK_TASK_NAME = "ADT Pulse Sync Check Task"
 KEEPALIVE_TASK_NAME = "ADT Pulse Keepalive Task"
 # backoff time before warning in wait_for_update()
 WARN_TRANSIENT_FAILURE_THRESHOLD = 2
-FULL_LOGOUT_INTERVAL = 24 * 60 * 60
+FULL_LOGOUT_INTERVAL = 6 * 60 * 60
 
 
 class PyADTPulseAsync:
@@ -261,7 +261,9 @@ class PyADTPulseAsync:
                 > randint(int(0.75 * relogin_interval), relogin_interval)
             )
 
-        next_full_logout_time = time.time() + FULL_LOGOUT_INTERVAL
+        next_full_logout_time = time.time() + randint(
+            int(0.75 * FULL_LOGOUT_INTERVAL), FULL_LOGOUT_INTERVAL
+        )
         response: str | None
         task_name: str = self._get_task_name(self._timeout_task, KEEPALIVE_TASK_NAME)
         LOG.debug("creating %s", task_name)
@@ -291,7 +293,9 @@ class PyADTPulseAsync:
                                 )
                             await self._sync_check_sleeping.wait()
                     if msg == "full":
-                        next_full_logout_time = time.time() + FULL_LOGOUT_INTERVAL
+                        next_full_logout_time = time.time() + randint(
+                            int(0.75 * FULL_LOGOUT_INTERVAL), FULL_LOGOUT_INTERVAL
+                        )
                         await self.async_logout()
                     else:
                         await self._pulse_connection.quick_logout()
