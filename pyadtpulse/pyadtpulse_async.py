@@ -44,6 +44,7 @@ SYNC_CHECK_TASK_NAME = "ADT Pulse Sync Check Task"
 KEEPALIVE_TASK_NAME = "ADT Pulse Keepalive Task"
 # backoff time before warning in wait_for_update()
 WARN_TRANSIENT_FAILURE_THRESHOLD = 2
+FULL_LOGOUT_INTERVAL = 24 * 60 * 60
 
 
 class PyADTPulseAsync:
@@ -260,7 +261,7 @@ class PyADTPulseAsync:
                 > randint(int(0.75 * relogin_interval), relogin_interval)
             )
 
-        next_full_logout_time = time.time() + 24 * 60 * 60
+        next_full_logout_time = time.time() + FULL_LOGOUT_INTERVAL
         response: str | None
         task_name: str = self._get_task_name(self._timeout_task, KEEPALIVE_TASK_NAME)
         LOG.debug("creating %s", task_name)
@@ -290,7 +291,7 @@ class PyADTPulseAsync:
                                 )
                             await self._sync_check_sleeping.wait()
                     if msg == "full":
-                        next_full_logout_time = time.time() + 24 * 60 * 60
+                        next_full_logout_time = time.time() + FULL_LOGOUT_INTERVAL
                         await self.async_logout()
                     else:
                         await self._pulse_connection.quick_logout()
@@ -621,11 +622,11 @@ class PyADTPulseAsync:
         if self._pulse_connection.login_in_progress:
             LOG.debug("Login in progress, returning")
             return
-        self._set_update_exception(PulseNotLoggedInError())
         LOG.info(
             "Logging %s out of ADT Pulse", self._authentication_properties.username
         )
         if asyncio.current_task() not in (self._sync_task, self._timeout_task):
+            self._set_update_exception(PulseNotLoggedInError())
             await self._cancel_task(self._timeout_task)
             await self._cancel_task(self._sync_task)
         await self._pulse_connection.async_do_logout_query(self.site.id)
