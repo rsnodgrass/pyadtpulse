@@ -1,3 +1,8 @@
+## 1.2.5 (2024-02-10)
+
+* don't raise not logged in exception when sync check task logs out
+* change full logout interval to approximately every 6 hours
+
 ## 1.2.4 (2024-02-08)
 
 * change yarl dependencies

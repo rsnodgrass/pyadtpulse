@@ -1,6 +1,6 @@
 """Constants for pyadtpulse."""
 
-__version__ = "1.2.4"
+__version__ = "1.2.5"
 
 DEFAULT_API_HOST = "https://portal.adtpulse.com"
 API_HOST_CA = "https://portal-ca.adtpulse.com"  # Canada
