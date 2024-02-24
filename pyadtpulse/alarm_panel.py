@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from threading import RLock
 from time import time
 
-from bs4 import BeautifulSoup
+from lxml import html
 from typeguard import typechecked
 
 from .const import ADT_ARM_DISARM_URI
 from .pulse_connection import PulseConnection
-from .util import make_soup
+from .util import make_etree
 
 LOG = logging.getLogger(__name__)
 ADT_ALARM_AWAY = "away"
@@ -184,21 +184,21 @@ class ADTPulseAlarmPanel:
                 timeout=10,
             )
 
-            soup = make_soup(
+            tree = make_etree(
                 response[0],
                 response[1],
                 response[2],
                 logging.WARNING,
                 f"Failed updating ADT Pulse alarm {self._sat} to {mode}",
             )
-            if soup is None:
+            if tree is None:
                 return False
 
-            arm_result = soup.find("div", {"class": "p_armDisarmWrapper"})
+            arm_result = tree.find(".//div[@class='p_armDisarmWrapper']")
             if arm_result is not None:
-                error_block = arm_result.find("div")
+                error_block = arm_result.find(".//div")
                 if error_block is not None:
-                    error_text = arm_result.get_text().replace(
+                    error_text = arm_result.text_contents().replace(
                         "Arm AnywayCancel\n\n", ""
                     )
                     LOG.warning(
@@ -298,24 +298,23 @@ class ADTPulseAlarmPanel:
         return await self._arm(connection, ADT_ALARM_OFF, False)
 
     @typechecked
-    def update_alarm_from_soup(self, summary_html_soup: BeautifulSoup) -> None:
+    def update_alarm_from_etree(self, summary_html_etree: html.HtmlElement) -> None:
         """
         Updates the alarm status based on the information extracted from the provided
-        HTML soup.
+        lxml etree
 
         Args:
-            summary_html_soup (BeautifulSoup): The BeautifulSoup object representing
-            the HTML soup.
+            summary_html_etree: html.HtmlElement: the parsed response tree.
 
         Returns:
             None: This function does not return anything.
         """
         LOG.debug("Updating alarm status")
-        value = summary_html_soup.find("span", {"class": "p_boldNormalTextLarge"})
+        value = summary_html_etree.find(".//span[@class='p_boldNormalTextLarge']")
         sat_location = "security_button_0"
         with self._state_lock:
-            if value:
-                text = value.text.lstrip().splitlines()[0]
+            if value is not None:
+                text = value.text_content().lstrip().splitlines()[0]
                 last_updated = int(time())
 
                 if text.startswith("Disarmed"):
@@ -345,12 +344,10 @@ class ADTPulseAlarmPanel:
                     self._last_arm_disarm = last_updated
                     return
                 LOG.debug("Alarm status = %s", self._status)
-
-            sat_button = summary_html_soup.find(
-                "input", {"type": "button", "id": sat_location}
-            )
-            if sat_button and sat_button.has_attr("onclick"):
-                on_click = sat_button["onclick"]
+            sat_string = f'.//input[@id="{sat_location}"]'
+            sat_button = summary_html_etree.find(sat_string)
+            if sat_button is not None and "onclick" in sat_button.attrib:
+                on_click = sat_button.attrib["onclick"]
                 match = re.search(r"sat=([a-z0-9\-]+)", on_click)
                 if match:
                     self._sat = match.group(1)

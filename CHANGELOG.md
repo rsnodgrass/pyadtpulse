@@ -1,3 +1,16 @@
+## 1.2.7 (2024-02-23)
+
+* catch site is None on logout to prevent "have you logged in" errors
+* speed improvements via aiohttp-zlib-ng
+
+## 1.2.6 (2024-02-23)
+
+Performance improvements including:
+
+* switch from BeautifulSoup to lxml for faster parsing
+* optimize zone parsing to only update zones which have changed
+* change wait_for_update() to pass the changed zones/alarm state to caller
+
 ## 1.2.5 (2024-02-10)
 
 * don't raise not logged in exception when sync check task logs out

@@ -29,7 +29,14 @@ setuptools.setup(
     author="",
     author_email="",
     license="Apache Software License",
-    install_requires=["aiohttp>=3.8.1", "uvloop>=0.17.0", "beautifulsoup4>=4.11.1"],
+    install_requires=[
+        "aiohttp>=3.8.5",
+        "uvloop>=0.17.0",
+        "lxml>=5.1.0",
+        "typeguard>=2.13.3",
+        "yarl>=1.8.2",
+        "aiohttp-zlib-ng>=0.1.1",
+    ],
     keywords=["security system", "adt", "home automation", "security alarm"],
     zip_safe=True,
     classifiers=[

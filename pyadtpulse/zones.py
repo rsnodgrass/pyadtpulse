@@ -55,10 +55,6 @@ class ADTPulseZoneData:
     @typechecked
     def last_activity_timestamp(self, value: int) -> None:
         """Set the last activity timestamp."""
-        if value < 1420070400:
-            raise ValueError(
-                "last_activity_timestamp must be greater than that of 01-Jan-2015"
-            )
         self._last_activity_timestamp = value
 
     @property

@@ -9,7 +9,7 @@ from pathlib import Path
 from random import randint
 from threading import RLock, current_thread
 
-from bs4 import BeautifulSoup
+from lxml import html
 from yarl import URL
 
 LOG = logging.getLogger(__name__)
@@ -45,30 +45,30 @@ def handle_response(code: int, url: URL | None, level: int, error_message: str) 
     return True
 
 
-def make_soup(
+def make_etree(
     code: int,
     response_text: str | None,
     url: URL | None,
     level: int,
     error_message: str,
-) -> BeautifulSoup | None:
-    """Make a BS object from a Response.
+) -> html.HtmlElement | None:
+    """Make a parsed HTML tree from a Response using lxml.
 
     Args:
         code (int): the return code
-        response_text Optional(str): the response text
+        response_text (Optional[str]): the response text
         level (int): the logging level on error
         error_message (str): the error message
 
     Returns:
-        Optional[BeautifulSoup]: a BS object, or None on failure
+        Optional[html.HtmlElement]: a parsed HTML tree, or None on failure
     """
     if not handle_response(code, url, level, error_message):
         return None
     if response_text is None:
         LOG.log(level, "%s: no response received from %s", error_message, url)
         return None
-    return BeautifulSoup(response_text, "html.parser")
+    return html.fromstring(response_text)
 
 
 FINGERPRINT_LENGTH = 2292
@@ -225,7 +225,7 @@ def parse_pulse_datetime(datestring: str) -> datetime:
         tempdate = f"{split_string[0]}/{t.year}"
         last_update = datetime.strptime(tempdate, "%m/%d/%Y")
     if last_update > t:
-        last_update = last_update.replace(year=t.year)
+        last_update = last_update.replace(year=t.year - 1)
     update_time = datetime.time(
         datetime.strptime(split_string[1] + split_string[2], "%I:%M%p")
     )

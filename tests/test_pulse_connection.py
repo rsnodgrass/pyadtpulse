@@ -4,7 +4,7 @@ import asyncio
 import datetime
 
 import pytest
-from bs4 import BeautifulSoup
+from lxml import html
 
 from conftest import LoginType, add_custom_response, add_signin
 from pyadtpulse.const import ADT_LOGIN_URI, DEFAULT_API_HOST
@@ -38,7 +38,8 @@ async def test_login(mocked_server_responses, read_file, mock_sleep, get_mocked_
     add_signin(LoginType.SUCCESS, mocked_server_responses, get_mocked_url, read_file)
     # first call to signin post is successful in conftest.py
     result = await pc.async_do_login_query()
-    assert result == BeautifulSoup(read_file("summary.html"), "html.parser")
+    assert result is not None
+    assert html.tostring(result) == read_file("summary.html")
     assert mock_sleep.call_count == 0
     assert pc.login_in_progress is False
     assert pc._login_backoff.backoff_count == 0
@@ -70,7 +71,8 @@ async def test_multiple_login(
     pc = setup_pulse_connection()
     add_signin(LoginType.SUCCESS, mocked_server_responses, get_mocked_url, read_file)
     result = await pc.async_do_login_query()
-    assert result == BeautifulSoup(read_file("summary.html"), "html.parser")
+    assert result is not None
+    assert html.tostring(result) == read_file("summary.html")
     assert mock_sleep.call_count == 0
     assert pc.login_in_progress is False
     assert pc._login_backoff.backoff_count == 0

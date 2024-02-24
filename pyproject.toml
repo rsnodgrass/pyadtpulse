@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyadtpulse"
-version = "1.2.5"
+version = "1.2.7"
 description = "Python interface for ADT Pulse security systems"
 authors = ["Ryan Snodgrass"]
 maintainers = ["Robert Lippmann"]
@@ -17,11 +17,11 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.11"
 aiohttp = ">=3.8.5, < 4.0"
-beautifulsoup4 = "^4.12.2"
 uvloop = "^0.19.0"
-bs4 = "^0.0.1"
 typeguard = "^4.1.5"
 yarl = ">=1.9, < 2.0"
+lxml = "^5.1.0"
+aiohttp-zlib-ng = ">=0.1.1"
 
 
 [tool.poetry.urls]
@@ -49,8 +49,8 @@ isort = "^5.12.0"
 black = "^23.10.1"
 mypy = "^1.6.1"
 pylint = "^3.0.2"
-types-beautifulsoup4 = "^4.12.0.7"
 refurb = "^1.22.1"
+types-lxml = "^2024.2.9"
 
 [build-system]
 requires = ["poetry-core"]

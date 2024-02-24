@@ -8,7 +8,7 @@ import re
 from asyncio import AbstractEventLoop
 from time import time
 
-from bs4 import BeautifulSoup
+from lxml import html
 from typeguard import typechecked
 from yarl import URL
 
@@ -33,7 +33,7 @@ from .pulse_backoff import PulseBackoff
 from .pulse_connection_properties import PulseConnectionProperties
 from .pulse_connection_status import PulseConnectionStatus
 from .pulse_query_manager import PulseQueryManager
-from .util import make_soup, set_debug_lock
+from .util import make_etree, set_debug_lock
 
 LOG = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class PulseConnection(PulseQueryManager):
     @typechecked
     def check_login_errors(
         self, response: tuple[int, str | None, URL | None]
-    ) -> BeautifulSoup:
+    ) -> html.HtmlElement:
         """Check response for login errors.
 
         Will handle setting backoffs and raising exceptions.
@@ -94,7 +94,7 @@ class PulseConnection(PulseQueryManager):
             response (tuple[int, str | None, URL | None]): The response
 
         Returns:
-            BeautifulSoup: The parsed response
+            html.HtmlElement: the parsed response tree
 
         Raises:
             PulseAuthenticationError: if login fails due to incorrect username/password
@@ -121,9 +121,9 @@ class PulseConnection(PulseQueryManager):
             self._login_in_progress = False
             url = self._connection_properties.make_url(ADT_LOGIN_URI)
             if url == response_url_string:
-                error = soup.find("div", {"id": "warnMsgContents"})
-                if error:
-                    error_text = error.get_text()
+                error = tree.find(".//div[@id='warnMsgContents']")
+                if error is not None:
+                    error_text = error.text_content()
                     LOG.error("Error logging into pulse: %s", error_text)
                     if "Try again in" in error_text:
                         if (retry_after := extract_seconds_from_string(error_text)) > 0:
@@ -136,13 +136,14 @@ class PulseConnection(PulseQueryManager):
                     elif "Sign In Unsuccessful" in error_text:
                         raise PulseAuthenticationError()
                 else:
+                    LOG.error("Unknown error logging into pulse: no message given")
                     raise PulseNotLoggedInError()
             else:
                 url = self._connection_properties.make_url(ADT_MFA_FAIL_URI)
                 if url == response_url_string:
                     raise PulseMFARequiredError()
 
-        soup = make_soup(
+        tree = make_etree(
             response[0],
             response[1],
             response[2],
@@ -150,22 +151,29 @@ class PulseConnection(PulseQueryManager):
             "Could not log into ADT Pulse site",
         )
         # this probably should have been handled by async_query()
-        if soup is None:
+        if tree is None:
             raise PulseServerConnectionError(
-                f"Could not log into ADT Pulse site: code {response[0]}: URL: {response[2]}, response: {response[1]}",
+                f"Could not log into ADT Pulse site: code {response[0]}: "
+                f"URL: {response[2]}, response: {response[1]}",
                 self._login_backoff,
             )
         url = self._connection_properties.make_url(ADT_SUMMARY_URI)
         response_url_string = str(response[2])
         if url != response_url_string:
             determine_error_type()
+            # if we get here we can't determine the error
+            # raise a generic authentication error
+            LOG.error(
+                "Login received unexpected response from login query: %s",
+                response_url_string,
+            )
             raise PulseAuthenticationError()
-        return soup
+        return tree
 
     @typechecked
     async def async_do_login_query(
         self, timeout: int = ADT_DEFAULT_LOGIN_TIMEOUT
-    ) -> BeautifulSoup | None:
+    ) -> html.HtmlElement | None:
         """
         Performs a login query to the Pulse site.
 
@@ -178,7 +186,7 @@ class PulseConnection(PulseQueryManager):
             Defaults to ADT_DEFAULT_LOGIN_TIMEOUT.
 
         Returns:
-            soup: Optional[BeautifulSoup]: A BeautifulSoup object containing
+            tree (html.HtmlElement, optional): the parsed response tree for
             summary.jsp, or None if failure
         Raises:
             ValueError: if login parameters are not correct
@@ -188,7 +196,8 @@ class PulseConnection(PulseQueryManager):
                 server is temporarily unavailable
             PulseAccountLockedError: if login fails due to account locked
             PulseMFARequiredError: if login fails due to MFA required
-            PulseNotLoggedInError: if login fails due to not logged in (which is probably an internal error)
+            PulseNotLoggedInError: if login fails due to not logged in
+                (which is probably an internal error)
         """
 
         if self.login_in_progress:
@@ -226,12 +235,12 @@ class PulseConnection(PulseQueryManager):
             LOG.error("Could not log into Pulse site: %s", e)
             self.login_in_progress = False
             raise
-        soup = self.check_login_errors(response)
+        tree = self.check_login_errors(response)
         self._connection_status.authenticated_flag.set()
         self._authentication_properties.last_login_time = int(time())
         self._login_backoff.reset_backoff()
         self.login_in_progress = False
-        return soup
+        return tree
 
     @typechecked
     async def async_do_logout_query(self, site_id: str | None = None) -> None:

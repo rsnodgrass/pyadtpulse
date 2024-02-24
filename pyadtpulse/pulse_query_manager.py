@@ -16,7 +16,7 @@ from aiohttp import (
     ServerDisconnectedError,
     ServerTimeoutError,
 )
-from bs4 import BeautifulSoup
+from lxml import html
 from typeguard import typechecked
 from yarl import URL
 
@@ -35,7 +35,7 @@ from .exceptions import (
 from .pulse_backoff import PulseBackoff
 from .pulse_connection_properties import PulseConnectionProperties
 from .pulse_connection_status import PulseConnectionStatus
-from .util import make_soup, set_debug_lock
+from .util import make_etree, set_debug_lock
 
 LOG = getLogger(__name__)
 
@@ -119,7 +119,8 @@ class PulseQueryManager:
                 retry_after (str): The value of the "Retry-After" header
 
             Returns:
-                int | None: The timestamp in seconds to wait before retrying, or None if the header is invalid.
+                int | None: The timestamp in seconds to wait before retrying,
+                    or None if the header is invalid.
             """
             if retry_after.isnumeric():
                 retval = int(retry_after) + int(time())
@@ -352,7 +353,9 @@ class PulseQueryManager:
         self._connection_status.get_backoff().reset_backoff()
         return (return_value[0], return_value[1], return_value[2])
 
-    async def query_orb(self, level: int, error_message: str) -> BeautifulSoup | None:
+    async def query_orb(
+        self, level: int, error_message: str
+    ) -> html.HtmlElement | None:
         """Query ADT Pulse ORB.
 
         Args:
@@ -360,7 +363,7 @@ class PulseQueryManager:
             error_message (str): error message to use on failure
 
         Returns:
-            Optional[BeautifulSoup]: A Beautiful Soup object, or None if failure
+            Optional[html.HtmlElement]: the parsed response tree
 
         Raises:
             PulseClientConnectionError: If the client cannot connect
@@ -372,7 +375,7 @@ class PulseQueryManager:
             extra_headers={"Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"},
         )
 
-        return make_soup(code, response, url, level, error_message)
+        return make_etree(code, response, url, level, error_message)
 
     async def async_fetch_version(self) -> None:
         """Fetch ADT Pulse version.

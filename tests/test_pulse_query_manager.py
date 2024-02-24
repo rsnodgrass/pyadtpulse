@@ -9,8 +9,8 @@ from typing import Any, Callable
 import pytest
 from aiohttp import client_exceptions, client_reqrep
 from aioresponses import aioresponses
-from bs4 import BeautifulSoup
 from freezegun.api import FrozenDateTimeFactory, StepTickTimeFactory
+from lxml import html
 
 from conftest import MOCKED_API_VERSION
 from pyadtpulse.const import ADT_ORB_URI, DEFAULT_API_HOST
@@ -97,7 +97,9 @@ async def test_query_orb(
     s.authenticated_flag.set()
     await task
     assert task.done()
-    assert task.result() == BeautifulSoup(orb_file, "html.parser")
+    result_etree = task.result()
+    assert result_etree is not None
+    assert html.tostring(result_etree) == orb_file
     assert mock_sleep.call_count == 1  # from the asyncio.sleep call above
     mocked_server_responses.get(cp.make_url(ADT_ORB_URI), status=404)
     with pytest.raises(PulseServerConnectionError):
@@ -108,7 +110,8 @@ async def test_query_orb(
         cp.make_url(ADT_ORB_URI), status=200, content_type="text/html", body=orb_file
     )
     result = await query_orb_task()
-    assert result == BeautifulSoup(orb_file, "html.parser")
+    assert result is not None
+    assert html.tostring(result) == orb_file
     assert mock_sleep.call_count == 2
 
 
@@ -376,7 +379,8 @@ async def test_wait_for_authentication_flag(
     assert not task.done()
     s.authenticated_flag.set()
     result = await task
-    assert result == BeautifulSoup(read_file("orb.html"), "html.parser")
+    assert result is not None
+    assert html.tostring(result) == read_file("orb.html")
 
     # test query with retry will wait for authentication
     # don't set an orb response so that we will backoff on the query

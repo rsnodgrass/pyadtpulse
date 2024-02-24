@@ -98,9 +98,12 @@ ADT Pulse requires 2 factor authentication to log into their site. When you perf
 
 Internally, ADT uses some Javascript code to create a browser fingerprint. This (very long) string is used to check that the browser has been saved upon subsequent logins. It is the "fingerprint" parameter required to be passed in to the PyADTPulse object constructor.
 
-### Note:
+### Notes:
 
-The browser fingerprint will change with a browser/OS upgrade. For this reason, it is recommended to create a separate username in ADT Pulse just for monitoring.
+The browser fingerprint will change with a browser/OS upgrade.  While it is not strictly necessary to create a separate username/password for logging in through pyadtpulse, it is recommended to do so.
+
+**<ins>Warning:</ins> If another connection is made to the Pulse portal with the same fingerprint, the first connection will be logged out.  For this reason it is recommended to use a browser/machine you would not normally use to log into the Pulse web site to generate the fingerprint.**
+
 
 There are 2 ways to determine this fingerprint:
 
