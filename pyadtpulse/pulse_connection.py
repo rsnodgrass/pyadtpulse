@@ -215,9 +215,10 @@ class PulseConnection(PulseQueryManager):
         data = {
             "usernameForm": self._authentication_properties.username,
             "passwordForm": self._authentication_properties.password,
-            "networkid": self._authentication_properties.site_id,
             "fingerprint": self._authentication_properties.fingerprint,
         }
+        if self._authentication_properties.site_id:
+            data["networkid"] = self._authentication_properties.site_id
         await self._login_backoff.wait_for_backoff()
         try:
             response = await self.async_query(

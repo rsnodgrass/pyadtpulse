@@ -1,3 +1,9 @@
+## 1.2.8 (2024-03-07)
+
+* add more detail to "invalid sync check" error logging
+* don't exit sync check task on service temporarily unavailable or invalid login
+* don't use empty site id for logins
+
 ## 1.2.7 (2024-02-23)
 
 * catch site is None on logout to prevent "have you logged in" errors
