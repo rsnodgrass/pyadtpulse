@@ -109,7 +109,8 @@ class PulseQueryManager:
         Raises:
             PulseServerConnectionError: If the server returns an error code.
             PulseServiceTemporarilyUnavailableError: If the server returns a
-                Retry-After header."""
+                HTTP status code of 429 or 503.
+        """
 
         def get_retry_after(retry_after: str) -> int | None:
             """
@@ -212,7 +213,7 @@ class PulseQueryManager:
         Raises:
             PulseClientConnectionError: If the client cannot connect
             PulseServerConnectionError: If there is a server error
-            PulseServiceTemporarilyUnavailableError: If the server returns a Retry-After header
+            PulseServiceTemporarilyUnavailableError: If the server returns an HTTP status code of 429 or 503
             PulseNotLoggedInError: if not logged in and task is waiting for longer than
                 ADT_DEFAULT_LOGIN_TIMEOUT seconds
         """

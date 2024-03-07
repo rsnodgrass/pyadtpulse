@@ -531,17 +531,17 @@ class PyADTPulseAsync:
                         msg = ", ignoring..."
                     LOG.debug("Pulse sync check query failed due to %s%s", e, msg)
                     continue
-                except (
-                    PulseServiceTemporarilyUnavailableError,
-                    PulseNotLoggedInError,
-                ) as e:
-                    if isinstance(e, PulseServiceTemporarilyUnavailableError):
-                        status = "temporarily unavailable"
-                    else:
-                        status = "not logged in"
-                    LOG.error("Pulse service %s, ending %s task", status, task_name)
-                    await shutdown_task(e)
-                    return
+                except PulseServiceTemporarilyUnavailableError as e:
+                    LOG.error("Pulse sync check query failed due to %s", e)
+                    self._set_update_exception(e)
+                    continue
+                except PulseNotLoggedInError:
+                    LOG.info(
+                        "Pulse sync check query failed due to not logged in, relogging in..."
+                    )
+                    await self._pulse_connection.quick_logout()
+                    await self._login_looped(task_name)
+                    continue
                 if not handle_response(
                     code, url, logging.WARNING, "Error querying ADT sync"
                 ):
@@ -556,7 +556,9 @@ class PyADTPulseAsync:
                     else:
                         have_updates = check_sync_check_response()
                 except PulseNotLoggedInError:
-                    LOG.info("Pulse sync check indicates logged out, re-logging in....")
+                    LOG.info(
+                        "Pulse sync check text indicates logged out, re-logging in...."
+                    )
                     await self._pulse_connection.quick_logout()
                     await self._login_looped(task_name)
                 except (
