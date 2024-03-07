@@ -443,10 +443,18 @@ class PyADTPulseAsync:
                 return False
             pattern = r"\d+[-]\d+[-]\d+"
             if not re.match(pattern, response_text):
-                LOG.warning(
-                    "Unexpected sync check format",
-                )
-                self._pulse_connection.check_login_errors((code, response_text, url))
+                warning_msg = "Unexpected sync check format"
+                try:
+                    self._pulse_connection.check_login_errors(
+                        (code, response_text, url)
+                    )
+                except Exception as ex:
+                    warning_msg += f": {ex}"
+                    raise
+                else:
+                    warning_msg += ": skipping"
+                finally:
+                    LOG.warning(warning_msg)
                 return False
             split_text = response_text.split("-")
             if int(split_text[0]) > 9 or int(split_text[1]) > 9:
