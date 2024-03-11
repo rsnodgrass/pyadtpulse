@@ -21,6 +21,7 @@ ADT_ALARM_OFF = "off"
 ADT_ALARM_UNKNOWN = "unknown"
 ADT_ALARM_ARMING = "arming"
 ADT_ALARM_DISARMING = "disarming"
+ADT_ALARM_NIGHT = "night"
 
 ALARM_STATUSES = (
     ADT_ALARM_AWAY,
@@ -29,6 +30,7 @@ ALARM_STATUSES = (
     ADT_ALARM_UNKNOWN,
     ADT_ALARM_ARMING,
     ADT_ALARM_DISARMING,
+    ADT_ALARM_NIGHT,
 )
 
 ADT_ARM_DISARM_TIMEOUT: float = 20
@@ -128,6 +130,16 @@ class ADTPulseAlarmPanel:
         """
         with self._state_lock:
             return self._status == ADT_ALARM_DISARMING
+
+    @property
+    def is_armed_night(self) -> bool:
+        """Return if system is in night mode.
+
+        Returns:
+            bool: True if system is in night mode
+        """
+        with self._state_lock:
+            return self._status == ADT_ALARM_NIGHT
 
     @property
     def last_update(self) -> float:
@@ -241,6 +253,18 @@ class ADTPulseAlarmPanel:
         return self._sync_set_alarm_mode(connection, ADT_ALARM_AWAY, force_arm)
 
     @typechecked
+    def arm_night(self, connection: PulseConnection, force_arm: bool = False) -> bool:
+        """Arm the alarm in Night mode.
+
+        Args:
+            force_arm (bool, Optional): force system to arm
+
+        Returns:
+            bool: True if arm succeeded
+        """
+        return self._sync_set_alarm_mode(connection, ADT_ALARM_NIGHT, force_arm)
+
+    @typechecked
     def arm_home(self, connection: PulseConnection, force_arm: bool = False) -> bool:
         """Arm the alarm in Home mode.
 
@@ -287,6 +311,19 @@ class ADTPulseAlarmPanel:
             bool: True if arm succeeded
         """
         return await self._arm(connection, ADT_ALARM_HOME, force_arm)
+
+    @typechecked
+    async def async_arm_night(
+        self, connection: PulseConnection, force_arm: bool = False
+    ) -> bool:
+        """Arm alarm night async.
+
+        Args:
+            force_arm (bool, Optional): force system to arm
+        Returns:
+            bool: True if arm succeeded
+        """
+        return await self._arm(connection, ADT_ALARM_NIGHT, force_arm)
 
     @typechecked
     async def async_disarm(self, connection: PulseConnection) -> bool:
