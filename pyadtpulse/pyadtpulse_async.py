@@ -272,9 +272,13 @@ class PyADTPulseAsync:
             relogin_interval = self._pulse_properties.relogin_interval * 60
             try:
                 await asyncio.sleep(self._pulse_properties.keepalive_interval * 60)
-                if self._pulse_connection_status.retry_after > time.time():
+                if (
+                    self._pulse_connection_status.retry_after > time.time()
+                    or self._pulse_connection_status.get_backoff().backoff_count
+                    > WARN_TRANSIENT_FAILURE_THRESHOLD
+                ):
                     LOG.debug(
-                        "%s: Skipping actions because retry_after > now", task_name
+                        "%s: Skipping actions because query will backoff", task_name
                     )
                     continue
                 if not self._pulse_connection.is_connected:
