@@ -33,6 +33,13 @@ ALARM_STATUSES = (
     ADT_ALARM_NIGHT,
 )
 
+ALARM_POSSIBLE_STATUS_MAP = {
+    "Disarmed": (ADT_ALARM_OFF, ADT_ALARM_ARMING),
+    "Armed Away": (ADT_ALARM_AWAY, ADT_ALARM_DISARMING),
+    "Armed Stay": (ADT_ALARM_HOME, ADT_ALARM_DISARMING),
+    "Armed Night": (ADT_ALARM_NIGHT, ADT_ALARM_DISARMING),
+}
+
 ADT_ARM_DISARM_TIMEOUT: float = 20
 
 
@@ -350,38 +357,33 @@ class ADTPulseAlarmPanel:
         value = summary_html_etree.find(".//span[@class='p_boldNormalTextLarge']")
         sat_location = "security_button_0"
         with self._state_lock:
+            status_found = False
+            last_updated = int(time())
             if value is not None:
                 text = value.text_content().lstrip().splitlines()[0]
-                last_updated = int(time())
 
-                if text.startswith("Disarmed"):
-                    if (
-                        self._status != ADT_ALARM_ARMING
-                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                    ):
-                        self._status = ADT_ALARM_OFF
-                        self._last_arm_disarm = last_updated
-                elif text.startswith("Armed Away"):
-                    if (
-                        self._status != ADT_ALARM_DISARMING
-                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                    ):
-                        self._status = ADT_ALARM_AWAY
-                        self._last_arm_disarm = last_updated
-                elif text.startswith("Armed Stay"):
-                    if (
-                        self._status != ADT_ALARM_DISARMING
-                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                    ):
-                        self._status = ADT_ALARM_HOME
-                        self._last_arm_disarm = last_updated
-                else:
-                    if not text.startswith("Status Unavailable"):
-                        LOG.warning("Failed to get alarm status from '%s'", text)
-                    self._status = ADT_ALARM_UNKNOWN
-                    self._last_arm_disarm = last_updated
-                    return
-                LOG.debug("Alarm status = %s", self._status)
+                for (
+                    current_status,
+                    possible_statuses,
+                ) in ALARM_POSSIBLE_STATUS_MAP.items():
+                    if text.startswith(current_status):
+                        status_found = True
+                        if (
+                            self._status != possible_statuses[1]
+                            or last_updated - self._last_arm_disarm
+                            > ADT_ARM_DISARM_TIMEOUT
+                        ):
+                            self._status = possible_statuses[0]
+                            self._last_arm_disarm = last_updated
+                        break
+
+            if value is None or not status_found:
+                if not text.startswith("Status Unavailable"):
+                    LOG.warning("Failed to get alarm status from '%s'", text)
+                self._status = ADT_ALARM_UNKNOWN
+                self._last_arm_disarm = last_updated
+                return
+            LOG.debug("Alarm status = %s", self._status)
             sat_string = f'.//input[@id="{sat_location}"]'
             sat_button = summary_html_etree.find(sat_string)
             if sat_button is not None and "onclick" in sat_button.attrib:
@@ -389,13 +391,10 @@ class ADTPulseAlarmPanel:
                 match = re.search(r"sat=([a-z0-9\-]+)", on_click)
                 if match:
                     self._sat = match.group(1)
-            elif len(self._sat) == 0:
-                LOG.warning("No sat recorded and was unable extract sat.")
-
-            if len(self._sat) > 0:
-                LOG.debug("Extracted sat = %s", self._sat)
+            if not self._sat:
+                LOG.warning("No sat recorded and was unable to extract sat.")
             else:
-                LOG.warning("Unable to extract sat")
+                LOG.debug("Extracted sat = %s", self._sat)
 
     @typechecked
     def set_alarm_attributes(self, alarm_attributes: dict[str, str]) -> None:
