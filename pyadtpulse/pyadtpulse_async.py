@@ -171,13 +171,15 @@ class PyADTPulseAsync:
         """
         # typically, ADT Pulse accounts have only a single site (premise/location)
         single_premise = tree.find(".//span[@id='p_singlePremise']")
-        if single_premise is not None:
+        if single_premise is not None and single_premise.text:
             site_name = single_premise.text
             start_time = 0.0
             if self._pulse_connection.detailed_debug_logging:
                 start_time = time.time()
-            # FIXME: this code works, but it doesn't pass the linter
-            signout_link = str(tree.find(".//a[@class='p_signoutlink']").get("href"))
+            temp = tree.find(".//a[@class='p_signoutlink']")
+            signout_link = None
+            if temp is not None:
+                signout_link = str(temp.get("href"))
             if signout_link:
                 m = re.search("networkid=(.+)&", signout_link)
                 if m and m.group(1) and m.group(1):
