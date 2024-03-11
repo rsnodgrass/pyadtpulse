@@ -34,9 +34,9 @@ ADT_GATEWAY_MAX_OFFLINE_POLL_INTERVAL = 600.0
 ADT_MAX_BACKOFF: float = 5.0 * 60.0
 ADT_DEFAULT_HTTP_USER_AGENT = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/100.0.4896.127 Safari/537.36 Edg/100.0.1185.44"
+        "Chrome/122.0.0.0 Safari/537.36"
     )
 }
 
