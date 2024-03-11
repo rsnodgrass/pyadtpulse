@@ -198,7 +198,7 @@ class ADTPulseAlarmPanel:
             if arm_result is not None:
                 error_block = arm_result.find(".//div")
                 if error_block is not None:
-                    error_text = arm_result.text_contents().replace(
+                    error_text = arm_result.text_content().replace(
                         "Arm AnywayCancel\n\n", ""
                     )
                     LOG.warning(
