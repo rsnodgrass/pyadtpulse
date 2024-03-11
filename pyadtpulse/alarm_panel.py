@@ -339,7 +339,8 @@ class ADTPulseAlarmPanel:
                         self._status = ADT_ALARM_HOME
                         self._last_arm_disarm = last_updated
                 else:
-                    LOG.warning("Failed to get alarm status from '%s'", text)
+                    if not text.startswith("Status Unavailable"):
+                        LOG.warning("Failed to get alarm status from '%s'", text)
                     self._status = ADT_ALARM_UNKNOWN
                     self._last_arm_disarm = last_updated
                     return
