@@ -120,7 +120,7 @@ class PulseConnection(PulseQueryManager):
             """
             self._login_in_progress = False
             url = self._connection_properties.make_url(ADT_LOGIN_URI)
-            if url == response_url_string:
+            if response_url_string.startswith(url):
                 error = tree.find(".//div[@id='warnMsgContents']")
                 if error is not None:
                     error_text = error.text_content()
