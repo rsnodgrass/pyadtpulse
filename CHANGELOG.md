@@ -1,3 +1,14 @@
+## 1.2.9 (2024-03-11)
+
+* ignore query string in check_login_errors().  This should fix a bug where the task was logged out
+  but not correctly being identified
+* remove unnecessary warning in alarm status check
+* add arm night
+* refactor update_alarm_from_etree()
+* bump to newer user agent
+* skip sync check if it will back off
+* fix linter issue in _initialize_sites
+
 ## 1.2.8 (2024-03-07)
 
 * add more detail to "invalid sync check" error logging
