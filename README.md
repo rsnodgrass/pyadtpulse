@@ -9,7 +9,7 @@ Python client interface to the ADT Pulse security system.
 ## UNSUPPORTED
 
 **This is an unsupported interface provided only as a basis for others to explore integrating
-their ADT system wtih their own tools.**
+their ADT system wtih their own tools.**  PLEASE FEEL FREE TO CONTRIBUTE CHANGES! Pull requests are accepted.
 
 While two or three Python clients to ADT Pulse existed, they generally only provided
 arm/disarm support and none provided support for ADT Pulse when multiple sites existed
