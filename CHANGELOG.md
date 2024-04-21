@@ -1,4 +1,4 @@
-## 1.2.9 (2024-03-11)
+## 1.2.9 (2024-04-21)
 
 * ignore query string in check_login_errors().  This should fix a bug where the task was logged out
   but not correctly being identified
