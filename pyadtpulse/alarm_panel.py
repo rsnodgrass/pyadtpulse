@@ -21,6 +21,7 @@ ADT_ALARM_OFF = "off"
 ADT_ALARM_UNKNOWN = "unknown"
 ADT_ALARM_ARMING = "arming"
 ADT_ALARM_DISARMING = "disarming"
+ADT_ALARM_NIGHT = "night"
 
 ALARM_STATUSES = (
     ADT_ALARM_AWAY,
@@ -29,7 +30,15 @@ ALARM_STATUSES = (
     ADT_ALARM_UNKNOWN,
     ADT_ALARM_ARMING,
     ADT_ALARM_DISARMING,
+    ADT_ALARM_NIGHT,
 )
+
+ALARM_POSSIBLE_STATUS_MAP = {
+    "Disarmed": (ADT_ALARM_OFF, ADT_ALARM_ARMING),
+    "Armed Away": (ADT_ALARM_AWAY, ADT_ALARM_DISARMING),
+    "Armed Stay": (ADT_ALARM_HOME, ADT_ALARM_DISARMING),
+    "Armed Night": (ADT_ALARM_NIGHT, ADT_ALARM_DISARMING),
+}
 
 ADT_ARM_DISARM_TIMEOUT: float = 20
 
@@ -130,6 +139,16 @@ class ADTPulseAlarmPanel:
             return self._status == ADT_ALARM_DISARMING
 
     @property
+    def is_armed_night(self) -> bool:
+        """Return if system is in night mode.
+
+        Returns:
+            bool: True if system is in night mode
+        """
+        with self._state_lock:
+            return self._status == ADT_ALARM_NIGHT
+
+    @property
     def last_update(self) -> float:
         """Return last update time.
 
@@ -198,7 +217,7 @@ class ADTPulseAlarmPanel:
             if arm_result is not None:
                 error_block = arm_result.find(".//div")
                 if error_block is not None:
-                    error_text = arm_result.text_contents().replace(
+                    error_text = arm_result.text_content().replace(
                         "Arm AnywayCancel\n\n", ""
                     )
                     LOG.warning(
@@ -239,6 +258,18 @@ class ADTPulseAlarmPanel:
             bool: True if arm succeeded
         """
         return self._sync_set_alarm_mode(connection, ADT_ALARM_AWAY, force_arm)
+
+    @typechecked
+    def arm_night(self, connection: PulseConnection, force_arm: bool = False) -> bool:
+        """Arm the alarm in Night mode.
+
+        Args:
+            force_arm (bool, Optional): force system to arm
+
+        Returns:
+            bool: True if arm succeeded
+        """
+        return self._sync_set_alarm_mode(connection, ADT_ALARM_NIGHT, force_arm)
 
     @typechecked
     def arm_home(self, connection: PulseConnection, force_arm: bool = False) -> bool:
@@ -289,6 +320,19 @@ class ADTPulseAlarmPanel:
         return await self._arm(connection, ADT_ALARM_HOME, force_arm)
 
     @typechecked
+    async def async_arm_night(
+        self, connection: PulseConnection, force_arm: bool = False
+    ) -> bool:
+        """Arm alarm night async.
+
+        Args:
+            force_arm (bool, Optional): force system to arm
+        Returns:
+            bool: True if arm succeeded
+        """
+        return await self._arm(connection, ADT_ALARM_NIGHT, force_arm)
+
+    @typechecked
     async def async_disarm(self, connection: PulseConnection) -> bool:
         """Disarm alarm async.
 
@@ -313,37 +357,33 @@ class ADTPulseAlarmPanel:
         value = summary_html_etree.find(".//span[@class='p_boldNormalTextLarge']")
         sat_location = "security_button_0"
         with self._state_lock:
+            status_found = False
+            last_updated = int(time())
             if value is not None:
                 text = value.text_content().lstrip().splitlines()[0]
-                last_updated = int(time())
 
-                if text.startswith("Disarmed"):
-                    if (
-                        self._status != ADT_ALARM_ARMING
-                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                    ):
-                        self._status = ADT_ALARM_OFF
-                        self._last_arm_disarm = last_updated
-                elif text.startswith("Armed Away"):
-                    if (
-                        self._status != ADT_ALARM_DISARMING
-                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                    ):
-                        self._status = ADT_ALARM_AWAY
-                        self._last_arm_disarm = last_updated
-                elif text.startswith("Armed Stay"):
-                    if (
-                        self._status != ADT_ALARM_DISARMING
-                        or last_updated - self._last_arm_disarm > ADT_ARM_DISARM_TIMEOUT
-                    ):
-                        self._status = ADT_ALARM_HOME
-                        self._last_arm_disarm = last_updated
-                else:
+                for (
+                    current_status,
+                    possible_statuses,
+                ) in ALARM_POSSIBLE_STATUS_MAP.items():
+                    if text.startswith(current_status):
+                        status_found = True
+                        if (
+                            self._status != possible_statuses[1]
+                            or last_updated - self._last_arm_disarm
+                            > ADT_ARM_DISARM_TIMEOUT
+                        ):
+                            self._status = possible_statuses[0]
+                            self._last_arm_disarm = last_updated
+                        break
+
+            if value is None or not status_found:
+                if not text.startswith("Status Unavailable"):
                     LOG.warning("Failed to get alarm status from '%s'", text)
-                    self._status = ADT_ALARM_UNKNOWN
-                    self._last_arm_disarm = last_updated
-                    return
-                LOG.debug("Alarm status = %s", self._status)
+                self._status = ADT_ALARM_UNKNOWN
+                self._last_arm_disarm = last_updated
+                return
+            LOG.debug("Alarm status = %s", self._status)
             sat_string = f'.//input[@id="{sat_location}"]'
             sat_button = summary_html_etree.find(sat_string)
             if sat_button is not None and "onclick" in sat_button.attrib:
@@ -351,13 +391,10 @@ class ADTPulseAlarmPanel:
                 match = re.search(r"sat=([a-z0-9\-]+)", on_click)
                 if match:
                     self._sat = match.group(1)
-            elif len(self._sat) == 0:
-                LOG.warning("No sat recorded and was unable extract sat.")
-
-            if len(self._sat) > 0:
-                LOG.debug("Extracted sat = %s", self._sat)
+            if not self._sat:
+                LOG.warning("No sat recorded and was unable to extract sat.")
             else:
-                LOG.warning("Unable to extract sat")
+                LOG.debug("Extracted sat = %s", self._sat)
 
     @typechecked
     def set_alarm_attributes(self, alarm_attributes: dict[str, str]) -> None:
