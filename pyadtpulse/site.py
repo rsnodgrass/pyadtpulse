@@ -78,6 +78,13 @@ class ADTPulseSite(ADTPulseSiteProperties):
             self._pulse_connection, force_arm=force_arm
         )
 
+    @typechecked
+    async def async_arm_night(self, force_arm: bool = False) -> bool:
+        """Arm system away async."""
+        return await self.alarm_control_panel.async_arm_night(
+            self._pulse_connection, force_arm=force_arm
+        )
+
     async def async_disarm(self) -> bool:
         """Disarm system async."""
         return await self.alarm_control_panel.async_disarm(self._pulse_connection)
