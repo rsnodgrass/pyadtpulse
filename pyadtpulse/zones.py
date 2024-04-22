@@ -1,11 +1,14 @@
 """ADT Pulse zone info."""
+
 import logging
 from collections import UserDict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Tuple, TypedDict
+from typing import TypedDict
 
-ADT_NAME_TO_DEFAULT_TAGS = {
+from typeguard import typechecked
+
+ADT_NAME_TO_DEFAULT_TAGS: dict[str, tuple[str, str]] = {
     "Door": ("sensor", "doorWindow"),
     "Window": ("sensor", "doorWindow"),
     "Motion": ("sensor", "motion"),
@@ -38,10 +41,34 @@ class ADTPulseZoneData:
 
     name: str
     id_: str
-    tags: Tuple = ADT_NAME_TO_DEFAULT_TAGS["Window"]
+    _tags: tuple[str, str] = ADT_NAME_TO_DEFAULT_TAGS["Window"]
     status: str = "Unknown"
     state: str = "Unknown"
-    last_activity_timestamp: int = 0
+    _last_activity_timestamp: int = 0
+
+    @property
+    def last_activity_timestamp(self) -> int:
+        """Return the last activity timestamp."""
+        return self._last_activity_timestamp
+
+    @last_activity_timestamp.setter
+    @typechecked
+    def last_activity_timestamp(self, value: int) -> None:
+        """Set the last activity timestamp."""
+        self._last_activity_timestamp = value
+
+    @property
+    def tags(self) -> tuple[str, str]:
+        """Return the tags."""
+        return self._tags
+
+    @tags.setter
+    @typechecked
+    def tags(self, value: tuple[str, str]) -> None:
+        """Set the tags."""
+        if value not in ADT_NAME_TO_DEFAULT_TAGS.values():
+            raise ValueError("tags must be one of: " + str(ADT_NAME_TO_DEFAULT_TAGS))
+        self._tags = value
 
 
 class ADTPulseFlattendZone(TypedDict):
@@ -60,7 +87,7 @@ class ADTPulseFlattendZone(TypedDict):
     zone: int
     name: str
     id_: str
-    tags: Tuple
+    tags: tuple
     status: str
     state: str
     last_activity_timestamp: int
@@ -112,6 +139,7 @@ class ADTPulseZones(UserDict):
             value.name = "Sensor for Zone " + str(key)
         super().__setitem__(key, value)
 
+    @typechecked
     def update_status(self, key: int, status: str) -> None:
         """Update zone status.
 
@@ -123,6 +151,7 @@ class ADTPulseZones(UserDict):
         temp.status = status
         self.__setitem__(key, temp)
 
+    @typechecked
     def update_state(self, key: int, state: str) -> None:
         """Update zone state.
 
@@ -134,6 +163,7 @@ class ADTPulseZones(UserDict):
         temp.state = state
         self.__setitem__(key, temp)
 
+    @typechecked
     def update_last_activity_timestamp(self, key: int, dt: datetime) -> None:
         """Update timestamp.
 
@@ -145,6 +175,7 @@ class ADTPulseZones(UserDict):
         temp.last_activity_timestamp = int(dt.timestamp())
         self.__setitem__(key, temp)
 
+    @typechecked
     def update_device_info(
         self,
         key: int,
@@ -170,13 +201,13 @@ class ADTPulseZones(UserDict):
         temp.last_activity_timestamp = int(last_activity.timestamp())
         self.__setitem__(key, temp)
 
-    def flatten(self) -> List[ADTPulseFlattendZone]:
+    def flatten(self) -> list[ADTPulseFlattendZone]:
         """Flattens ADTPulseZones into a list of ADTPulseFlattenedZones.
 
         Returns:
             List[ADTPulseFlattendZone]
         """
-        result: List[ADTPulseFlattendZone] = []
+        result: list[ADTPulseFlattendZone] = []
         for k, i in self.items():
             if not isinstance(i, ADTPulseZoneData):
                 raise ValueError("Invalid Zone data in ADTPulseZones")
@@ -193,41 +224,42 @@ class ADTPulseZones(UserDict):
             )
         return result
 
+    @typechecked
     def update_zone_attributes(self, dev_attr: dict[str, str]) -> None:
         """Update zone attributes."""
-        dName = dev_attr.get("name", "Unknown")
-        dType = dev_attr.get("type_model", "Unknown")
-        dZone = dev_attr.get("zone", "Unknown")
-        dStatus = dev_attr.get("status", "Unknown")
+        d_name = dev_attr.get("name", "Unknown")
+        d_type = dev_attr.get("type_model", "Unknown")
+        d_zone = dev_attr.get("zone", "Unknown")
+        d_status = dev_attr.get("status", "Unknown")
 
-        if dZone != "Unknown":
+        if d_zone != "Unknown":
             tags = None
             for search_term, default_tags in ADT_NAME_TO_DEFAULT_TAGS.items():
                 # convert to uppercase first
-                if search_term.upper() in dType.upper():
+                if search_term.upper() in d_type.upper():
                     tags = default_tags
                     break
             if not tags:
                 LOG.warning(
-                    "Unknown sensor type for '%s', defaulting to doorWindow", dType
+                    "Unknown sensor type for '%s', defaulting to doorWindow", d_type
                 )
                 tags = ("sensor", "doorWindow")
             LOG.debug(
                 "Retrieved sensor %s id: sensor-%s Status: %s, tags %s",
-                dName,
-                dZone,
-                dStatus,
+                d_name,
+                d_zone,
+                d_status,
                 tags,
             )
-            if "Unknown" in (dName, dStatus, dZone) or not dZone.isdecimal():
+            if "Unknown" in (d_name, d_status, d_zone) or not d_zone.isdecimal():
                 LOG.debug("Zone data incomplete, skipping...")
             else:
-                tmpzone = ADTPulseZoneData(dName, f"sensor-{dZone}", tags, dStatus)
-                self.update({int(dZone): tmpzone})
+                tmpzone = ADTPulseZoneData(d_name, f"sensor-{d_zone}", tags, d_status)
+                self.update({int(d_zone): tmpzone})
         else:
             LOG.debug(
                 "Skipping incomplete zone name: %s, zone: %s status: %s",
-                dName,
-                dZone,
-                dStatus,
+                d_name,
+                d_zone,
+                d_status,
             )

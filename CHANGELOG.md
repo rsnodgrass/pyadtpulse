@@ -1,3 +1,64 @@
+## 1.2.9 (2024-04-21)
+
+* ignore query string in check_login_errors().  This should fix a bug where the task was logged out
+  but not correctly being identified
+* remove unnecessary warning in alarm status check
+* add arm night
+* refactor update_alarm_from_etree()
+* bump to newer user agent
+* skip sync check if it will back off
+* fix linter issue in _initialize_sites
+
+## 1.2.8 (2024-03-07)
+
+* add more detail to "invalid sync check" error logging
+* don't exit sync check task on service temporarily unavailable or invalid login
+* don't use empty site id for logins
+
+## 1.2.7 (2024-02-23)
+
+* catch site is None on logout to prevent "have you logged in" errors
+* speed improvements via aiohttp-zlib-ng
+
+## 1.2.6 (2024-02-23)
+
+Performance improvements including:
+
+* switch from BeautifulSoup to lxml for faster parsing
+* optimize zone parsing to only update zones which have changed
+* change wait_for_update() to pass the changed zones/alarm state to caller
+
+## 1.2.5 (2024-02-10)
+
+* don't raise not logged in exception when sync check task logs out
+* change full logout interval to approximately every 6 hours
+
+## 1.2.4 (2024-02-08)
+
+* change yarl dependencies
+
+## 1.2.3 (2024-02-08)
+
+* change aiohttp dependencies
+
+## 1.2.2 (2024-02-07)
+
+* add yarl as dependency
+
+## 1.2.1 (2024-02-07)
+
+* add timing loggin for zone/site updates
+* do full logout once per day
+* have keepalive task wait for sync check task to sleep before logging out
+
+## 1.2.0 (2024-01-30)
+
+* add exceptions and exception handling
+* make code more robust for error handling
+* refactor code into smaller objects
+* add testing framework
+* add poetry
+
 ## 1.1.5 (2023-12-22)
 
 * fix more zone html parsing due to changes in Pulse v27
