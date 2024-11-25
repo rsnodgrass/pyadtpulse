@@ -7,8 +7,7 @@ import asyncio
 import json
 import sys
 from pprint import pprint
-from time import sleep
-from typing import Dict, Optional
+from time import sleep, time
 
 from pyadtpulse import PyADTPulse
 from pyadtpulse.const import (
@@ -18,8 +17,17 @@ from pyadtpulse.const import (
     API_HOST_CA,
     DEFAULT_API_HOST,
 )
+from pyadtpulse.exceptions import (
+    PulseAuthenticationError,
+    PulseClientConnectionError,
+    PulseConnectionError,
+    PulseGatewayOfflineError,
+    PulseLoginException,
+    PulseServerConnectionError,
+    PulseServiceTemporarilyUnavailableError,
+)
+from pyadtpulse.pyadtpulse_async import PyADTPulseAsync
 from pyadtpulse.site import ADTPulseSite
-from pyadtpulse.util import AuthenticationException
 
 USER = "adtpulse_user"
 PASSWD = "adtpulse_password"
@@ -33,14 +41,22 @@ KEEPALIVE_INTERVAL = "keepalive_interval"
 RELOGIN_INTERVAL = "relogin_interval"
 SERVICE_HOST = "service_host"
 POLL_INTERVAL = "poll_interval"
+DETAILED_DEBUG_LOGGING = "detailed_debug_logging"
 
-BOOLEAN_PARAMS = {USE_ASYNC, DEBUG_LOCKS, PULSE_DEBUG, TEST_ALARM}
+BOOLEAN_PARAMS = {
+    USE_ASYNC,
+    DEBUG_LOCKS,
+    PULSE_DEBUG,
+    TEST_ALARM,
+    DETAILED_DEBUG_LOGGING,
+}
 INT_PARAMS = {SLEEP_INTERVAL, KEEPALIVE_INTERVAL, RELOGIN_INTERVAL}
 FLOAT_PARAMS = {POLL_INTERVAL}
 
 # Default values
 DEFAULT_USE_ASYNC = True
 DEFAULT_DEBUG = False
+DEFAULT_DETAILED_DEBUG_LOGGING = False
 DEFAULT_TEST_ALARM = False
 DEFAULT_SLEEP_INTERVAL = 5
 DEFAULT_DEBUG_LOCKS = False
@@ -95,6 +111,12 @@ def handle_args() -> argparse.Namespace:
         type=bool,
         default=None,
         help="Set True to enable debugging",
+    )
+    parser.add_argument(
+        f"--{DETAILED_DEBUG_LOGGING}",
+        type=bool,
+        default=None,
+        help="Set True to enable detailed debug logging",
     )
     parser.add_argument(
         f"--{TEST_ALARM}",
@@ -162,6 +184,11 @@ def handle_args() -> argparse.Namespace:
         args.debug_locks if args.debug_locks is not None else DEFAULT_DEBUG_LOCKS
     )
     args.debug = args.debug if args.debug is not None else DEFAULT_DEBUG
+    args.detailed_debug_logging = (
+        args.detailed_debug_logging
+        if args.detailed_debug_logging is not None
+        else DEFAULT_DETAILED_DEBUG_LOGGING
+    )
     args.test_alarm = (
         args.test_alarm if args.test_alarm is not None else DEFAULT_TEST_ALARM
     )
@@ -189,7 +216,7 @@ def handle_args() -> argparse.Namespace:
     return args
 
 
-def load_parameters_from_json(json_file: str) -> Optional[Dict]:
+def load_parameters_from_json(json_file: str) -> dict | None:
     """Load parameters from a JSON file.
 
     Args:
@@ -353,6 +380,7 @@ def sync_example(
     poll_interval: float,
     keepalive_interval: int,
     relogin_interval: int,
+    detailed_debug_logging: bool,
 ) -> None:
     """Run example of sync pyadtpulse calls.
 
@@ -365,23 +393,37 @@ def sync_example(
         debug_locks: bool: True to enable thread lock debugging
         keepalive_interval (int): keepalive interval in minutes
         relogin_interval (int): relogin interval in minutes
+        detailed_debug_logging (bool): True to enable detailed debug logging
     """
-    try:
-        adt = PyADTPulse(
-            username,
-            password,
-            fingerprint,
-            debug_locks=debug_locks,
-            keepalive_interval=keepalive_interval,
-            relogin_interval=relogin_interval,
-        )
-    except AuthenticationException:
-        print("Invalid credentials for ADT Pulse site")
-        sys.exit()
-    except BaseException as e:
-        print("Received exception logging into ADT Pulse site")
-        print(f"{e}")
-        sys.exit()
+    while True:
+        try:
+            adt = PyADTPulse(
+                username,
+                password,
+                fingerprint,
+                debug_locks=debug_locks,
+                keepalive_interval=keepalive_interval,
+                relogin_interval=relogin_interval,
+                detailed_debug_logging=detailed_debug_logging,
+            )
+            break
+        except PulseLoginException as e:
+            print(f"ADT Pulse login failed with authentication error: {e}")
+            return
+        except (PulseClientConnectionError, PulseServerConnectionError) as e:
+            backoff_interval = e.backoff.get_current_backoff_interval()
+            print(
+                f"ADT Pulse login failed with connection error: {e}, retrying in {backoff_interval} seconds"
+            )
+            sleep(backoff_interval)
+            continue
+        except PulseServiceTemporarilyUnavailableError as e:
+            backoff_interval = e.backoff.expiration_time - time()
+            print(
+                f"ADT Pulse login failed with service unavailable error: {e}, retrying in {backoff_interval} seconds"
+            )
+            sleep(backoff_interval)
+            continue
 
     if not adt.is_connected:
         print("Error: Could not log into ADT Pulse site")
@@ -406,15 +448,33 @@ def sync_example(
         test_alarm(adt.site, adt)
 
     done = False
+    have_exception = False
     while not done:
         try:
-            print_site(adt.site)
-            print("----")
-            if not adt.site.zones:
-                print("Error, no zones exist, exiting...")
+            if not have_exception:
+                print_site(adt.site)
+                print("----")
+                if not adt.site.zones:
+                    print("Error, no zones exist, exiting...")
+                    done = True
+                    break
+            have_updates = False
+            try:
+                have_updates = adt.updates_exist
+                have_exception = False
+            except PulseGatewayOfflineError:
+                print("ADT Pulse gateway is offline, re-polling")
+                have_exception = True
+                continue
+            except PulseConnectionError as ex:
+                print("ADT Pulse connection error: %s, re-polling", ex.args[0])
+                have_exception = True
+                continue
+            except PulseAuthenticationError as ex:
+                print("ADT Pulse authentication error: %s, exiting...", ex.args[0])
                 done = True
                 break
-            if adt.updates_exist:
+            if have_updates and not have_exception:
                 print("Updates exist, refreshing")
                 # Don't need to explicitly call update() anymore
                 # Background thread will already have updated
@@ -450,7 +510,8 @@ async def async_test_alarm(adt: PyADTPulse) -> None:
             print("Arming stay pending check succeeded")
         else:
             print(
-                f"FAIL: Arming home pending check failed {adt.site.alarm_control_panel} "
+                "FAIL: Arming home pending check failed "
+                f"{adt.site.alarm_control_panel} "
             )
         await adt.wait_for_update()
         if adt.site.alarm_control_panel.is_home:
@@ -459,7 +520,6 @@ async def async_test_alarm(adt: PyADTPulse) -> None:
             while not adt.site.alarm_control_panel.is_home:
                 pprint(f"FAIL: Arm stay value incorrect {adt.site.alarm_control_panel}")
                 await adt.wait_for_update()
-
         print("Testing invalid alarm state change from armed home to armed away")
         if await adt.site.async_arm_away():
             print(
@@ -498,7 +558,7 @@ async def async_test_alarm(adt: PyADTPulse) -> None:
                     f"{adt.site.alarm_control_panel}"
                 )
                 await adt.wait_for_update()
-            print("Test finally succeeded")
+        print("Test finally succeeded")
         print("Testing disarming twice")
         if await adt.site.async_disarm():
             print("Double disarm call succeeded")
@@ -521,7 +581,7 @@ async def async_test_alarm(adt: PyADTPulse) -> None:
                     f"{adt.site.alarm_control_panel}"
                 )
                 await adt.wait_for_update()
-            print("Test finally succeeded")
+        print("Test finally succeeded")
     else:
         print("Disarming failed")
     print("Arming alarm away")
@@ -541,7 +601,7 @@ async def async_test_alarm(adt: PyADTPulse) -> None:
                     "f{adt.site.alarm_control_panel}"
                 )
                 await adt.wait_for_update()
-            print("Test finally succeeded")
+        print("Test finally succeeded")
     else:
         print("Arm away failed")
     await adt.site.async_disarm()
@@ -557,6 +617,7 @@ async def async_example(
     poll_interval: float,
     keepalive_interval: int,
     relogin_interval: int,
+    detailed_debug_logging: bool,
 ) -> None:
     """Run example of pytadtpulse async usage.
 
@@ -569,20 +630,39 @@ async def async_example(
         poll_interval (float): polling interval in seconds
         keepalive_interval (int): keepalive interval in minutes
         relogin_interval (int): relogin interval in minutes
+        detailed_debug_logging (bool): enable detailed debug logging
     """
-    adt = PyADTPulse(
+    adt = PyADTPulseAsync(
         username,
         password,
         fingerprint,
-        do_login=False,
         debug_locks=debug_locks,
         keepalive_interval=keepalive_interval,
         relogin_interval=relogin_interval,
+        detailed_debug_logging=detailed_debug_logging,
     )
 
-    if not await adt.async_login():
-        print("ADT Pulse login failed")
-        return
+    while True:
+        try:
+            await adt.async_login()
+            break
+        except PulseLoginException as e:
+            print(f"ADT Pulse login failed with authentication error: {e}")
+            return
+        except (PulseClientConnectionError, PulseServerConnectionError) as e:
+            backoff_interval = e.backoff.get_current_backoff_interval()
+            print(
+                f"ADT Pulse login failed with connection error: {e}, retrying in {backoff_interval} seconds"
+            )
+            await asyncio.sleep(backoff_interval)
+            continue
+        except PulseServiceTemporarilyUnavailableError as e:
+            backoff_interval = e.backoff.expiration_time - time()
+            print(
+                f"ADT Pulse login failed with service unavailable error: {e}, retrying in {backoff_interval} seconds"
+            )
+            await asyncio.sleep(backoff_interval)
+            continue
 
     if not adt.is_connected:
         print("Error: could not log into ADT Pulse site")
@@ -604,20 +684,44 @@ async def async_example(
         await async_test_alarm(adt)
 
     done = False
+    have_exception = False
     while not done:
+        updated_zones: set[int] = set()
+        alarm_updated = False
         try:
-            print(f"Gateway online: {adt.site.gateway.is_online}")
-            print_site(adt.site)
-            print("----")
-            if not adt.site.zones:
-                print("No zones exist, exiting...")
+            if not have_exception:
+                print(f"Gateway online: {adt.site.gateway.is_online}")
+                print_site(adt.site)
+                print("----")
+                if not adt.site.zones:
+                    print("No zones exist, exiting...")
+                    done = True
+                    break
+                print("\nZones:")
+                pprint(adt.site.zones, compact=True)
+            try:
+                (alarm_updated, updated_zones) = await adt.wait_for_update()
+                have_exception = False
+            except PulseGatewayOfflineError as ex:
+                print(
+                    f"ADT Pulse gateway is offline, re-polling in {ex.backoff.get_current_backoff_interval()}"
+                )
+                have_exception = True
+                continue
+            except (PulseClientConnectionError, PulseServerConnectionError) as ex:
+                print(
+                    f"ADT Pulse connection error: {ex.args[0]}, re-polling in {ex.backoff.get_current_backoff_interval()}"
+                )
+                have_exception = True
+                continue
+            except PulseAuthenticationError as ex:
+                print("ADT Pulse authentication error: %s, exiting...", ex.args[0])
                 done = True
                 break
-            print("\nZones:")
-            pprint(adt.site.zones, compact=True)
-            await adt.wait_for_update()
-            print("Updates exist, refreshing")
-            # no need to call an update method
+            print(
+                f"Updates exist: alarm: {alarm_updated}, zones: {updated_zones}, refreshing",
+            )
+        # no need to call an update method
         except KeyboardInterrupt:
             print("exiting...")
             done = True
@@ -656,6 +760,7 @@ def main():
             args.poll_interval,
             args.keepalive_interval,
             args.relogin_interval,
+            args.detailed_debug_logging,
         )
     else:
         asyncio.run(
@@ -668,6 +773,7 @@ def main():
                 args.poll_interval,
                 args.keepalive_interval,
                 args.relogin_interval,
+                args.detailed_debug_logging,
             )
         )
 

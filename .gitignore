@@ -10,3 +10,4 @@ __pycache__
 .mypy_cache
 *.swp
 .vscode/settings.json
+.coverage

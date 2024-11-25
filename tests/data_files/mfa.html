@@ -1,0 +1,150 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/myhome/27.0.0-140/mfa/reactApp.css"/>
+<script type="text/javascript" src="/myhome/27.0.0-140/icjs/ajaxUpdate.js"></script>
+
+
+<script type="text/javascript" src="/myhome/27.0.0-140/icjs/commons_en_US.js"></script>
+<script type="text/javascript" src="/myhome/27.0.0-140/icjs/portal_en_US.js"></script>
+    <script type="text/javascript">
+      // g.isSessionTimeoutAllowed is set in browserSpecificHtmlTag.template
+      // by setting mfaSignIn here, it causes g.isSessionTimeoutAllowed to become false, which disables
+      // the session countdown dialog
+      window.mfaSigninInProgress = true;
+
+      window.addEventListener('DOMContentLoaded', function(event) {
+        setInterval(function() {
+          checkSessionTimeout();
+        }, 60000);
+      });
+
+      // callback functions for React App
+      function returnToPortalCb() {
+        window.location.href = "../access/PostSigninProcessServ";
+      }
+
+      function returnToSignInCb(error) {
+        // error that is passed to signin.jsp page:
+        //   "ns": for session timeout (STR.SIGN_IN.NOT_SIGNED_IN_OR_INACTIVE)
+        //   "un": for unexpected error (STR.SIGN_IN.SIGNED_OUT.UNEXPECTED_CONDITION)
+        if (error && (error === "ns" || error === "un")) {
+          window.location.href = "../access/signout.jsp?e=" + error;
+        } else {
+          window.location.href = "../access/signout.jsp";
+        }
+      }
+    </script>
+
+
+
+
+
+
+
+
+
+
+
+
+    <html id="CHROME" class="v121" lang="en-US">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="viewport" content="width=device-width, maximum-scale=1.0, user-scalable=no"/>
+        <script type="text/javascript" src="/myhome/ruxitagentjs_ICA27NVfhjqrux_10279231130031246.js" data-dtconfig="app=2e9fa82c268e1763|featureHash=ICA27NVfhjqrux|vcv=2|rdnt=1|uxrgce=1|bp=3|cuc=9nbkmfqd|mel=100000|dpvc=1|md=mdcc1=ahead ^rb script:nth-child(4),mdcc2=a#header-container ^rb div.p_headerShim ^rb div ^rb div.p_headerWelcomeStyle ^rb span:nth-child(1) ^rb a,mdcc3=cX-token,mdcc4=a#fp,mdcc5=a#signin,mdcc6=cX-login|ssv=4|lastModification=1701906297633|mdp=mdcc3|tp=500,50,0,1|agentUri=/myhome/ruxitagentjs_ICA27NVfhjqrux_10279231130031246.js|reportUrl=/myhome/rb_bf89193cya|rid=RID_128791899|rpid=-1025867267|domain=adtpulse.com"></script><link rel="stylesheet" type="text/css" href="/myhome/27.0.0-140/styles/portal.css" />
+        <link rel="stylesheet" type="text/css" href="/z/branding/adt/27.0.0/styles/portalCustomizable.css" />
+        <script type="text/javascript" src="/myhome/27.0.0-140/icjs/general.js"></script>
+        <script type="text/javascript">g.domain="portal.adtpulse.com";</script>
+        <script type="text/javascript">g.contextPath="/myhome/27.0.0-140";</script>
+        <script type="text/javascript">if (typeof mfaSigninInProgress !== 'undefined') { g.isSessionTimeoutAllowed = false; } else { g.isSessionTimeoutAllowed = false }</script>
+        <script type="text/javascript">g.webApplicationContext="/myhome/27.0.0-140";</script>
+
+        <script type="text/javascript" src="/myhome/27.0.0-140/appcmn/ic_helper/ic_helper.js"></script>
+        <script type="text/javascript" src="/myhome/27.0.0-140/icjs/icDialog.js"></script>
+        <script type="text/javascript" src="/myhome/27.0.0-140/icjs/access.js"></script>
+        <title>
+            ADT Pulse(TM) Interactive Solutions - Multi-factor Authentication
+        </title>
+        <style>a, div, table, td, tr, span, .bidi, .BIDI, .BiDi {direction: LTR;}</style>
+    </head>
+    <body class="p_preSignInWindowBody p_preSignInWindowBodyResponsive signinContent" topmargin="0" leftmargin="0" marginheight="0" marginwidth="0"
+              onload="" >
+
+        <div class="responsiveContainer">
+        	<div class="raisedBox">
+        		<div class="whiteBox">
+        		    <header class="p_headerShim2">
+        		        <div class="p_signinLogoStyle">
+
+
+
+
+
+                                <a href="http://www.adt.com" target="_blank" title="ADT Pulse" class="displayInlineBlock" style="width:fit-content;">
+
+                                <div class="p_customLogo"></div>
+
+
+                                </a>
+
+                         </div>
+                    </header>
+
+
+
+<script type="text/javascript">
+  const workflow = "challenge";
+  window.g.mfa = {
+    xToken: '',
+    xPreAuthToken: '921F1D197D5F6B96D421DEA1DCE58C177CE853976D11852D5B7A16479BD10BA35E3DD86BB677F0889A2C93767D46F7593650A66A15E14D039E213173B1B1ECC49148F5507C65E9FF93C9B26A971CC468C1AEDDBCA1FC7BD357489330AFA727B2A92938FE3E36C4AA9325A0AA572554248E57017B5CD8AFFA5E062AD20C4C9648',
+    xLogin: "robert.lippmann.development@gmail.com",
+    userEmail: "robert.lippmann.development@gmail.com",
+    xClientType: "web",
+    env: "prod",
+    locale: "en_US",
+    partner: "adt",
+    sat: '48f4fa5b-dc92-4a3e-a781-b95fa24a8725',
+    proxyServletUrl: "/nga/serv/RunRRAProxy",
+    rootAddress: "",
+    workflow: workflow,
+    shouldForceMfaSetup: null,
+    supportPhoneNumber: "1 (800) 251-9581",
+    mockApi: false,
+    testCase: 0,
+    returnToPortalCb: returnToPortalCb
+  };
+
+  if (workflow === 'challenge' || workflow === 'initialSetup') {
+    // callback only for mfa sign in
+    window.g.mfa.returnToSignInCb = returnToSignInCb;
+  } else {
+    // callbacks only for mfa settings hosted in dialog
+    window.g.mfa.isDataLoadedCb = resizeAndRecenterDialog;
+    window.g.mfa.resizeDialogCb = resizeDialog;
+    window.g.mfa.registerDismissCallback = window.parent.registerDismissCallback;
+  }
+</script>
+
+<div id="reactRoot"></div>
+
+<script type="text/javascript" src="/myhome/27.0.0-140/mfa/reactApp.js"></script>
+
+                </div>
+		</div>
+     </div>
+     <footer class="responsiveContainer">
+        <span class="p_smallCommentText"><a class="p_footerLink" href="http://www.adt.com" target="_blank" title="ADT Security Services">ADT Security Services</a>
+            <span class="p_footerDivider"> | </span><a class="p_footerLink" href="https://www.adt.com/about-adt/legal/privacy-policy" target="_blank" title="Privacy Policy">Privacy Policy</a>
+            <span class="p_footerDivider"> | </span><a class="p_footerLink" href="https://www.adt.com/about-adt/legal/adt-pulse-terms-of-use" target="_blank" title="ADT Pulse Terms of Use">ADT Pulse Terms of Use</a>
+            <span class="p_footerDivider"> | </span><a class="p_footerLink" href="https://www.adt.com/help" target="_blank" title="Customer Support">Customer Support</a>
+            </span>
+	</footer>
+</body>
+</html>

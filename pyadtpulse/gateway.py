@@ -1,12 +1,16 @@
 """ADT Pulse Gateway Dataclass."""
 
 import logging
+import re
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from threading import RLock
-from typing import Any, Optional
+from typing import Any
 
-from .const import ADT_DEFAULT_POLL_INTERVAL, ADT_GATEWAY_OFFLINE_POLL_INTERVAL
+from typeguard import typechecked
+
+from .const import ADT_DEFAULT_POLL_INTERVAL, ADT_GATEWAY_MAX_OFFLINE_POLL_INTERVAL
+from .pulse_backoff import PulseBackoff
 from .util import parse_pulse_datetime
 
 LOG = logging.getLogger(__name__)
@@ -41,25 +45,26 @@ class ADTPulseGateway:
 
     manufacturer: str = "Unknown"
     _status_text: str = "OFFLINE"
-    _current_poll_interval: float = ADT_DEFAULT_POLL_INTERVAL
-    _initial_poll_interval: float = ADT_DEFAULT_POLL_INTERVAL
+    backoff = PulseBackoff(
+        "Gateway", ADT_DEFAULT_POLL_INTERVAL, ADT_GATEWAY_MAX_OFFLINE_POLL_INTERVAL
+    )
     _attribute_lock = RLock()
-    model: Optional[str] = None
-    serial_number: Optional[str] = None
+    model: str | None = None
+    serial_number: str | None = None
     next_update: int = 0
     last_update: int = 0
-    firmware_version: Optional[str] = None
-    hardware_version: Optional[str] = None
-    primary_connection_type: Optional[str] = None
-    broadband_connection_status: Optional[str] = None
-    cellular_connection_status: Optional[str] = None
-    cellular_connection_signal_strength: float = 0.0
-    broadband_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
-    broadband_lan_mac: Optional[str] = None
-    device_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
-    device_lan_mac: Optional[str] = None
-    router_lan_ip_address: Optional[IPv4Address | IPv6Address] = None
-    router_wan_ip_address: Optional[IPv4Address | IPv6Address] = None
+    firmware_version: str | None = None
+    hardware_version: str | None = None
+    primary_connection_type: str | None = None
+    broadband_connection_status: str | None = None
+    cellular_connection_status: str | None = None
+    _cellular_connection_signal_strength: float = 0.0
+    broadband_lan_ip_address: IPv4Address | IPv6Address | None = None
+    _broadband_lan_mac: str | None = None
+    device_lan_ip_address: IPv4Address | IPv6Address | None = None
+    _device_lan_mac: str | None = None
+    router_lan_ip_address: IPv4Address | IPv6Address | None = None
+    router_wan_ip_address: IPv4Address | IPv6Address | None = None
 
     @property
     def is_online(self) -> bool:
@@ -72,87 +77,100 @@ class ADTPulseGateway:
             return self._status_text == "ONLINE"
 
     @is_online.setter
+    @typechecked
     def is_online(self, status: bool) -> None:
         """Set gateway status.
 
         Args:
             status (bool): True if gateway is online
-
-        Also changes the polling intervals
         """
         with self._attribute_lock:
             if status == self.is_online:
                 return
-
+            old_status = self._status_text
             self._status_text = "ONLINE"
             if not status:
                 self._status_text = "OFFLINE"
-                self._current_poll_interval = ADT_GATEWAY_OFFLINE_POLL_INTERVAL
-            else:
-                self._current_poll_interval = self._initial_poll_interval
 
             LOG.info(
-                "ADT Pulse gateway %s, poll interval=%f",
+                "ADT Pulse gateway %s",
                 self._status_text,
-                self._current_poll_interval,
+            )
+            if old_status == "OFFLINE":
+                self.backoff.reset_backoff()
+            LOG.debug(
+                "Gateway poll interval: %d",
+                (
+                    self.backoff.initial_backoff_interval
+                    if self._status_text == "ONLINE"
+                    else self.backoff.get_current_backoff_interval()
+                ),
             )
 
     @property
     def poll_interval(self) -> float:
-        """Set polling interval.
-
-        Returns:
-            float: number of seconds between polls
-        """
+        """Get initial poll interval."""
         with self._attribute_lock:
-            return self._current_poll_interval
+            return self.backoff.initial_backoff_interval
 
     @poll_interval.setter
-    def poll_interval(self, new_interval: Optional[float]) -> None:
-        """Set polling interval.
-
-        Args:
-            new_interval (float): polling interval if gateway is online,
-                if set to None, resets to ADT_DEFAULT_POLL_INTERVAL
-
-        Raises:
-            ValueError: if new_interval is less than 0
-        """
-        if new_interval is None:
-            new_interval = ADT_DEFAULT_POLL_INTERVAL
-        elif new_interval < 0.0:
-            raise ValueError("ADT Pulse polling interval must be greater than 0")
+    @typechecked
+    def poll_interval(self, new_interval: float) -> None:
         with self._attribute_lock:
-            self._initial_poll_interval = new_interval
-            if self._current_poll_interval != ADT_GATEWAY_OFFLINE_POLL_INTERVAL:
-                self._current_poll_interval = new_interval
-            LOG.debug("Set poll interval to %f", self._initial_poll_interval)
+            self.backoff.initial_backoff_interval = new_interval
 
-    def adjust_backoff_poll_interval(self) -> None:
-        """Calculates the backoff poll interval.
+    @staticmethod
+    def _check_mac_address(mac_address: str) -> bool:
+        pattern = r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        return re.match(pattern, mac_address) is not None
 
-        Each call will adjust current_poll interval with exponential backoff,
-        unless gateway is online, in which case, poll interval will be reset to
-        initial_poll interval."""
+    @property
+    def broadband_lan_mac(self) -> str | None:
+        """Get current gateway MAC address."""
+        return self._broadband_lan_mac
 
-        with self._attribute_lock:
-            if self.is_online:
-                self._current_poll_interval = self._initial_poll_interval
-                return
-            # use an exponential backoff
-            self._current_poll_interval = self._current_poll_interval * 2
-            if self._current_poll_interval > ADT_GATEWAY_OFFLINE_POLL_INTERVAL:
-                self._current_poll_interval = ADT_DEFAULT_POLL_INTERVAL
-            LOG.debug(
-                "Setting current poll interval to %f", self._current_poll_interval
-            )
+    @broadband_lan_mac.setter
+    @typechecked
+    def broadband_lan_mac(self, new_mac: str | None) -> None:
+        """Set gateway MAC address."""
+        if new_mac is not None and not self._check_mac_address(new_mac):
+            raise ValueError("Invalid MAC address")
+        self._broadband_lan_mac = new_mac
+
+    @property
+    def device_lan_mac(self) -> str | None:
+        """Get current gateway MAC address."""
+        return self._device_lan_mac
+
+    @device_lan_mac.setter
+    @typechecked
+    def device_lan_mac(self, new_mac: str | None) -> None:
+        """Set gateway MAC address."""
+        if new_mac is not None and not self._check_mac_address(new_mac):
+            raise ValueError("Invalid MAC address")
+        self._device_lan_mac = new_mac
+
+    @property
+    def cellular_connection_signal_strength(self) -> float:
+        """Get current gateway MAC address."""
+        return self._cellular_connection_signal_strength
+
+    @cellular_connection_signal_strength.setter
+    @typechecked
+    def cellular_connection_signal_strength(
+        self, new_signal_strength: float | None
+    ) -> None:
+        """Set gateway MAC address."""
+        if not new_signal_strength:
+            new_signal_strength = 0.0
+        self._cellular_connection_signal_strength = new_signal_strength
 
     def set_gateway_attributes(self, gateway_attributes: dict[str, str]) -> None:
         """Set gateway attributes from dictionary.
 
         Args:
             gateway_attributes (dict[str,str]): dictionary of gateway attributes
-        """ """"""
+        """
         for i in (
             STRING_UPDATEABLE_FIELDS
             + IPADDR_UPDATEABLE_FIELDS
@@ -174,4 +192,5 @@ class ADTPulseGateway:
                     temp = int(parse_pulse_datetime(temp).timestamp())
                 except ValueError:
                     temp = None
-            setattr(self, i, temp)
+            if hasattr(self, i):
+                setattr(self, i, temp)
