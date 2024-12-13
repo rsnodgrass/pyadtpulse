@@ -1,5 +1,5 @@
 lxml>=5.1.0
 aiohttp>=3.9.1
-uvloop>=0.17.0
+uvloop>=0.21.0
 typeguard>=4.1.5
 aiohttp-zlib-ng>=0.1.1
