@@ -4,7 +4,8 @@ import logging
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 import pytest
 from aiohttp import client_exceptions, client_reqrep
@@ -364,7 +365,7 @@ async def test_wait_for_authentication_flag(
     task = asyncio.create_task(query_orb_task(lock))
     try:
         await asyncio.wait_for(query_orb_task(lock), 10)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         task.cancel()
         await task
         # if we time out, the test has passed

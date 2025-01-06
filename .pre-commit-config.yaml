@@ -5,7 +5,7 @@ repos:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.0
+    rev: v3.19.1
     hooks:
     -   id: pyupgrade
         args: [--py39-plus]
@@ -30,11 +30,11 @@ repos:
     hooks:
       - id: refurb
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.0
+    rev: v3.19.1
     hooks:
       - id: pyupgrade
 -   repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: 'v0.8.0'
+    rev: 'v0.8.6'
     hooks:
       - id: ruff
 
