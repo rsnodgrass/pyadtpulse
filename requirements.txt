@@ -3,3 +3,4 @@ aiohttp>=3.9.1
 uvloop>=0.17.0
 typeguard>=4.1.5
 aiohttp-zlib-ng>=0.1.1
+freezegun
