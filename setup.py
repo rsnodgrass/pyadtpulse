@@ -31,7 +31,7 @@ setuptools.setup(
     license="Apache Software License",
     install_requires=[
         "aiohttp>=3.8.5",
-        "uvloop>=0.17.0",
+        "uvloop>=0.21.0",
         "lxml>=5.1.0",
         "typeguard>=2.13.3",
         "yarl>=1.8.2",
