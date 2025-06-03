@@ -126,41 +126,6 @@ def test_set_gateway_attributes_sets_attributes_correctly():
     assert gateway.cellular_connection_signal_strength == 4.5
 
 
-# backoff object can be created with default values and current backoff interval can be retrieved
-def test_default_values2():
-    """
-    Test that ADTPulseGateway object can be created with default values
-    """
-    gateway = ADTPulseGateway()
-    assert gateway.manufacturer == "Unknown"
-    assert gateway._status_text == "OFFLINE"
-    assert gateway.backoff.name == "Gateway"
-    assert gateway.backoff.initial_backoff_interval == ADT_DEFAULT_POLL_INTERVAL
-    assert (
-        gateway.backoff._max_backoff_interval == ADT_GATEWAY_MAX_OFFLINE_POLL_INTERVAL
-    )
-    assert gateway.backoff.backoff_count == 0
-    assert gateway.backoff.expiration_time == 0.0
-    assert gateway.backoff._detailed_debug_logging == False
-    assert gateway.backoff._threshold == 0
-    assert gateway.model == None
-    assert gateway.serial_number == None
-    assert gateway.next_update == 0
-    assert gateway.last_update == 0
-    assert gateway.firmware_version == None
-    assert gateway.hardware_version == None
-    assert gateway.primary_connection_type == None
-    assert gateway.broadband_connection_status == None
-    assert gateway.cellular_connection_status == None
-    assert gateway._cellular_connection_signal_strength == 0.0
-    assert gateway.broadband_lan_ip_address == None
-    assert gateway._broadband_lan_mac == None
-    assert gateway.device_lan_ip_address == None
-    assert gateway._device_lan_mac == None
-    assert gateway.router_lan_ip_address == None
-    assert gateway.router_wan_ip_address == None
-
-
 # backoff object can be incremented and reset correctly
 def test_backoff_increment_and_reset():
     """
